@@ -2,12 +2,12 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
-import { canManageMember, type OfficerLevel } from "@afisa/shared";
+import { canApproveRequest, canManageMember, ROLE_LABELS, type OfficerLevel } from "@afisa/shared";
 import { errorMessage } from "@afisa/ui";
 import { hqClient, useHq } from "../context";
 import { AreaPicker, SectionTags, toTarget, when, type MemberRow } from "./common";
 
-function Decide({ row, onDone }: { row: MemberRow; onDone: () => void }) {
+function Decide({ row, onDone, canApprove }: { row: MemberRow; onDone: () => void; canApprove: boolean }) {
   const { councilId } = useHq();
   const approve = useMutation(api.memberships.approve);
   const reject = useMutation(api.memberships.reject);
@@ -30,29 +30,44 @@ function Decide({ row, onDone }: { row: MemberRow; onDone: () => void }) {
     }
   };
 
+  const officer = !row.requestedRole;
   return (
     <div className="decide">
-      <div className="field">
-        <span>Maeneo ya kazi</span>
-        {row.areaHint && <small>Ameandika: “{row.areaHint}”</small>}
-        <AreaPicker value={areaIds} onChange={setAreaIds} />
-      </div>
-      <fieldset className="field plain">
-        <legend>Ngazi</legend>
-        <div className="chips">
-          <button type="button" className="chip" aria-pressed={level === "vaeo"} onClick={() => setLevel("vaeo")}>Kijiji (VAEO)</button>
-          <button type="button" className="chip" aria-pressed={level === "waeo"} onClick={() => setLevel("waeo")}>Kata (WAEO)</button>
-        </div>
-      </fieldset>
+      {officer ? (
+        <>
+          <div className="field">
+            <span>Maeneo ya kazi</span>
+            {row.areaHint && <small>Ameandika: “{row.areaHint}”</small>}
+            <AreaPicker value={areaIds} onChange={setAreaIds} />
+          </div>
+          <fieldset className="field plain">
+            <legend>Ngazi</legend>
+            <div className="chips">
+              <button type="button" className="chip" aria-pressed={level === "vaeo"} onClick={() => setLevel("vaeo")}>Kijiji (VAEO)</button>
+              <button type="button" className="chip" aria-pressed={level === "waeo"} onClick={() => setLevel("waeo")}>Kata (WAEO)</button>
+            </div>
+          </fieldset>
+        </>
+      ) : (
+        <p>
+          Ukiidhinisha, atakuwa <strong>{ROLE_LABELS[row.requestedRole!].sw}</strong>
+          {row.requestedRole === "section_head" || row.requestedRole === "section_vice" ? " wa sehemu aliyochagua" : ""} na ataweza kutumia makao makuu.
+        </p>
+      )}
       <label className="field">
         <span>Maelezo</span>
         <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Lazima ukikataa ombi" />
       </label>
+      {!canApprove && (
+        <div className="notice notice-wait">
+          <p>{row.requestedRole === "admin" ? "Ombi la Mkuu wa Idara huidhinishwa na msimamizi wa mfumo." : "Huna ruhusa ya kutoa cheo hiki. Unaweza kukataa ombi."}</p>
+        </div>
+      )}
       {error && <div className="notice notice-danger" role="alert"><p>{error}</p></div>}
       <div className="row-actions">
         <button
           className="btn btn-primary"
-          disabled={busy || areaIds.length === 0}
+          disabled={busy || !canApprove || (officer && areaIds.length === 0)}
           onClick={() => void run(() => approve({ councilId, membershipId: row._id, areaIds, level, note: note || undefined, client: hqClient }))}
         >
           Idhinisha
@@ -85,6 +100,7 @@ export function Requests() {
       <ul className="request-list">
         {rows?.map((r) => {
           const allowed = canManageMember(actor, toTarget(r));
+          const canApprove = canApproveRequest(actor, toTarget(r), r.requestedRole);
           const expanded = open === r._id;
           return (
             <li key={r._id} className={`request sec sec-${r.primarySection}`}>
@@ -93,7 +109,11 @@ export function Requests() {
                   <strong className="request-name">{r.name}</strong>
                   <div className="request-meta">
                     <SectionTags sections={r.sections} />
-                    <span>{r.level === "waeo" ? "Kata (WAEO)" : "Kijiji (VAEO)"}</span>
+                    {r.requestedRole ? (
+                      <span className="requested-role">Anaomba: {ROLE_LABELS[r.requestedRole].sw}</span>
+                    ) : (
+                      <span>{r.level === "waeo" ? "Kata (WAEO)" : "Kijiji (VAEO)"}</span>
+                    )}
                     {r.phone && <span>{r.phone}</span>}
                     <span>Aliomba {when(r.requestedAt)}</span>
                   </div>
@@ -106,7 +126,7 @@ export function Requests() {
                   <span className="muted small">Kwa mkuu wa sehemu husika</span>
                 )}
               </div>
-              {expanded && allowed && <Decide row={r} onDone={() => setOpen(null)} />}
+              {expanded && allowed && <Decide row={r} canApprove={canApprove} onDone={() => setOpen(null)} />}
             </li>
           );
         })}

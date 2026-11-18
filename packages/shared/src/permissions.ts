@@ -114,6 +114,18 @@ export function canManageMember(actor: Actor, target: Target): boolean {
   return false;
 }
 
+/**
+ * Approve a pending request. Officers follow canManageMember; a request for an
+ * HQ role (made with the council code) also needs the right to hand out that
+ * role, so only root approves a Head of Department.
+ */
+export function canApproveRequest(actor: Actor, target: Target, requestedRole: Role | null | undefined): boolean {
+  if (target.status !== "pending") return false;
+  if (!canManageMember(actor, target)) return false;
+  const role = requestedRole ?? "officer";
+  return role === "officer" || assignableRoles(actor).includes(role);
+}
+
 /** Roles the actor is allowed to hand out. */
 export function assignableRoles(actor: Actor): Role[] {
   if (actor.isRoot) return ["admin", "moderator", "section_head", "section_vice", "officer"];

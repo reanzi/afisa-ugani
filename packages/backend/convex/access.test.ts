@@ -118,6 +118,59 @@ describe("registration and approval chain", () => {
   });
 });
 
+describe("first deployment and council code sign-up", () => {
+  it("bootstrapRoot creates the account and makes it root, and is safe to repeat", async () => {
+    const t = setup();
+    const msg = await t.action(internal.admin.bootstrapRoot, { username: "900000009", password: "Mzizi-Imara-2026", name: "Msimamizi" });
+    expect(msg).toContain("now root");
+    const again = await t.action(internal.admin.bootstrapRoot, { username: "900000009", password: "Mzizi-Imara-2026" });
+    expect(again).toContain("Found");
+    const res = await t.mutation(api.auth.signInWithUsernamePassword, { username: "900000009", password: "Mzizi-Imara-2026" });
+    expect(res.status).toBe("complete");
+  });
+
+  it("a Head of Department joins with the council code and only root can approve", async () => {
+    const t = setup();
+    await t.action(internal.admin.bootstrapRoot, { username: "900000009", password: "Mzizi-Imara-2026" });
+    const councilId = await t.mutation(internal.admin.createCouncil, { name: "Halmashauri ya Mji ya Bagamoyo", code: "BAGAMOYO-TC", region: "Pwani" });
+    const rootRes = await t.mutation(api.auth.signInWithUsernamePassword, { username: "900000009", password: "Mzizi-Imara-2026" });
+    if (rootRes.status !== "complete") throw new Error("root sign-in failed");
+    const root = t.withIdentity(sessionIdentity(rootRes.tokens));
+    await root.mutation(api.councils.update, { councilId, registrationOpen: false });
+
+    const hod = await signUp(t, "100000001");
+    expect(await t.query(api.councils.lookupByCode, { code: "bagamoyo-tc" })).toMatchObject({ name: "Halmashauri ya Mji ya Bagamoyo" });
+    const membershipId = await hod.mutation(api.memberships.requestJoin, {
+      councilCode: "bagamoyo-tc", requestedRole: "admin", name: "Mkuu Idara Kilimo", primarySection: "kilimo", client: hq,
+    });
+    const me = await hod.query(api.users.me, {});
+    expect(me.memberships[0]).toMatchObject({ status: "pending", requestedRole: "admin", role: "officer" });
+
+    // A council closed to officers still rejects the officer list path.
+    const officer = await signUp(t, "afisa_closed");
+    await expect(officer.mutation(api.memberships.requestJoin, { councilId, name: "Afisa Mmoja", primarySection: "kilimo", level: "vaeo", client })).rejects.toThrow(/haipokei/);
+
+    await root.mutation(api.memberships.approve, { councilId, membershipId, areaIds: [], client: hq });
+    const after = await hod.query(api.users.me, {});
+    expect(after.memberships[0]).toMatchObject({ status: "active", role: "admin", requestedRole: null });
+    // The new HoD can now use HQ.
+    expect(await hod.query(api.memberships.listForHq, { councilId })).toBeDefined();
+  });
+
+  it("a HoD cannot approve another HoD request, but approves a section head request", async () => {
+    const { t, councilId, hod } = await world();
+    await t.run((ctx) => ctx.db.patch(councilId, { code: "TEST-DC" }));
+    const asksAdmin = await signUp(t, "anaomba_hod");
+    const m1 = await asksAdmin.mutation(api.memberships.requestJoin, { councilCode: "TEST-DC", requestedRole: "admin", name: "Mtu Mwingine", primarySection: "mifugo", client: hq });
+    await expect(hod.mutation(api.memberships.approve, { councilId, membershipId: m1, areaIds: [], client: hq })).rejects.toThrow(/msimamizi wa mfumo/);
+    const asksHead = await signUp(t, "anaomba_head");
+    const m2 = await asksHead.mutation(api.memberships.requestJoin, { councilCode: "TEST-DC", requestedRole: "section_head", name: "Mkuu Mifugo", primarySection: "mifugo", client: hq });
+    await hod.mutation(api.memberships.approve, { councilId, membershipId: m2, areaIds: [], client: hq });
+    const me = await asksHead.query(api.users.me, {});
+    expect(me.memberships[0]).toMatchObject({ role: "section_head", status: "active" });
+  });
+});
+
 describe("root stays hidden", () => {
   it("root's actions and identity never show to the HoD", async () => {
     const { t, councilId, root, village } = await world();

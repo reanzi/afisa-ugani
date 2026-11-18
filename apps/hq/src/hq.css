@@ -343,3 +343,73 @@ fieldset.plain legend {
 .hq-brand .sel-trigger {
   margin-top: 4px;
 }
+
+.hq-auth-card.wide {
+  width: min(520px, 100%);
+}
+.hq-auth-card .segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  background: var(--surface-sunk);
+  border-radius: calc(var(--radius-control) + 4px);
+}
+.hq-auth-card .segmented button {
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  font-weight: 700;
+  cursor: pointer;
+}
+.hq-auth-card .segmented button[aria-selected="true"] {
+  background: var(--surface);
+  box-shadow: var(--shadow-lift);
+}
+.code-input {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.tone-ok {
+  color: var(--ok);
+}
+.council-form {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: var(--space-3);
+  align-items: end;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 2px solid var(--rule);
+  border-radius: var(--radius-tile);
+}
+.council-form .notice {
+  grid-column: 1 / -1;
+}
+.council-code {
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--surface-sunk);
+}
+.badge.inline {
+  margin-left: var(--space-2);
+}
+.state-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.requested-role {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--wait-ground);
+  color: var(--wait);
+  font-weight: 700;
+}
+@media (max-width: 860px) {
+  .council-form {
+    grid-template-columns: 1fr;
+  }
+}

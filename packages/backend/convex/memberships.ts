@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import {
+  canApproveRequest,
   canAssignRole,
+  HQ_ROLES,
   canGrantSection,
   canManageMember,
   canRevokeSection,
@@ -23,6 +25,7 @@ const toTarget = (m: Doc<"memberships">): Target => ({
 
 const snapshot = (m: Doc<"memberships">) => ({
   role: m.role,
+  requestedRole: m.requestedRole,
   status: m.status,
   primarySection: m.primarySection,
   sections: m.sections,
@@ -57,28 +60,53 @@ async function validateAreas(ctx: MutationCtx, councilId: Id<"councils">, areaId
   }
 }
 
-/** Registration: a signed-in user asks to join a council. Starts pending. */
+/**
+ * Registration: a signed-in user asks to join a council. Starts pending.
+ *
+ * Officers pick a council from the open list (`councilId`). HQ staff type the
+ * council code (`councilCode`) and say which HQ role they hold
+ * (`requestedRole`); the code works even when the council is closed to
+ * officer registration. The role is only granted on approval.
+ */
 export const requestJoin = authedMutation({
   args: {
-    councilId: v.id("councils"),
+    councilId: v.optional(v.id("councils")),
+    councilCode: v.optional(v.string()),
+    requestedRole: v.optional(vRole),
     name: v.string(),
     phone: v.optional(v.string()),
     primarySection: vSection,
-    level: vOfficerLevel,
+    level: v.optional(vOfficerLevel),
     areaHint: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { viewer } = ctx;
-    const council = await ctx.db.get(args.councilId);
-    if (!council || council.status !== "active" || !council.registrationOpen) {
-      fail("INVALID", "Halmashauri hii haipokei maombi kwa sasa.");
+    let council: Doc<"councils"> | null = null;
+    if (args.councilCode?.trim()) {
+      council = await ctx.db
+        .query("councils")
+        .withIndex("by_code", (q) => q.eq("code", args.councilCode!.trim().toUpperCase()))
+        .unique();
+      if (!council || council.status !== "active") fail("INVALID", "Msimbo wa halmashauri haupo. Hakikisha umeuandika sawasawa.");
+    } else if (args.councilId) {
+      council = await ctx.db.get(args.councilId);
+      if (!council || council.status !== "active" || !council.registrationOpen) {
+        fail("INVALID", "Halmashauri hii haipokei maombi kwa sasa.");
+      }
+    } else {
+      fail("INVALID", "Chagua halmashauri au andika msimbo wake.");
     }
+    const requestedRole = args.requestedRole && args.requestedRole !== "officer" ? args.requestedRole : undefined;
+    if (requestedRole && !args.councilCode) fail("INVALID", "Cheo cha makao makuu kinaombwa kwa msimbo wa halmashauri.");
+    if (requestedRole && !HQ_ROLES.includes(requestedRole)) fail("INVALID", "Cheo hiki hakiombwi.");
+    if (!requestedRole && !args.level) fail("INVALID", "Chagua ngazi yako ya kazi.");
+
     const name = args.name.trim();
     if (name.length < 3) fail("INVALID", "Andika jina lako kamili.");
 
     const existing = await ctx.db
       .query("memberships")
-      .withIndex("by_user_council", (q) => q.eq("userId", viewer.userId).eq("councilId", args.councilId))
+      .withIndex("by_user_council", (q) => q.eq("userId", viewer.userId).eq("councilId", council._id))
       .unique();
     if (existing && existing.status !== "rejected") {
       fail("INVALID", "Tayari umeomba kujiunga na halmashauri hii.");
@@ -87,12 +115,13 @@ export const requestJoin = authedMutation({
     await ctx.db.patch(viewer.userId, { name, phone: args.phone?.trim() || undefined });
     const doc = {
       userId: viewer.userId,
-      councilId: args.councilId,
+      councilId: council._id,
       role: "officer" as const,
+      requestedRole,
       status: "pending" as const,
       primarySection: args.primarySection,
       sections: [args.primarySection],
-      level: args.level,
+      level: requestedRole ? undefined : args.level,
       areaIds: [],
       areaHint: args.areaHint?.trim() || undefined,
       requestedAt: Date.now(),
@@ -111,7 +140,7 @@ export const requestJoin = authedMutation({
       action: existing ? "membership.reRequest" : "membership.request",
       entity: "memberships",
       entityId: id,
-      councilId: args.councilId,
+      councilId: council._id,
       section: args.primarySection,
       before: existing ? snapshot(existing) : undefined,
       after: snapshot({ ...doc, _id: id, _creationTime: 0 }),
@@ -146,6 +175,7 @@ export const listForHq = hqQuery({
           name: user?.name ?? "—",
           phone: user?.phone ?? null,
           role: m.role,
+          requestedRole: m.requestedRole ?? null,
           status: m.status,
           primarySection: m.primarySection,
           sections: m.sections,
@@ -174,15 +204,20 @@ export const approve = hqMutation({
     const { viewer } = ctx;
     const m = await loadTarget(ctx, viewer, args.membershipId);
     if (m.status !== "pending") fail("INVALID", "Ombi hili limeshashughulikiwa.");
-    if (!canManageMember(viewer.actor, toTarget(m))) fail("FORBIDDEN", "Huna ruhusa ya kuidhinisha ombi hili.");
-    if (m.role === "officer" && args.areaIds.length === 0) {
+    const role = m.requestedRole ?? "officer";
+    if (!canApproveRequest(viewer.actor, toTarget(m), role)) {
+      fail("FORBIDDEN", role === "admin" ? "Mkuu wa Idara huidhinishwa na msimamizi wa mfumo." : "Huna ruhusa ya kuidhinisha ombi hili.");
+    }
+    if (role === "officer" && args.areaIds.length === 0) {
       fail("INVALID", "Chagua angalau eneo moja la kazi.");
     }
     await validateAreas(ctx, viewer.councilId, args.areaIds);
     const patch = {
       status: "active" as const,
+      role,
+      requestedRole: undefined,
       areaIds: args.areaIds,
-      level: args.level ?? m.level,
+      level: role === "officer" ? (args.level ?? m.level) : undefined,
       decidedBy: viewer.userId,
       decidedAt: Date.now(),
       decisionNote: args.note?.trim() || undefined,

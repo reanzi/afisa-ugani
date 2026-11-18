@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { authedQuery, fail, rootMutation } from "./lib/guards";
+import { authedQuery, fail, rootMutation, rootQuery } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
 
 /**
@@ -73,5 +73,71 @@ export const create = rootMutation({
       after: doc,
     });
     return id;
+  },
+});
+
+/** Council name for a code, so the HQ sign-up form can confirm it before sending. */
+export const lookupByCode = query({
+  args: { code: v.string() },
+  handler: async (ctx, { code }) => {
+    const clean = code.trim().toUpperCase();
+    if (clean.length < 3 || clean.length > 40) return null;
+    const c = await ctx.db.query("councils").withIndex("by_code", (q) => q.eq("code", clean)).unique();
+    if (!c || c.status !== "active") return null;
+    return { name: c.name, region: c.region };
+  },
+});
+
+/** Every council with member counts (root only). */
+export const listAll = rootQuery({
+  args: {},
+  handler: async (ctx) => {
+    const councils = await ctx.db.query("councils").collect();
+    return Promise.all(
+      councils.map(async (c) => {
+        const count = async (status: "active" | "pending") =>
+          (await ctx.db.query("memberships").withIndex("by_council_status", (q) => q.eq("councilId", c._id).eq("status", status)).collect()).length;
+        return {
+          _id: c._id,
+          name: c.name,
+          code: c.code,
+          region: c.region,
+          status: c.status,
+          registrationOpen: c.registrationOpen,
+          active: await count("active"),
+          pending: await count("pending"),
+          createdAt: c.createdAt,
+        };
+      }),
+    );
+  },
+});
+
+export const update = rootMutation({
+  args: {
+    councilId: v.id("councils"),
+    name: v.optional(v.string()),
+    region: v.optional(v.string()),
+    registrationOpen: v.optional(v.boolean()),
+    status: v.optional(v.union(v.literal("active"), v.literal("disabled"))),
+  },
+  handler: async (ctx, { councilId, ...changes }) => {
+    const c = await ctx.db.get(councilId);
+    if (!c) fail("NOT_FOUND", "Halmashauri haipo.");
+    const patch = Object.fromEntries(
+      Object.entries(changes)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]),
+    );
+    await ctx.db.patch(councilId, patch);
+    await writeAudit(ctx, ctx.viewer, {
+      action: "council.update",
+      entity: "councils",
+      entityId: councilId,
+      councilId,
+      before: Object.fromEntries(Object.keys(patch).map((k) => [k, (c as Record<string, unknown>)[k]])),
+      after: patch,
+    });
+    return null;
   },
 });

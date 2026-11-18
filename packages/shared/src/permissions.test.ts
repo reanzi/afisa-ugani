@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assignableRoles,
   authoritySections,
+  canApproveRequest,
   canAssignRole,
   canGrantSection,
   canManageMember,
@@ -115,6 +116,25 @@ describe("assigning roles", () => {
   });
   it("roles are only assigned to active members", () => {
     expect(canAssignRole(actor("admin"), target("officer", "kilimo", [], { status: "pending" }), "section_head")).toBe(false);
+  });
+});
+
+describe("approving requests made with the council code", () => {
+  const pending = (primary: Section = "kilimo") => target("officer", primary, [], { status: "pending" });
+  it("only root approves a Head of Department request", () => {
+    expect(canApproveRequest(root, pending(), "admin")).toBe(true);
+    expect(canApproveRequest(actor("admin"), pending(), "admin")).toBe(false);
+    expect(canApproveRequest(actor("moderator"), pending(), "admin")).toBe(false);
+  });
+  it("HoD approves moderator and section heads; moderator approves section heads only", () => {
+    expect(canApproveRequest(actor("admin"), pending(), "moderator")).toBe(true);
+    expect(canApproveRequest(actor("admin"), pending("uvuvi"), "section_head")).toBe(true);
+    expect(canApproveRequest(actor("moderator"), pending(), "moderator")).toBe(false);
+    expect(canApproveRequest(actor("moderator"), pending(), "section_vice")).toBe(true);
+  });
+  it("section heads approve officers of their section but never HQ roles", () => {
+    expect(canApproveRequest(actor("section_head", "kilimo"), pending("kilimo"), null)).toBe(true);
+    expect(canApproveRequest(actor("section_head", "kilimo"), pending("kilimo"), "section_vice")).toBe(false);
   });
 });
 

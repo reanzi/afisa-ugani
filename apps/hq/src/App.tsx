@@ -1,72 +1,27 @@
-import { useState, type FormEvent } from "react";
 import { useConvexAuth, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useSignInWithUsernamePassword } from "@convex-dev/auth/methods/username-password/react";
 import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
 import { isHqRole, ROLE_LABELS, type Actor } from "@afisa/shared";
-import { authErrorMessage, Select, useTheme } from "@afisa/ui";
+import { Select, useTheme } from "@afisa/ui";
 import { HqContext, useHq, type Me } from "./context";
 import { Requests } from "./pages/Requests";
 import { Members } from "./pages/Members";
 import { Areas } from "./pages/Areas";
 import { Audit } from "./pages/Audit";
+import { Councils } from "./pages/Councils";
+import { JoinWithCode, NoAccess, SignIn, Waiting } from "./auth";
 
-const TABS = ["maombi", "wanachama", "maeneo", "kumbukumbu"] as const;
+const TABS = ["maombi", "wanachama", "maeneo", "kumbukumbu", "halmashauri"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABELS: Record<Tab, string> = {
   maombi: "Maombi",
   wanachama: "Wanachama",
   maeneo: "Maeneo",
   kumbukumbu: "Kumbukumbu",
+  halmashauri: "Halmashauri",
 };
-
-function SignIn() {
-  const { signIn, pending } = useSignInWithUsernamePassword(api.auth);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    const res = await signIn({ username: username.trim(), password });
-    if (res.status !== "complete") setError(authErrorMessage(res.userError));
-  };
-  return (
-    <main className="hq-auth">
-      <form className="hq-auth-card" onSubmit={submit}>
-        <h1>Afisa Ugani</h1>
-        <p className="muted">Makao makuu: maombi, wanachama, maeneo na kumbukumbu.</p>
-        <label className="field">
-          <span>Jina la mtumiaji</span>
-          <input id="username" className="input" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} />
-        </label>
-        <label className="field">
-          <span>Nenosiri</span>
-          <input id="password" type="password" className="input" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        {error && <div className="notice notice-danger" role="alert"><p>{error}</p></div>}
-        <button className="btn btn-primary btn-block" disabled={pending || !username || !password}>
-          {pending ? "Subiri…" : "Ingia"}
-        </button>
-      </form>
-    </main>
-  );
-}
-
-function NoAccess() {
-  const { signOut } = useAuthActions();
-  return (
-    <main className="hq-auth">
-      <div className="hq-auth-card">
-        <h1>Huna ruhusa ya makao makuu</h1>
-        <p>Akaunti hii ni ya afisa ugani. Tumia programu ya Afisa Ugani kwenye simu kuandika kazi zako.</p>
-        <button className="btn btn-quiet btn-block" onClick={() => void signOut()}>Toka</button>
-      </div>
-    </main>
-  );
-}
 
 function hqCouncils(me: Me, rootCouncils: { _id: Id<"councils">; name: string }[] | undefined) {
   const isRoot = "isRoot" in me;
@@ -90,8 +45,35 @@ export function App() {
   }
   if (!isAuthenticated || !me) return <SignIn />;
 
+  const isRoot = "isRoot" in me;
   const councils = hqCouncils(me, rootCouncils);
-  if (councils.length === 0) return "isRoot" in me && rootCouncils === undefined ? null : <NoAccess />;
+  if (isRoot && rootCouncils === undefined) return null;
+  if (!isRoot && councils.length === 0) {
+    if (me.memberships.some((m) => m.status === "pending" || m.status === "suspended")) return <Waiting me={me} />;
+    if (me.memberships.some((m) => m.status === "active")) return <NoAccess />;
+    return <JoinWithCode me={me} />;
+  }
+  // Root with no councils yet: only the council page.
+  if (councils.length === 0) {
+    return (
+      <div className="hq">
+        <aside className="hq-side">
+          <div className="hq-brand">
+            <img src="/favicon.svg" alt="" width={36} height={36} />
+            <div><strong>Afisa Ugani</strong><span className="muted">Msimamizi wa mfumo</span></div>
+          </div>
+          <nav className="hq-nav" aria-label="Kuu">
+            <button aria-current="page">Halmashauri</button>
+          </nav>
+          <div className="hq-who">
+            <strong>{me.name ?? "—"}</strong>
+            <button className="btn btn-quiet btn-small" onClick={() => void signOut()}>Toka</button>
+          </div>
+        </aside>
+        <main className="hq-main"><Councils /></main>
+      </div>
+    );
+  }
   const current = councils.find((c) => c.councilId === councilParam) ?? councils[0]!;
   const membership = me.memberships.find((m) => m.councilId === current.councilId) ?? null;
   const actor: Actor = {
@@ -125,7 +107,7 @@ export function App() {
             </div>
           </div>
           <nav className="hq-nav" aria-label="Kuu">
-            {TABS.map((t) => (
+            {TABS.filter((t) => t !== "halmashauri" || isRoot).map((t) => (
               <button key={t} aria-current={tab === t ? "page" : undefined} onClick={() => void setTab(t)}>
                 {TAB_LABELS[t]}
                 {t === "maombi" && <PendingCount />}
@@ -143,6 +125,7 @@ export function App() {
           {tab === "wanachama" && <Members />}
           {tab === "maeneo" && <Areas />}
           {tab === "kumbukumbu" && <Audit />}
+          {tab === "halmashauri" && isRoot && <Councils />}
         </main>
       </div>
     </HqContext.Provider>

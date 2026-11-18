@@ -39,16 +39,25 @@ pnpm dev:hq               # http://localhost:5174
 
 ### Seat the first people
 
-Accounts are created by signing up in the Field app (username + password, usually a phone number). Then, from `packages/backend`:
+From `packages/backend` (add `--prod` on the production deployment):
 
 ```bash
-npx convex run admin:createCouncil '{"name":"Halmashauri ya Mji ya Bagamoyo","code":"BAMOYO","region":"pwani"}'
-npx convex run admin:seatMember '{"username":"100000001","councilCode":"BAMOYO","role":"admin","primarySection":"kilimo","name":"Mkuu Idara Kilimo"}'
-npx convex run admin:makeRoot '{"username":"900000009"}'
+npx convex run admin:bootstrapRoot '{"username":"900000009","password":"<strong password>","name":"Msimamizi"}'
+npx convex run admin:createCouncil '{"name":"Halmashauri ya Mji ya Bagamoyo","code":"BAGAMOYO-TC","region":"Pwani"}'
+npx convex run admin:addAreas '{"councilCode":"BAGAMOYO-TC","wards":[{"name":"Dunda","villages":["Kisutu","Nianjema"]}]}'
 ```
-From then on, everything happens in HQ. The HoD adds wards and villages, assigns section heads and approves officers. Section heads approve the officers of their own section.
 
-`admin:*` functions are internal. Only someone holding the deployment key can call them, from the CLI or the dashboard.
+Then:
+
+1. The Head of Department signs up in **HQ** (**Fungua akaunti**), enters the council code, and asks to be **Mkuu wa Idara**.
+2. Root approves the request in HQ under **Maombi**.
+3. The HoD approves section heads, who sign up the same way. Officers sign up in the Field app.
+
+`seatMember` and `makeRoot` only promote accounts that already exist. To create an account from the CLI, use `admin:createAccount`.
+
+`admin:*` functions are internal: only someone holding the deployment key can call them, from the CLI or the Convex dashboard.
+
+For a full showcase deployment (Convex Cloud plus static hosting for both apps), see [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Checks
 
@@ -76,7 +85,7 @@ npx convex deploy --cmd "pnpm --filter @afisa/field build" --cmd-url-env-var-nam
 npx convex deploy --cmd "pnpm --filter @afisa/hq build" --cmd-url-env-var-name VITE_CONVEX_URL
 ```
 
-The backend deploys first, then each app is built against it. Serve `apps/*/dist` from any static host over HTTPS. The PWA needs HTTPS for the service worker, camera and GPS.
+The backend deploys first, then each app is built against it. Step-by-step hosting instructions are in [docs/DEPLOY.md](docs/DEPLOY.md). Serve `apps/*/dist` from any static host over HTTPS. The PWA needs HTTPS for the service worker, camera and GPS.
 
 ## Generated Convex code
 

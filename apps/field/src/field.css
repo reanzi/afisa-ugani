@@ -829,3 +829,14 @@ fieldset.plain legend {
   min-width: 96px;
   max-width: 160px;
 }
+
+.code-input {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.tone-ok {
+  color: var(--ok);
+}
+.tone-danger {
+  color: var(--danger);
+}

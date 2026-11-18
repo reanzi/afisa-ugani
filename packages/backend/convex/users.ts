@@ -65,6 +65,7 @@ export const me = authedQuery({
           councilId: m.councilId,
           councilName: council?.name ?? "",
           role: m.role,
+          requestedRole: m.requestedRole ?? null,
           status: m.status,
           primarySection: m.primarySection,
           sections: m.sections,

@@ -63,6 +63,8 @@ export default defineSchema({
     sections: v.array(vSection),
     level: v.optional(vOfficerLevel),
     areaIds: v.array(v.id("areas")),
+    /** HQ role asked for when registering with the council code; set on approval. */
+    requestedRole: v.optional(vRole),
     /** Free text from registration ("Kata ya Mzumbe"), until HQ assigns areas. */
     areaHint: v.optional(v.string()),
     requestedAt: v.number(),

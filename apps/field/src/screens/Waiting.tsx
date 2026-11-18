@@ -1,5 +1,5 @@
 import { useAuthActions } from "@convex-dev/auth/react";
-import { SECTION_LABELS } from "@afisa/shared";
+import { ROLE_LABELS, SECTION_LABELS } from "@afisa/shared";
 import type { MembershipInfo } from "../lib/session";
 
 export function Waiting({ membership, name }: { membership: MembershipInfo; name: string | null }) {
@@ -13,6 +13,11 @@ export function Waiting({ membership, name }: { membership: MembershipInfo; name
           <p>
             Huwezi kuandika kumbukumbu kwa sasa. Wasiliana na mkuu wa sehemu ya {SECTION_LABELS[membership.primarySection].sw}.
             {membership.decisionNote ? ` Sababu: ${membership.decisionNote}` : ""}
+          </p>
+        ) : membership.requestedRole ? (
+          <p>
+            {name ? `${name}, ` : ""}ombi lako la kuwa {ROLE_LABELS[membership.requestedRole].sw} wa {membership.councilName} linasubiri idhini ya{" "}
+            {membership.requestedRole === "admin" ? "msimamizi wa mfumo" : "Mkuu wa Idara"}. Ukishaidhinishwa, ingia kwenye makao makuu (HQ) kuendelea.
           </p>
         ) : (
           <p>

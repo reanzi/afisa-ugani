@@ -2,21 +2,84 @@
  * Operator functions. Internal: callable only from the CLI or the Convex
  * dashboard by someone holding the deployment key, never from a client.
  *
- *   npx convex run admin:makeRoot '{"username":"0712345678"}'
- *   npx convex run admin:createCouncil '{"name":"Halmashauri ya Wilaya ya Mvomero","code":"MVOMERO-DC","region":"Morogoro"}'
+ * First deployment, in this order:
+ *   npx convex run admin:bootstrapRoot '{"username":"900000009","password":"<strong password>","name":"Msimamizi"}'
+ *   npx convex run admin:createCouncil '{"name":"Halmashauri ya Mji ya Bagamoyo","code":"BAGAMOYO-TC","region":"Pwani"}'
+ * Then the Head of Department signs up in HQ with the council code, and root
+ * approves the request in HQ (Maombi). Everything after that happens in HQ.
+ *
+ * Other tools:
+ *   npx convex run admin:createAccount '{"username":"100000001","password":"...","name":"..."}'
+ *   npx convex run admin:seatMember '{"username":"100000001","councilCode":"BAGAMOYO-TC","role":"admin","primarySection":"kilimo"}'
+ *   npx convex run admin:makeRoot '{"username":"900000009"}'
  *   npx convex run admin:setMinClientVersion '{"version":"0.2.0"}'
  */
 import { v } from "convex/values";
-import { components } from "./_generated/api";
-import { internalMutation } from "./_generated/server";
+import { api, components, internal } from "./_generated/api";
+import { internalAction, internalMutation } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { writeAudit } from "./lib/audit";
 import { vRole, vSection } from "./lib/validators";
+
+function missingAccount(username: string) {
+  return (
+    `No account with username ${username}. Create it first: sign up in the Field or HQ app, ` +
+    `or run admin:createAccount (or admin:bootstrapRoot for the root account).`
+  );
+}
+
+/**
+ * Create a username + password account from the CLI. If the username already
+ * exists, nothing is changed and the existing account is used.
+ */
+export const createAccount = internalAction({
+  args: { username: v.string(), password: v.string(), name: v.optional(v.string()) },
+  handler: async (ctx, args): Promise<{ userId: string; created: boolean }> => {
+    const res = await ctx.runMutation(api.auth.signUpWithUsernamePassword, {
+      username: args.username,
+      password: args.password,
+    });
+    let created = true;
+    if (res.status !== "complete") {
+      if (res.userError.error !== "USERNAME_TAKEN") {
+        throw new Error(`Could not create ${args.username}: ${JSON.stringify(res.userError)}`);
+      }
+      created = false;
+    }
+    const userId: Id<"users"> | null = await ctx.runMutation(internal.admin.setNameByUsername, {
+      username: args.username,
+      name: args.name,
+    });
+    if (!userId) throw new Error(missingAccount(args.username));
+    return { userId, created };
+  },
+});
+
+export const setNameByUsername = internalMutation({
+  args: { username: v.string(), name: v.optional(v.string()) },
+  handler: async (ctx, { username, name }) => {
+    const raw = await ctx.runQuery(components.authUsername.public.getUserIdByUsername, { username });
+    const id = raw === null ? null : ctx.db.normalizeId("users", raw);
+    if (id && name?.trim()) await ctx.db.patch(id, { name: name.trim() });
+    return id;
+  },
+});
+
+/** One step for a fresh deployment: create the account (if needed) and make it root. */
+export const bootstrapRoot = internalAction({
+  args: { username: v.string(), password: v.string(), name: v.optional(v.string()) },
+  handler: async (ctx, args): Promise<string> => {
+    const { userId, created } = await ctx.runAction(internal.admin.createAccount, args);
+    await ctx.runMutation(internal.admin.makeRoot, { username: args.username });
+    return `${created ? "Created" : "Found"} ${args.username} (${userId}); it is now root. Sign in to HQ with it.`;
+  },
+});
 
 export const makeRoot = internalMutation({
   args: { username: v.string() },
   handler: async (ctx, { username }) => {
     const userId = await ctx.runQuery(components.authUsername.public.getUserIdByUsername, { username });
-    if (userId === null) throw new Error(`No account with username ${username}`);
+    if (userId === null) throw new Error(missingAccount(username));
     const id = ctx.db.normalizeId("users", userId);
     if (!id) throw new Error("Unexpected user id");
     await ctx.db.patch(id, { isRoot: true });
@@ -64,7 +127,7 @@ export const seatMember = internalMutation({
   handler: async (ctx, args) => {
     const rawId = await ctx.runQuery(components.authUsername.public.getUserIdByUsername, { username: args.username });
     const userId = rawId === null ? null : ctx.db.normalizeId("users", rawId);
-    if (!userId) throw new Error(`No account with username ${args.username}`);
+    if (!userId) throw new Error(missingAccount(args.username));
     const council = await ctx.db
       .query("councils")
       .withIndex("by_code", (q) => q.eq("code", args.councilCode.trim().toUpperCase()))
@@ -101,6 +164,53 @@ export const seatMember = internalMutation({
       actorIsRootOverride: true,
     });
     return id;
+  },
+});
+
+/**
+ * Load wards and villages for a council in one go (for a new council or a demo).
+ * Existing names are skipped, so it is safe to run twice.
+ *   npx convex run admin:addAreas '{"councilCode":"BAGAMOYO-TC","wards":[{"name":"Dunda","villages":["Kisutu","Nianjema"]}]}'
+ */
+export const addAreas = internalMutation({
+  args: {
+    councilCode: v.string(),
+    wards: v.array(v.object({ name: v.string(), villages: v.array(v.string()) })),
+  },
+  handler: async (ctx, args) => {
+    const council = await ctx.db
+      .query("councils")
+      .withIndex("by_code", (q) => q.eq("code", args.councilCode.trim().toUpperCase()))
+      .unique();
+    if (!council) throw new Error(`No council ${args.councilCode}`);
+    const existing = await ctx.db.query("areas").withIndex("by_council_kind", (q) => q.eq("councilId", council._id).eq("kind", "ward")).collect();
+    let wardsAdded = 0;
+    let villagesAdded = 0;
+    for (const w of args.wards) {
+      const name = w.name.trim();
+      let ward = existing.find((x) => x.name.toLowerCase() === name.toLowerCase());
+      if (!ward) {
+        const id = await ctx.db.insert("areas", { councilId: council._id, kind: "ward", name });
+        ward = (await ctx.db.get(id))!;
+        existing.push(ward);
+        wardsAdded++;
+      }
+      const villages = await ctx.db.query("areas").withIndex("by_parent", (q) => q.eq("parentId", ward._id)).collect();
+      for (const vName of w.villages) {
+        const clean = vName.trim();
+        if (!clean || villages.some((x) => x.name.toLowerCase() === clean.toLowerCase())) continue;
+        await ctx.db.insert("areas", { councilId: council._id, kind: "village", name: clean, parentId: ward._id });
+        villagesAdded++;
+      }
+    }
+    await writeAudit(ctx, null, {
+      action: "area.bulkAdd",
+      entity: "areas",
+      councilId: council._id,
+      after: { wardsAdded, villagesAdded },
+      actorIsRootOverride: true,
+    });
+    return { wardsAdded, villagesAdded };
   },
 });
 
