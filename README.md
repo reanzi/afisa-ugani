@@ -42,7 +42,7 @@ pnpm dev:hq               # http://localhost:5174
 From `packages/backend` (add `--prod` on the production deployment):
 
 ```bash
-npx convex run admin:bootstrapRoot '{"username":"90000009","password":"@Download1","name":"Msimamizi"}'
+npx convex run admin:bootstrapRoot '{"username":"90000009","password":"<Storng Password>,"name":"Msimamizi"}'
 npx convex run admin:createCouncil '{"name":"Halmashauri ya Mji ya Bagamoyo","code":"BAGAMOYO-TC","region":"Pwani"}'
 npx convex run admin:addAreas '{"councilCode":"BAGAMOYO-TC","wards":[{"name":"Yombo","villages":["Kisutu","Nianjema"]}]}'
 ```
