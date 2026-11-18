@@ -1,0 +1,84 @@
+/**
+ * Photos. Each photo belongs to one record and inherits its time, place,
+ * section and labels (crop, pest, severity…). The photo itself carries only
+ * the kind of shot and an optional caption, so taking a picture stays a tap.
+ *
+ * On the phone photos are re-encoded to JPEG at most 1600 px on the long edge
+ * (about 300 KB). Re-encoding also drops the camera's EXIF data (GPS, phone
+ * model); the record's own location is kept separately.
+ */
+import { ANIMALS, ALL_CROPS, type Option } from "./catalogs.ts";
+
+export const MEDIA_MAX_EDGE = 1600;
+export const MEDIA_THUMB_EDGE = 320;
+/** Server limit for one photo; the phone aims for ~300 KB. */
+export const MEDIA_MAX_BYTES = 2_000_000;
+/** Per record, to keep uploads and the dataset sensible. */
+export const MEDIA_PER_RECORD = 6;
+/** Full photos stay on the phone this long after upload; thumbnails stay. */
+export const MEDIA_KEEP_ON_PHONE_DAYS = 30;
+
+/** The shot, guiding a useful pair: the whole plant or animal, then a close-up of the problem. */
+export const PHOTO_SHOTS = [
+  { value: "nzima", label: "Mzima", hint: "Mmea, mnyama au shamba zima" },
+  { value: "karibu", label: "Karibu", hint: "Karibu kwenye tatizo: jani, mdudu, kidonda" },
+  { value: "nyingine", label: "Nyingine", hint: "Picha nyingine yoyote" },
+] as const;
+export type PhotoShot = (typeof PHOTO_SHOTS)[number]["value"];
+export const isPhotoShot = (v: unknown): v is PhotoShot => PHOTO_SHOTS.some((s) => s.value === v);
+
+/** What an observation photo shows: the dataset's top-level label. */
+export const PHOTO_CATEGORIES: Option[] = [
+  { value: "wadudu", label: "Wadudu waharibifu" },
+  { value: "ugonjwa_mimea", label: "Ugonjwa wa mimea" },
+  { value: "upungufu", label: "Upungufu wa virutubisho" },
+  { value: "hali_ya_zao", label: "Hali ya zao (ukuaji, ukame, mafuriko)" },
+  { value: "magugu", label: "Magugu" },
+  { value: "ugonjwa_mifugo", label: "Ugonjwa wa mifugo" },
+  { value: "hali_ya_mifugo", label: "Hali ya mifugo na malisho" },
+  { value: "samaki", label: "Samaki na mabwawa" },
+  { value: "mengine", label: "Mengine" },
+];
+
+export const CROP_CATEGORIES = ["wadudu", "ugonjwa_mimea", "upungufu", "hali_ya_zao", "magugu"];
+
+export const GROWTH_STAGES: Option[] = [
+  { value: "mche", label: "Mche (kuota)" },
+  { value: "ukuaji", label: "Ukuaji wa majani" },
+  { value: "maua", label: "Maua" },
+  { value: "kujaza", label: "Kujaza punje / matunda" },
+  { value: "kukomaa", label: "Kukomaa" },
+  { value: "baada_ya_mavuno", label: "Baada ya mavuno (ghalani)" },
+];
+
+/** Typing suggestions for what the photo is of. */
+export const PHOTO_SUBJECTS: readonly string[] = [...ALL_CROPS.filter((c) => c.value !== "nyingine").map((c) => c.label), ...ANIMALS.map((a) => a.label)];
+
+export type MediaMeta = {
+  clientId: string;
+  recordClientId: string;
+  width: number;
+  height: number;
+  bytes: number;
+  shot: PhotoShot;
+  caption?: string;
+  takenAt: number;
+};
+
+/** Checks what the phone says about a photo; the server also reads the stored file's real size and type. */
+export function validateMediaMeta(m: MediaMeta): string | null {
+  if (!isPhotoShot(m.shot)) return "BAD_SHOT";
+  for (const k of ["width", "height"] as const) {
+    if (!Number.isInteger(m[k]) || m[k] < 16 || m[k] > MEDIA_MAX_EDGE) return `BAD_SIZE:${k}`;
+  }
+  if (!Number.isInteger(m.bytes) || m.bytes <= 0 || m.bytes > MEDIA_MAX_BYTES) return "TOO_LARGE";
+  if (m.caption !== undefined && (typeof m.caption !== "string" || m.caption.length > 300)) return "BAD_CAPTION";
+  if (!Number.isFinite(m.takenAt)) return "BAD_TIME";
+  return null;
+}
+
+/** Fit inside a square of `max` px, never enlarging. */
+export function fitWithin(width: number, height: number, max: number): { width: number; height: number } {
+  const scale = Math.min(1, max / Math.max(width, height));
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+}

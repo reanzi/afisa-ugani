@@ -4,7 +4,8 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { ROLE_LABELS, SECTION_LABELS } from "@afisa/shared";
 import { useConfirm, useTheme, type ThemeChoice } from "@afisa/ui";
 import { APP_VERSION } from "../lib/client";
-import { db } from "../lib/db";
+import { db, getMeta, setMeta } from "../lib/db";
+import { WIFI_ONLY_KEY } from "../lib/photos";
 import { useWork } from "../lib/session";
 import { useMyAreas } from "../lib/areas";
 import { requestSync } from "../lib/sync";
@@ -31,6 +32,31 @@ export function Me() {
     })();
   }, []);
 
+  const photos = useLiveQuery(async () => {
+    let waiting = 0;
+    let onPhone = 0;
+    let mb = 0;
+    await db.media.each((m) => {
+      if (m.deletedAt) return;
+      if (m.syncState === "pending") waiting++;
+      if (m.blob) {
+        onPhone++;
+        mb += m.blob.size / 1e6;
+      }
+    });
+    return { waiting, onPhone, mb: Math.round(mb * 10) / 10 };
+  }, []);
+  const [wifiOnly, setWifiOnly] = useState(false);
+  useEffect(() => {
+    void getMeta<boolean>(WIFI_ONLY_KEY).then((v) => setWifiOnly(v ?? false));
+  }, []);
+  const toggleWifi = async () => {
+    const next = !wifiOnly;
+    setWifiOnly(next);
+    await setMeta(WIFI_ONLY_KEY, next);
+    if (!next) requestSync();
+  };
+
   const confirm = useConfirm();
   const doSignOut = async () => {
     if (pending > 0) {
@@ -46,6 +72,7 @@ export function Me() {
     await signOut();
     await db.records.clear();
     await db.submissions.clear();
+    await db.media.clear();
     await db.meta.clear();
   };
 
@@ -84,6 +111,23 @@ export function Me() {
       <p className="privacy-note">
         Kumbukumbu unazoandika ni zako. Makao makuu huona ripoti unazoamua kutuma tu, si kumbukumbu zenyewe.
       </p>
+
+      <section className="stack">
+        <h2 className="section-title">Picha</h2>
+        {photos && (
+          <p>
+            {photos.waiting > 0 ? `Picha ${photos.waiting} zinasubiri kupakiwa.` : "Picha zote zimepakiwa."}{" "}
+            {photos.onPhone > 0 && `Picha ${photos.onPhone} ziko kwenye simu hii (MB ${photos.mb}); zinaondoka siku 30 baada ya kupakiwa, picha ndogo zinabaki.`}
+          </p>
+        )}
+        <button type="button" role="switch" aria-checked={wifiOnly} className="setting-switch" onClick={() => void toggleWifi()}>
+          <span className="setting-text">
+            <strong>Pakia picha kwa Wi-Fi tu</strong>
+            <small>Kuokoa bando. Kumbukumbu na ripoti zinatumwa kama kawaida.</small>
+          </span>
+          <span className="switch-track" aria-hidden><span className="switch-thumb" /></span>
+        </button>
+      </section>
 
       <section className="stack">
         <h2 className="section-title">Simu hii</h2>

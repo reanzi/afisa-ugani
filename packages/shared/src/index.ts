@@ -9,3 +9,4 @@ export * from "./councilCode.ts";
 export * from "./napa.ts";
 export * from "./foodPrices.ts";
 export * from "./people.ts";
+export * from "./media.ts";

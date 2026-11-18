@@ -10,6 +10,7 @@ import { useMyAreas } from "../lib/areas";
 import { useHomeData } from "../lib/home";
 import { useFoodState, useOpenFoodPeriod, useReopened } from "../lib/food";
 import { EntryRow } from "./EntryRow";
+import { usePhotoCounts } from "../lib/photos";
 import { RecordIcon, SectionIcon } from "./recordIcons";
 
 const DISMISS_KEY = "afisa.dismissed";
@@ -144,6 +145,7 @@ function FoodCard() {
 export function Today() {
   const { me, councilId, sections, membership } = useWork();
   const { byId } = useMyAreas();
+  const photoCounts = usePhotoCounts();
   const home = useHomeData();
   const multi = sections.length > 1;
   const [chosen, setChosen] = useQueryState("sehemu", parseAsStringLiteral(SECTIONS).withOptions({ history: "push" }));
@@ -272,7 +274,7 @@ export function Today() {
         )}
         <ul className="entry-list">
           {entries?.map((r) => (
-            <EntryRow key={r.clientId} record={r} areaName={r.areaId ? byId.get(r.areaId)?.name : undefined} />
+            <EntryRow key={r.clientId} record={r} areaName={r.areaId ? byId.get(r.areaId)?.name : undefined} photos={photoCounts?.get(r.clientId)} />
           ))}
         </ul>
       </section>

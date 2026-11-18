@@ -7,6 +7,7 @@ import { db, type LocalRecord } from "../lib/db";
 import { useWork } from "../lib/session";
 import { useMyAreas } from "../lib/areas";
 import { EntryRow, entryText } from "./EntryRow";
+import { usePhotoCounts } from "../lib/photos";
 
 const DAY = 86_400_000;
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -35,6 +36,7 @@ const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 export function History() {
   const { councilId, sections } = useWork();
   const { byId } = useMyAreas();
+  const photoCounts = usePhotoCounts();
   const today = startOfDay(new Date());
   const [f, setF] = useQueryStates({
     kuanzia: parseAsIsoDate.withDefault(new Date(today.getTime() - 6 * DAY)),
@@ -232,6 +234,7 @@ export function History() {
                   key={r.clientId}
                   record={r}
                   areaName={areaName(r)}
+                  photos={photoCounts?.get(r.clientId)}
                   trailing={
                     <button className="btn btn-quiet btn-small copy-one" onClick={() => void doCopy(r.clientId, pepmisLine(r, areaName(r)))} aria-label={`Nakili: ${specFor(r.type)?.label ?? ""}`}>
                       {copied === r.clientId ? "Imenakiliwa" : "Nakili"}

@@ -56,10 +56,37 @@ export type LocalSubmission = {
   reopened?: { at: number; byName: string; note: string } | null;
 };
 
+/**
+ * A photo of a record. The full JPEG (`blob`) stays on the phone until a while
+ * after upload; the small `thumb` stays for good so lists never need signal.
+ */
+export type LocalMedia = {
+  clientId: string;
+  councilId: string;
+  recordClientId: string;
+  section: Section;
+  shot: "nzima" | "karibu" | "nyingine";
+  caption?: string;
+  width: number;
+  height: number;
+  bytes: number;
+  takenAt: number;
+  blob?: Blob;
+  thumb?: Blob;
+  /** Set once the file is in Convex storage; the attach call may still be pending. */
+  storageId?: string;
+  /** "pending" covers both "to upload" and, with deletedAt, "to delete". */
+  syncState: SyncState;
+  uploadedAt?: number;
+  deletedAt?: number;
+  rejectReason?: string;
+};
+
 class AfisaDB extends Dexie {
   records!: EntityTable<LocalRecord, "clientId">;
   meta!: EntityTable<Meta, "key">;
   submissions!: EntityTable<LocalSubmission, "clientId">;
+  media!: EntityTable<LocalMedia, "clientId">;
 
   constructor() {
     super("afisa-ugani");
@@ -70,6 +97,9 @@ class AfisaDB extends Dexie {
     });
     this.version(2).stores({
       submissions: "&clientId, [councilId+kind+period], [councilId+syncState]",
+    });
+    this.version(3).stores({
+      media: "&clientId, recordClientId, [councilId+syncState]",
     });
   }
 }

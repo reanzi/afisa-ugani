@@ -7,7 +7,7 @@ import { fail, hiddenUserIds, hqQuery } from "./lib/guards";
  * anyone but root. Section leads see entries of their section and their own.
  *
  * An officer's field entries belong to the officer until they submit a
- * report: audit rows about records are shown only to their author (and root).
+ * report: audit rows about records and photos are shown only to their author (and root).
  * HQ sees submissions, never raw entries.
  */
 export const recent = hqQuery({
@@ -27,7 +27,7 @@ export const recent = hqQuery({
     const seesAll = viewer.isRoot || (viewer.actor.role !== null && DEPARTMENT_ROLES.includes(viewer.actor.role));
     const visible = rows.filter((r) => {
       if (r.actorIsRoot && !viewer.isRoot) return false;
-      if (r.entity === "records" && r.actorId !== viewer.userId && !viewer.isRoot) return false;
+      if ((r.entity === "records" || r.entity === "media") && r.actorId !== viewer.userId && !viewer.isRoot) return false;
       if (r.actorId && hidden.has(r.actorId)) return false;
       if (seesAll) return true;
       if (r.actorId === viewer.userId) return true;

@@ -158,6 +158,34 @@ export default defineSchema({
     .index("by_council_kind_period", ["councilId", "kind", "period"])
     .index("by_owner_kind_period", ["ownerId", "kind", "period"]),
 
+  /**
+   * Photos, each attached to one of the officer's records. Like records they
+   * belong to the officer: HQ does not read them directly.
+   */
+  media: defineTable({
+    councilId: v.id("councils"),
+    ownerId: v.id("users"),
+    /** UUIDv7 made on the phone; makes the upload idempotent. */
+    clientId: v.string(),
+    recordClientId: v.string(),
+    section: vSection,
+    storageId: v.id("_storage"),
+    contentType: v.string(),
+    width: v.number(),
+    height: v.number(),
+    bytes: v.number(),
+    shot: v.union(v.literal("nzima"), v.literal("karibu"), v.literal("nyingine")),
+    caption: v.optional(v.string()),
+    takenAt: v.number(),
+    createdAt: v.number(),
+    /** Server time of the last change; the phone's pull cursor. */
+    updatedAt: v.number(),
+    deletedAt: v.optional(v.number()),
+  })
+    .index("by_clientId", ["clientId"])
+    .index("by_record", ["recordClientId"])
+    .index("by_owner_council_updated", ["ownerId", "councilId", "updatedAt"]),
+
   /** Append-only. No function patches or deletes these rows. */
   auditLog: defineTable({
     councilId: v.optional(v.id("councils")),

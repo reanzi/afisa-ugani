@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { actionByType, summarize } from "@afisa/shared";
-import { clock } from "@afisa/ui";
+import { clock, IconCamera } from "@afisa/ui";
 import type { LocalRecord } from "../lib/db";
 
 const REJECT_REASONS: Record<string, string> = {
@@ -29,7 +29,7 @@ export function entryText(r: LocalRecord): string {
   return summarize(r.type, r.payload) || (actionByType(r.type)?.label ?? r.type);
 }
 
-export function EntryRow({ record, areaName, trailing }: { record: LocalRecord; areaName?: string; trailing?: ReactNode }) {
+export function EntryRow({ record, areaName, trailing, photos = 0 }: { record: LocalRecord; areaName?: string; trailing?: ReactNode; photos?: number }) {
   const s = syncLabel(record);
   return (
     <li className={trailing ? "entry-with-copy" : undefined}>
@@ -40,6 +40,11 @@ export function EntryRow({ record, areaName, trailing }: { record: LocalRecord; 
           <span className="entry-meta">
             <span>{actionByType(record.type)?.label}</span>
             {areaName && <span>{areaName}</span>}
+            {photos > 0 && (
+              <span className="entry-photos" aria-label={`Picha ${photos}`}>
+                <IconCamera size={16} /> {photos}
+              </span>
+            )}
           </span>
         </span>
         <span className={`entry-sync tone-${s.tone}`}>{s.text}</span>

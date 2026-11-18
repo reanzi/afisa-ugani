@@ -6,6 +6,7 @@
  * of pushed payloads, and the one-line summary used in lists and PEPMIS text.
  */
 import type { Section } from "./domain.ts";
+import { CROP_CATEGORIES, GROWTH_STAGES, PHOTO_CATEGORIES, PHOTO_SUBJECTS } from "./media.ts";
 import {
   ALL_CROPS,
   AMOUNT_UNITS,
@@ -307,12 +308,23 @@ export const RECORD_SPECS: readonly RecordSpec[] = [
   {
     type: "photo",
     label: "Picha",
-    hint: "Uchunguzi wenye maelezo",
+    hint: "Uchunguzi wenye picha",
     sections: ALL,
-    ready: false,
+    ready: true,
     quick: true,
-    fields: [],
-    summary: () => "Picha",
+    fields: [
+      { key: "category", label: "Picha inaonyesha nini?", kind: "select", options: PHOTO_CATEGORIES, required: true },
+      { key: "subject", label: "Zao au mnyama", kind: "text", suggestions: PHOTO_SUBJECTS, required: true, hint: "Mfano Mahindi, Nyanya, Ng’ombe." },
+      { key: "observation", label: "Umeona nini?", kind: "longtext", required: true },
+      { key: "suspected", label: "Unadhani ni nini?", kind: "text", hint: "Jina la mdudu au ugonjwa. Andika \"sijui\" kama hujui." },
+      { key: "severity", label: "Ukubwa wa tatizo", kind: "choice", options: SEVERITY },
+      { key: "stage", label: "Hatua ya ukuaji", kind: "select", options: GROWTH_STAGES, more: true, showIf: (p) => CROP_CATEGORIES.includes(String(p.category)) },
+    ],
+    summary: (p) => {
+      const cat = PHOTO_CATEGORIES.find((c) => c.value === p.category)?.label ?? "Picha";
+      const sus = s(p.suspected);
+      return `${cat}: ${s(p.subject)}${sus ? ` (${sus})` : ""}. ${s(p.observation)}`;
+    },
   },
   {
     type: "activity",

@@ -17,6 +17,7 @@ import { ConvexError } from "convex/values";
 import { SYNC_PUSH_BATCH } from "@afisa/shared";
 import { clientMeta, convex } from "./client";
 import { db, getMeta, setMeta, type LocalRecord } from "./db";
+import { pruneOldPhotos, pullMedia, pushMedia } from "./photos";
 
 const SYNC_EVENT = "afisa:sync-now";
 const INTERVAL_MS = 3 * 60 * 1000;
@@ -182,7 +183,8 @@ export function useSyncEngine(councilId: string, enabled: boolean): SyncReport &
   const pending = useLiveQuery(
     async () =>
       (await db.records.where("[councilId+syncState]").equals([councilId, "pending"]).count()) +
-      (await db.submissions.where("[councilId+syncState]").equals([councilId, "pending"]).count()),
+      (await db.submissions.where("[councilId+syncState]").equals([councilId, "pending"]).count()) +
+      (await db.media.where("[councilId+syncState]").equals([councilId, "pending"]).count()),
     [councilId],
     0,
   );
@@ -197,9 +199,18 @@ export function useSyncEngine(councilId: string, enabled: boolean): SyncReport &
       try {
         const { updateRequired } = await pushPending(councilId);
         await pushSubmissions(councilId);
+        // Photos are big and slow; a failed upload must not hold up records and reports.
+        let photoError: string | undefined;
+        try {
+          await pushMedia(councilId);
+        } catch (e) {
+          photoError = e instanceof Error ? e.message : String(e);
+        }
         await pullChanges(councilId);
         await pullSubmissions(councilId);
-        if (!cancelled) setReport({ lastSyncedAt: Date.now(), updateRequired });
+        await pullMedia(councilId);
+        await pruneOldPhotos();
+        if (!cancelled) setReport({ lastSyncedAt: Date.now(), updateRequired, ...(photoError ? { lastError: photoError } : {}) });
       } catch (e) {
         if (!cancelled) setReport((r) => ({ ...r, lastError: e instanceof Error ? e.message : String(e) }));
       } finally {

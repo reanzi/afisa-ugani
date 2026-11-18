@@ -25,13 +25,14 @@ const ACTIONS: Record<string, [string, string]> = {
   "record.create": ["Aliandika kumbukumbu", "Wrote a record"],
   "record.update": ["Alibadili kumbukumbu", "Changed a record"],
   "record.delete": ["Alifuta kumbukumbu", "Deleted a record"],
+  "media.attach": ["Aliongeza picha", "Added a photo"],
+  "media.delete": ["Alifuta picha", "Deleted a photo"],
   "council.create": ["Aliongeza halmashauri", "Added a council"],
   "council.autoSend": ["Alibadili utumaji wa ripoti wenyewe", "Changed automatic sending"],
   "submission.create": ["Alituma ripoti", "Sent a report"],
   "submission.auto": ["Ripoti ilijituma", "A report sent itself"],
   "submission.reopen": ["Alirudisha ripoti kwa marekebisho", "Sent a report back for correction"],
   "submission.resubmit": ["Alituma ripoti iliyorekebishwa", "Sent a corrected report"],
-  "media.attach": ["Aliongeza picha", "Added a photo"],
 };
 
 export function Audit() {

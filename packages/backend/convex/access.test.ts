@@ -502,3 +502,92 @@ describe("sync", () => {
     expect(res.results[0]).toMatchObject({ status: "rejected", reason: "NOT_OWNER" });
   });
 });
+
+describe("photos", () => {
+  const recordId = "0192f3a0-7c1e-7d2a-9b3c-4d5e6f708200";
+  const photoId = (n: number) => `0192f3a0-7c1e-7d2a-9b3c-4d5e6f7083${String(n).padStart(2, "0")}`;
+  const jpeg = (bytes = 2000) => new Blob([new Uint8Array(bytes)], { type: "image/jpeg" });
+  const meta = { shot: "karibu" as const, width: 1600, height: 1200, takenAt: Date.now() - 500 };
+
+  async function officerWithRecord() {
+    const w = await world();
+    const { user, membershipId } = await join(w.t, "afisa_picha", w.councilId, "kilimo");
+    await w.hod.mutation(api.memberships.approve, { councilId: w.councilId, membershipId, areaIds: [w.village], client: hq });
+    await user.mutation(api.sync.pushRecords, {
+      councilId: w.councilId,
+      client,
+      records: [{
+        clientId: recordId, type: "activity", section: "kilimo", occurredAt: Date.now() - 1000,
+        payload: { text: "Shamba la mahindi lenye viwavijeshi" }, payloadVersion: 1, clientUpdatedAt: Date.now() - 1000,
+      }],
+    });
+    const store = (blob: Blob) => w.t.run((ctx) => ctx.storage.store(blob));
+    return { ...w, user, store };
+  }
+
+  it("attaches a photo once, even when the phone repeats the call", async () => {
+    const { t, councilId, user, hod, store } = await officerWithRecord();
+    const storageId = await store(jpeg());
+    const first = await user.mutation(api.media.attach, { councilId, client, clientId: photoId(1), recordClientId: recordId, storageId, ...meta });
+    expect(first.status).toBe("attached");
+    // Retried after a lost reply, with a second upload of the same photo.
+    const dup = await store(jpeg());
+    const again = await user.mutation(api.media.attach, { councilId, client, clientId: photoId(1), recordClientId: recordId, storageId: dup, ...meta });
+    expect(again.status).toBe("exists");
+    expect(await t.run(async (ctx) => (await ctx.storage.get(dup)) === null)).toBe(true);
+
+    const pulled = await user.query(api.media.changesSince, { councilId, since: 0 });
+    expect(pulled.media).toHaveLength(1);
+    expect(await user.query(api.media.url, { councilId, clientId: photoId(1) })).toMatch(/^https?:/);
+
+    // The photo is the officer's: HQ gets no link and sees nothing in the audit log.
+    await expect(hod.query(api.media.url, { councilId, clientId: photoId(1) })).resolves.toBeNull();
+    const audit = await hod.query(api.auditLog.recent, { councilId });
+    expect(audit.some((a) => a.entity === "media")).toBe(false);
+  });
+
+  it("refuses photos for someone else's record, wrong file types and too many photos", async () => {
+    const { t, councilId, user, hod, village, store } = await officerWithRecord();
+    const other = await join(t, "afisa_mwingine", councilId, "kilimo");
+    await hod.mutation(api.memberships.approve, { councilId, membershipId: other.membershipId, areaIds: [village], client: hq });
+    const s1 = await store(jpeg());
+    const notMine = await other.user.mutation(api.media.attach, { councilId, client, clientId: photoId(2), recordClientId: recordId, storageId: s1, ...meta });
+    expect(notMine).toMatchObject({ status: "rejected", reason: expect.stringMatching(/haipo/) });
+    expect(await t.run(async (ctx) => (await ctx.storage.get(s1)) === null)).toBe(true);
+
+    const png = await store(new Blob([new Uint8Array(100)], { type: "image/png" }));
+    const wrongType = await user.mutation(api.media.attach, { councilId, client, clientId: photoId(3), recordClientId: recordId, storageId: png, ...meta });
+    expect(wrongType).toMatchObject({ status: "rejected", reason: expect.stringMatching(/JPEG/) });
+    expect(await t.run(async (ctx) => (await ctx.storage.get(png)) === null)).toBe(true);
+
+    for (let i = 10; i < 16; i++) {
+      const s = await store(jpeg());
+      await user.mutation(api.media.attach, { councilId, client, clientId: photoId(i), recordClientId: recordId, storageId: s, ...meta });
+    }
+    const seventh = await store(jpeg());
+    const tooMany = await user.mutation(api.media.attach, { councilId, client, clientId: photoId(20), recordClientId: recordId, storageId: seventh, ...meta });
+    expect(tooMany).toMatchObject({ status: "rejected", reason: expect.stringMatching(/picha 6/) });
+  });
+
+  it("deleting a photo or its record deletes the file", async () => {
+    const { t, councilId, user, store } = await officerWithRecord();
+    const a = await store(jpeg());
+    const b = await store(jpeg());
+    await user.mutation(api.media.attach, { councilId, client, clientId: photoId(30), recordClientId: recordId, storageId: a, ...meta });
+    await user.mutation(api.media.attach, { councilId, client, clientId: photoId(31), recordClientId: recordId, storageId: b, ...meta });
+
+    await user.mutation(api.media.remove, { councilId, client, clientId: photoId(30) });
+    expect(await t.run(async (ctx) => (await ctx.storage.get(a)) === null)).toBe(true);
+
+    await user.mutation(api.sync.pushRecords, {
+      councilId, client,
+      records: [{
+        clientId: recordId, type: "activity", section: "kilimo", occurredAt: Date.now() - 1000,
+        payload: { text: "Shamba la mahindi lenye viwavijeshi" }, payloadVersion: 1, clientUpdatedAt: Date.now(), deletedAt: Date.now(),
+      }],
+    });
+    expect(await t.run(async (ctx) => (await ctx.storage.get(b)) === null)).toBe(true);
+    const pulled = await user.query(api.media.changesSince, { councilId, since: 0 });
+    expect(pulled.media.every((m) => m.deletedAt !== null)).toBe(true);
+  });
+});

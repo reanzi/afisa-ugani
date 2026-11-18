@@ -18,6 +18,7 @@ import type * as crons from "../crons.js";
 import type * as lib_audit from "../lib/audit.js";
 import type * as lib_guards from "../lib/guards.js";
 import type * as lib_validators from "../lib/validators.js";
+import type * as media from "../media.js";
 import type * as memberships from "../memberships.js";
 import type * as submissions from "../submissions.js";
 import type * as sync from "../sync.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   "lib/audit": typeof lib_audit;
   "lib/guards": typeof lib_guards;
   "lib/validators": typeof lib_validators;
+  media: typeof media;
   memberships: typeof memberships;
   submissions: typeof submissions;
   sync: typeof sync;

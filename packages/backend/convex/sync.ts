@@ -19,6 +19,7 @@ import {
 } from "@afisa/shared";
 import { fail, memberMutation, memberQuery } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
+import { deleteMediaOfRecord } from "./media";
 import { vGeo, vSection } from "./lib/validators";
 
 const vIncomingRecord = v.object({
@@ -111,13 +112,15 @@ export const pushRecords = memberMutation({
           clientVersion: viewer.client.version,
         };
         await ctx.db.patch(existing._id, patch);
+        // Deleting a record deletes its photos and their files.
+        const photosDeleted = r.deletedAt && !existing.deletedAt ? await deleteMediaOfRecord(ctx, r.clientId) : 0;
         await writeAudit(ctx, viewer, {
           action: r.deletedAt && !existing.deletedAt ? "record.delete" : "record.update",
           entity: "records",
           entityId: existing._id,
           section: r.section,
           before: { payload: existing.payload, occurredAt: existing.occurredAt, areaId: existing.areaId, deletedAt: existing.deletedAt },
-          after: { payload: r.payload, occurredAt: r.occurredAt, areaId: r.areaId, deletedAt: r.deletedAt },
+          after: { payload: r.payload, occurredAt: r.occurredAt, areaId: r.areaId, deletedAt: r.deletedAt, ...(photosDeleted ? { photosDeleted } : {}) },
           occurredAt: r.clientUpdatedAt,
         });
       } else {

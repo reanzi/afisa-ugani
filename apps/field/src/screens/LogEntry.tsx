@@ -3,13 +3,15 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useLiveQuery } from "dexie-react-hooks";
 import { v7 as uuidv7 } from "uuid";
 import { fieldVisible, PAYLOAD_VERSION, SECTION_LABELS, specFor, validatePayload, type RecordSpec, type Section } from "@afisa/shared";
-import { db, getMeta, setMeta, type Geo, type LocalRecord } from "../lib/db";
+import { db, getMeta, setMeta, type Geo, type LocalMedia, type LocalRecord } from "../lib/db";
 import { captureLocation, type GeoStatus } from "../lib/geo";
 import { useWork } from "../lib/session";
 import { useMyAreas } from "../lib/areas";
 import { requestSync } from "../lib/sync";
 import { useOpenFoodPeriod } from "../lib/food";
 import { draftToPayload, FieldInput, payloadToDraft, type Draft } from "./fields";
+import { useRecordPhotos, type PhotoDraft } from "../lib/photos";
+import { PhotoField } from "./PhotoField";
 import { IconTrash, Select, useConfirm, type SelectOption } from "@afisa/ui";
 
 /** "2026-11-17T14:05" in local time, for <input type="datetime-local">. */
@@ -53,8 +55,7 @@ function ComingSoon({ label }: { label: string }) {
       <Link to="/" className="back">Rudi</Link>
       <h1 className="page-title">{label}</h1>
       <p className="lead">
-        Picha zinakuja katika hatua inayofuata, pamoja na maelezo ya kila picha. Kwa sasa tumia{" "}
-        <Link to="/andika/activity">Shughuli nyingine</Link> kuandika ulichoona.
+        Fomu hii bado haijakamilika. Kwa sasa tumia <Link to="/andika/activity">Shughuli nyingine</Link> kuandika ulichofanya.
       </p>
     </main>
   );
@@ -98,6 +99,11 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
   const [showMore, setShowMore] = useState(false);
   const [problem, setProblem] = useState<{ key: string; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  // Photos: new ones are held in memory until the record is saved.
+  const [photoDrafts, setPhotoDrafts] = useState<PhotoDraft[]>([]);
+  const [photosRemoved, setPhotosRemoved] = useState<string[]>([]);
+  const savedPhotos = (useRecordPhotos(clientId) ?? []).filter((m) => !photosRemoved.includes(m.clientId));
+  const photosRequired = spec.type === "photo";
 
   useEffect(() => {
     if (editing) {
@@ -155,6 +161,11 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
       document.getElementById(`f-${key}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
       return;
     }
+    if (photosRequired && savedPhotos.length + photoDrafts.length === 0) {
+      setProblem({ key: "photos", text: "Piga angalau picha moja." });
+      document.getElementById("f-photos")?.scrollIntoView({ block: "center", behavior: "smooth" });
+      return;
+    }
     setSaving(true);
     const now = Date.now();
     const occurredAt = Math.min(new Date(when).getTime() || now, now);
@@ -171,7 +182,34 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
       clientUpdatedAt: now,
       syncState: "pending",
     };
-    await db.records.put(record);
+    await db.transaction("rw", db.records, db.media, async () => {
+      await db.records.put(record);
+      for (const d of photoDrafts) {
+        const m: LocalMedia = {
+          clientId: d.clientId,
+          councilId,
+          recordClientId: record.clientId,
+          section,
+          shot: d.shot,
+          caption: d.caption?.trim() || undefined,
+          width: d.width,
+          height: d.height,
+          bytes: d.blob.size,
+          takenAt: d.takenAt,
+          blob: d.blob,
+          thumb: d.thumb,
+          syncState: "pending",
+        };
+        await db.media.put(m);
+      }
+      for (const id of photosRemoved) {
+        const m = await db.media.get(id);
+        if (!m) continue;
+        // Never uploaded: just forget it. Uploaded: queue the server delete.
+        if (!m.storageId && !m.uploadedAt) await db.media.delete(id);
+        else await db.media.update(id, { deletedAt: now, syncState: "pending", blob: undefined });
+      }
+    });
     if (areaId) await setMeta(`lastArea:${councilId}`, areaId);
     const remembered: Draft = {};
     for (const f of spec.fields) if ((f.kind === "select" || f.kind === "choice") && draft[f.key]) remembered[f.key] = draft[f.key]!;
@@ -184,13 +222,18 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
     if (!existing) return;
     const ok = await confirm({
       title: "Futa kumbukumbu hii?",
-      body: "Itaondolewa kwenye historia na kwenye ripoti.",
+      body: "Itaondolewa kwenye historia na kwenye ripoti, pamoja na picha zake.",
       confirmLabel: "Futa",
       cancelLabel: "Hapana",
       tone: "danger",
     });
     if (!ok) return;
-    await db.records.update(existing.clientId, { deletedAt: Date.now(), clientUpdatedAt: Date.now(), syncState: "pending" });
+    const at = Date.now();
+    await db.transaction("rw", db.records, db.media, async () => {
+      await db.records.update(existing.clientId, { deletedAt: at, clientUpdatedAt: at, syncState: "pending" });
+      // The server deletes uploaded photos with the record; the phone drops its copies.
+      await db.media.where("recordClientId").equals(existing.clientId).delete();
+    });
     requestSync();
     goBack();
   };
@@ -200,6 +243,21 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
       <FieldInput field={f} value={draft[f.key] ?? ""} onChange={(v) => set(f.key, v)} payload={payload} error={problem?.key === f.key} />
       {problem?.key === f.key && <p className="field-error" role="alert">{problem.text}</p>}
     </div>
+  );
+
+
+  const photoBlock = (
+    <PhotoField
+      saved={savedPhotos}
+      drafts={photoDrafts}
+      onDrafts={(next) => {
+        setPhotoDrafts(next);
+        if (problem?.key === "photos") setProblem(null);
+      }}
+      onRemoveSaved={(id) => setPhotosRemoved((r) => [...r, id])}
+      required={photosRequired}
+      error={problem?.key === "photos" ? problem.text : null}
+    />
   );
 
   return (
@@ -229,7 +287,11 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
           </fieldset>
         )}
 
+        {photosRequired && photoBlock}
+
         {main.map(fieldBlock)}
+
+        {!photosRequired && photoBlock}
 
         <div className="field">
           <span className="field-label" id="where-label">Wapi?</span>

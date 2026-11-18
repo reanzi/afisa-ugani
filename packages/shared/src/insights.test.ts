@@ -99,7 +99,8 @@ describe("recent kinds", () => {
       { ...r("price", {}), ...at(3) },
       { ...r("monthly_review", {}), ...at(9) },
       { ...r("photo", {}), ...at(8) },
+      { ...r("haipo_tena", {}), ...at(7) },
     ]);
-    expect(out.map((x) => `${x.type}/${x.section}`)).toEqual(["price/kilimo", "training/mifugo", "training/kilimo"]);
+    expect(out.map((x) => `${x.type}/${x.section}`)).toEqual(["photo/kilimo", "price/kilimo", "training/mifugo", "training/kilimo"]);
   });
 });

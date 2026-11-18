@@ -699,6 +699,9 @@ textarea {
 .btn-with-icon {
   gap: var(--space-2);
 }
+.btn-with-icon svg {
+  flex: none;
+}
 
 /* Sign-in and registration: room between fields so each hint reads with its own field. */
 .auth-form {
@@ -707,4 +710,37 @@ textarea {
 }
 .auth-form .segmented {
   margin-bottom: var(--space-1);
+}
+
+/* On/off switch track, shared by HQ settings and the phone. */
+.switch-track {
+  position: relative;
+  width: 56px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--rule);
+  transition: background 0.15s;
+}
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  transition: transform 0.15s;
+}
+.switch[aria-checked="true"] .switch-track {
+  background: var(--ok);
+}
+.switch[aria-checked="true"] .switch-thumb {
+  transform: translateX(24px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch-track,
+  .switch-thumb {
+    transition: none;
+  }
 }
