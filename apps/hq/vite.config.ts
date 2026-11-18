@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { pdfjsAssets } from "./vite-pdfjs-assets";
+import { pdfjsAssets } from "./vite-pdfjs-assets.ts";
 
 export default defineConfig({
   plugins: [react(), pdfjsAssets()],

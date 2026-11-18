@@ -5,9 +5,11 @@
  * CSS filter does a rougher job.
  */
 import { useEffect, useRef, useState } from "react";
-import * as pdfjs from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import type { PDFDocumentProxy } from "pdfjs-dist";
+// The legacy build carries polyfills (e.g. Map.prototype.getOrInsertComputed) that
+// the modern build expects from the newest browsers only; offices often run an older Chrome.
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
+import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
+import type { PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { useT } from "@afisa/ui";
 import { drawDark } from "./darkShader";
 
