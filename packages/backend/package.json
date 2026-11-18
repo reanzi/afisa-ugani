@@ -1,0 +1,31 @@
+{
+  "name": "@afisa/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./api": "./convex/_generated/api.js",
+    "./dataModel": "./convex/_generated/dataModel.d.ts"
+  },
+  "scripts": {
+    "dev": "convex dev",
+    "deploy": "convex deploy",
+    "codegen": "convex codegen",
+    "typecheck": "tsc -p convex/tsconfig.json",
+    "test": "vitest run",
+    "codegen:offline": "node scripts/codegen-offline.mjs"
+  },
+  "dependencies": {
+    "@afisa/shared": "workspace:*",
+    "@convex-dev/auth": "2.0.0",
+    "convex": "^1.50.0",
+    "convex-helpers": "^0.1.135"
+  },
+  "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
+    "convex-test": "^0.0.71",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  }
+}

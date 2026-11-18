@@ -1,0 +1,22 @@
+{
+  "name": "afisa-ugani",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:backend": "pnpm --filter @afisa/backend dev",
+    "dev:field": "pnpm --filter @afisa/field dev",
+    "dev:hq": "pnpm --filter @afisa/hq dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "check": "turbo run typecheck test build"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.11",
+    "typescript": "~6.0.3"
+  }
+}
