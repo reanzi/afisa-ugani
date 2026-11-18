@@ -8,7 +8,7 @@
  * one report; it is named after the month of the 20th.
  */
 import { AVAILABILITY, PRICE_TYPES, PRICE_UNITS, commodityKey, commodityLabel, labelOf } from "./catalogs.ts";
-import { monthKey, monthLabel, parseMonth } from "./period.ts";
+import { monthKey, monthLabel, parseMonth, shiftMonth } from "./period.ts";
 
 export const FOOD_CYCLE_LAST_DAY = 20;
 export const FOOD_REPORT_DUE_DAY = 22;
@@ -46,6 +46,21 @@ export function currentFoodReport(now: Date | number): FoodCycle {
   const d = new Date(now);
   const thisMonth = foodCycle(monthKey(d));
   return d.getTime() <= thisMonth.due ? thisMonth : foodCycleFor(d);
+}
+
+/**
+ * The report a new price belongs to. It goes into the report being worked on,
+ * unless that report is already sealed (sent), in which case it starts the next one.
+ */
+export function foodPeriodForEntry(now: Date | number, sealed: ReadonlySet<string>): string {
+  const current = currentFoodReport(now).period;
+  return sealed.has(current) ? shiftMonth(current, 1) : current;
+}
+
+/** True from the 20th until the report is sent: time to review and send. */
+export function foodReportReady(now: Date | number, cycle: FoodCycle): boolean {
+  const t = new Date(now).getTime();
+  return t >= new Date(cycle.end - 86_400_000).getTime();
 }
 
 export type FoodPriceRow = {
@@ -93,9 +108,12 @@ function displayName(names: string[]): string {
 
 /** One row per item and unit (kg and debe are never averaged together). */
 export function compileFoodPrices(records: readonly PriceRecord[], cycle: FoodCycle): FoodPriceRow[] {
-  const prices = records.filter(
-    (r) => r.type === "price" && !r.deletedAt && r.occurredAt >= cycle.start && r.occurredAt < cycle.end && num(r.payload.price) > 0,
-  );
+  const prices = records.filter((r) => {
+    if (r.type !== "price" || r.deletedAt || num(r.payload.price) <= 0) return false;
+    // Prices recorded since the quick entry carry their report; older ones go by date.
+    const tagged = r.payload.foodPeriod;
+    return typeof tagged === "string" ? tagged === cycle.period : r.occurredAt >= cycle.start && r.occurredAt < cycle.end;
+  });
   const groups = new Map<string, PriceRecord[]>();
   for (const r of prices) {
     const k = `${commodityKey(r.payload.commodity)}|${r.payload.unit}`;
@@ -190,5 +208,19 @@ export function validateFoodReport(p: unknown): string | null {
     }
     if (row.availability !== null && row.availability !== undefined && !AVAIL_ORDER.includes(String(row.availability))) return "BAD_AVAILABILITY";
   }
+  return null;
+}
+
+export const SUBMISSION_KINDS = ["food_prices", "monthly"] as const;
+export type SubmissionKind = (typeof SUBMISSION_KINDS)[number];
+
+/** Server-side check of a sent monthly report (the Report model built on the phone or the server). */
+export function validateMonthlyReport(p: unknown, month: string): string | null {
+  if (!p || typeof p !== "object") return "NOT_OBJECT";
+  const r = p as Record<string, unknown>;
+  if (r.kind !== "monthly" || r.month !== month) return "BAD_KIND";
+  if (!Array.isArray(r.parts) || r.parts.length === 0 || r.parts.length > 30) return "BAD_PARTS";
+  if (!r.header || typeof r.header !== "object") return "BAD_HEADER";
+  if (JSON.stringify(p).length > 600_000) return "TOO_LARGE";
   return null;
 }

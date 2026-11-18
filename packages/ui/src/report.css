@@ -1,0 +1,134 @@
+/* The ARDS report as read on screen (Field and HQ). */
+.rv {
+  display: grid;
+  gap: var(--space-3);
+}
+.rv-part {
+  background: var(--surface);
+  border: 2px solid var(--rule);
+  border-radius: var(--radius-tile);
+  padding: 0 var(--space-4);
+}
+.rv-part > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  cursor: pointer;
+  list-style: none;
+}
+.rv-part > summary::-webkit-details-marker {
+  display: none;
+}
+.rv-part-title {
+  font-weight: 700;
+}
+.rv-part > summary::before {
+  content: "›";
+  font-weight: 700;
+  font-size: 1.3em;
+  transition: transform 0.15s;
+}
+.rv-part[open] > summary::before {
+  transform: rotate(90deg);
+}
+.rv-part-title {
+  flex: 1;
+}
+.rv-state {
+  font-size: var(--t-small);
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.rv-block {
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+}
+.rv-block-title {
+  font-size: var(--t-body);
+}
+.rv-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+}
+.rv-table {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: var(--t-small);
+}
+.rv-table th,
+.rv-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--rule);
+  border-right: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+.rv-table thead th {
+  background: var(--surface-sunk);
+  font-weight: 700;
+  min-width: 90px;
+}
+.rv-table tbody th {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.rv-table td.num {
+  text-align: right;
+}
+.rv-group {
+  text-align: center !important;
+}
+.rv-group-empty {
+  background: transparent !important;
+  border-bottom: 0 !important;
+}
+.rv-marker {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+.rv-total th,
+.rv-total td {
+  font-weight: 700;
+  background: var(--surface-sunk);
+}
+.rv-text {
+  white-space: pre-line;
+  padding: var(--space-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+}
+.rv-text.is-draft {
+  border-style: dashed;
+}
+.rv-text.is-empty {
+  color: var(--ink-soft);
+}
+.rv-hint,
+.rv-note {
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+/* Keep the row name visible while scrolling wide tables sideways. */
+.rv-table tbody th,
+.rv-table thead tr:last-child th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: 1px 0 0 var(--rule);
+}
+.rv-table thead tr:last-child th:first-child {
+  background: var(--surface-sunk);
+}
+.rv-total th {
+  background: var(--surface-sunk);
+}
+.rv-table thead th {
+  min-width: 96px;
+  max-width: 160px;
+}

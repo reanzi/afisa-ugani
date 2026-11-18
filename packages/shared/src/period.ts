@@ -49,3 +49,18 @@ export function monthLabel(key: string): string {
   const { year, month } = parseMonth(key);
   return `${SW_MONTHS[month - 1]} ${year}`;
 }
+
+/**
+ * Council time. Tanzania is UTC+3 all year. The server runs in UTC, so before
+ * using the period helpers (which read the clock in local time) the server
+ * shifts timestamps by this offset; the phone already runs in local time.
+ */
+export const COUNCIL_UTC_OFFSET_MINUTES = 180;
+export const toCouncilWallClock = (utcMs: number) => utcMs + COUNCIL_UTC_OFFSET_MINUTES * 60_000;
+
+/** The monthly report can be sent once the month has ended, and is due on the 5th of the next month. */
+export const MONTHLY_DUE_DAY = 5;
+export function monthlyWindow(month: string): { opens: number; due: number } {
+  const { year, month: m } = parseMonth(month);
+  return { opens: new Date(year, m, 1).getTime(), due: new Date(year, m, MONTHLY_DUE_DAY, 23, 59).getTime() };
+}

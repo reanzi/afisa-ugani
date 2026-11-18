@@ -81,3 +81,38 @@ export function when(ms: number): string {
   const d = new Date(ms);
   return d.toLocaleString("sw-TZ", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
+
+/** "Ilitumwa yenyewe" / "Imechelewa" next to a sent report. */
+export function SendTags({ auto, late }: { auto: boolean; late: boolean }) {
+  if (!auto && !late) return null;
+  return (
+    <span className="send-tags">
+      {auto && <span className="send-tag">Ilitumwa yenyewe</span>}
+      {late && <span className="send-tag is-late">Imechelewa</span>}
+    </span>
+  );
+}
+
+/** Officers who have not sent this report: for a phone call, not for blame. */
+export function MissingReports({ kind, period, due }: { kind: "food_prices" | "monthly"; period: string; due: number }) {
+  const { councilId } = useHq();
+  const missing = useQuery(api.submissions.missingForHq, { councilId, kind, period });
+  if (!missing || missing.length === 0) return null;
+  const past = Date.now() > due;
+  return (
+    <section className="missing no-print" aria-labelledby={`missing-${kind}`}>
+      <h2 id={`missing-${kind}`} className="food-h2">
+        {past ? "Hawajatuma" : "Bado hawajatuma"} <span className="badge inline">{missing.length}</span>
+      </h2>
+      <ul className="missing-list">
+        {missing.map((m) => (
+          <li key={m.userId}>
+            <strong>{m.name}</strong>
+            <span className="muted">{m.areaLabel || "Eneo halijapangwa"}</span>
+            {m.phone && <a className="link" href={`tel:${m.phone}`}>{m.phone}</a>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

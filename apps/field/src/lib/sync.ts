@@ -95,7 +95,7 @@ async function pushSubmissions(councilId: string): Promise<void> {
         payloadVersion: s.payloadVersion,
         clientSubmittedAt: s.clientSubmittedAt,
       });
-      await db.submissions.update(s.clientId, { syncState: "synced", revision: res.revision, submittedAt: res.submittedAt, error: undefined });
+      await db.submissions.update(s.clientId, { syncState: "synced", revision: res.revision, submittedAt: res.submittedAt, late: res.late, error: undefined });
     } catch (e) {
       if (e instanceof ConvexError) {
         const data = e.data as { message?: string } | undefined;
@@ -105,6 +105,31 @@ async function pushSubmissions(councilId: string): Promise<void> {
       }
     }
   }
+}
+
+/** Learn about sealed reports sent elsewhere: by auto-send, or from another phone. */
+async function pullSubmissions(councilId: string): Promise<void> {
+  const mine = await convex.query(api.submissions.mine, { councilId: councilId as Id<"councils"> });
+  await db.transaction("rw", db.submissions, async () => {
+    for (const s of mine) {
+      const local = await db.submissions.get(s.clientId);
+      if (local?.syncState === "synced") continue;
+      await db.submissions.put({
+        clientId: s.clientId,
+        councilId,
+        kind: s.kind,
+        period: s.period,
+        areaLabel: s.areaLabel,
+        payload: s.payload as Record<string, unknown>,
+        payloadVersion: s.payloadVersion,
+        clientSubmittedAt: s.clientSubmittedAt,
+        submittedAt: s.submittedAt,
+        syncState: "synced",
+        auto: s.auto,
+        late: s.late,
+      });
+    }
+  });
 }
 
 async function pullChanges(councilId: string): Promise<void> {
@@ -165,6 +190,7 @@ export function useSyncEngine(councilId: string, enabled: boolean): SyncReport &
         const { updateRequired } = await pushPending(councilId);
         await pushSubmissions(councilId);
         await pullChanges(councilId);
+        await pullSubmissions(councilId);
         if (!cancelled) setReport({ lastSyncedAt: Date.now(), updateRequired });
       } catch (e) {
         if (!cancelled) setReport((r) => ({ ...r, lastError: e instanceof Error ? e.message : String(e) }));

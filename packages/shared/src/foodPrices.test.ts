@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  foodPeriodForEntry,
   combineFoodReports,
   compileFoodPrices,
   currentFoodReport,
@@ -80,5 +81,25 @@ describe("validation", () => {
     expect(validateFoodReport({ rows: [{ commodity: "Sukari", unit: "kg", average: 3000, min: 3000, max: 3000, count: 1, availability: null }] })).toBeNull();
     expect(validateFoodReport({ rows: [] })).toBe("NO_ROWS");
     expect(validateFoodReport({ rows: [{ commodity: "Sukari", unit: "kg", average: -1, min: 0, max: 0, count: 1 }] })).toBe("BAD_NUMBER:average");
+  });
+});
+
+describe("which report a price belongs to", () => {
+  it("goes to the report being worked on, or the next one once it is sealed", () => {
+    expect(foodPeriodForEntry(at(11, 18), new Set())).toBe("2026-11");
+    expect(foodPeriodForEntry(at(11, 21), new Set())).toBe("2026-11");
+    expect(foodPeriodForEntry(at(11, 21), new Set(["2026-11"]))).toBe("2026-12");
+    expect(foodPeriodForEntry(at(11, 25), new Set())).toBe("2026-12");
+  });
+  it("compiles tagged prices by their report, whatever their date", () => {
+    const rows = compileFoodPrices(
+      [
+        price(at(11, 21), { commodity: "Sukari", unit: "kg", price: 3000, foodPeriod: "2026-11" }),
+        price(at(11, 19), { commodity: "Sukari", unit: "kg", price: 9999, foodPeriod: "2026-12" }),
+      ],
+      foodCycle("2026-11"),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.average).toBe(3000);
   });
 });

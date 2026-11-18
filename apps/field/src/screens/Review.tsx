@@ -21,6 +21,7 @@ import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
 import { reviewClientId, useMonthlyReport, useMonthRecords } from "../lib/report";
 import { useMonthParam } from "./Report";
+import { useSealed } from "../lib/food";
 
 type Row = Record<string, string>;
 type Table = Record<string, Row>;
@@ -123,6 +124,7 @@ export function Review() {
   const { month } = useMonthParam();
   const { me, councilId, sections, membership } = useWork();
   const { report, review } = useMonthlyReport(month);
+  const sealed = useSealed("monthly")?.get(month);
   const records = useMonthRecords(month);
   const isJuly = parseMonth(month).month === 7;
   const crops = sections.includes("kilimo");
@@ -198,6 +200,13 @@ export function Review() {
       <Link to={`/ripoti?mwezi=${month}`} className="back">Rudi kwenye ripoti</Link>
       <h1 className="page-title">Mwisho wa {monthLabel(month)}</h1>
       <p className="lead">Majibu haya yanajaza sehemu za ripoti ambazo kumbukumbu za kila siku haziwezi kujaza.</p>
+      {sealed && (
+        <div className="seal" role="status">
+          <strong>Ripoti ya {monthLabel(month)} imeshatumwa</strong>
+          <span>Majibu haya yamefungwa pamoja nayo. Unaweza kuyasoma tu.</span>
+        </div>
+      )}
+      <fieldset className="plain review-lock" disabled={Boolean(sealed)}>
 
       <section className="stack review-block">
         <fieldset className="field plain">
@@ -281,11 +290,15 @@ export function Review() {
         />
       )}
 
-      <div className="form-actions">
-        <button className="btn btn-primary btn-block" disabled={saving} onClick={() => void save()}>
-          {saving ? "Inahifadhi…" : "Hifadhi majibu"}
-        </button>
-      </div>
+      </fieldset>
+
+      {!sealed && (
+        <div className="form-actions">
+          <button className="btn btn-primary btn-block" disabled={saving} onClick={() => void save()}>
+            {saving ? "Inahifadhi…" : "Hifadhi majibu"}
+          </button>
+        </div>
+      )}
     </main>
   );
 }

@@ -7,6 +7,7 @@
  */
 @import "@fontsource/atkinson-hyperlegible-next/400.css";
 @import "@fontsource/atkinson-hyperlegible-next/700.css";
+@import "./report.css";
 
 :root,
 [data-theme="shambani"] {
@@ -60,7 +61,7 @@
 :root {
   --font: "Atkinson Hyperlegible Next", system-ui, sans-serif;
   /* Modular scale, ratio ~1.2 from 17px body */
-  --t-small: 0.875rem;
+  --t-small: 0.9375rem; /* 15px: the smallest text anyone has to read outdoors */
   --t-body: 1.0625rem;
   --t-lead: 1.25rem;
   --t-title: 1.625rem;
@@ -134,6 +135,7 @@ textarea {
 /* ---------- Controls ---------- */
 
 .btn {
+  text-align: center;
   display: inline-flex;
   align-items: center;
   justify-content: center;

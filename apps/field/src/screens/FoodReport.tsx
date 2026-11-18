@@ -1,72 +1,167 @@
 /**
- * Food availability and prices: the cycle's prices averaged per item, ready to
- * send to HQ by the 22nd. Nothing leaves the phone until the officer sends it.
+ * Food availability report: prices averaged per item. From the 20th the
+ * officer reviews it, sets how available each item is, and sends it. Once
+ * sent it is sealed: read-only, kept on the phone for reference.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { parseAsString, useQueryState } from "nuqs";
 import { useLiveQuery } from "dexie-react-hooks";
 import { v7 as uuidv7 } from "uuid";
 import {
+  AVAILABILITY,
   availabilityLabel,
-  compileFoodPrices,
   currentFoodReport,
-  foodCycle,
   PAYLOAD_VERSION,
   shiftMonth,
   type FoodReportPayload,
 } from "@afisa/shared";
-import { relativeWhen, shortDate } from "@afisa/ui";
-import { db } from "../lib/db";
+import { shortDate } from "@afisa/ui";
+import { db, getMeta, setMeta, type LocalSubmission } from "../lib/db";
 import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
 import { useAreaLabel } from "../lib/report";
+import { useFoodState, useOpenFoodPeriod } from "../lib/food";
+import { ConfirmSheet } from "./ConfirmSheet";
 
 const tsh = (n: number) => n.toLocaleString("en-US");
 const DAY = 86_400_000;
+type Row = FoodReportPayload["rows"][number];
+
+const SHORT_AVAIL: Record<string, string> = { wingi: "Wingi", wastani: "Wastani", haba: "Haba", haipatikani: "Hakuna" };
+
+function when(ms: number): string {
+  const d = new Date(ms);
+  return `${shortDate(ms)}, saa ${d.toLocaleTimeString("sw-TZ", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+}
+
+function SentStatus({ s }: { s: LocalSubmission }) {
+  if (s.syncState === "pending") {
+    return (
+      <div className="seal seal-wait" role="status">
+        <strong>Imefungwa, inasubiri mtandao</strong>
+        <span>Itafika makao makuu simu ikipata mtandao. Huwezi kuibadilisha tena.</span>
+      </div>
+    );
+  }
+  const at = s.submittedAt ?? s.clientSubmittedAt;
+  return (
+    <div className="seal" role="status">
+      <strong>{s.auto ? "Ilitumwa yenyewe" : "Imetumwa"} {when(at)}</strong>
+      <span>{s.late ? "Ilifika baada ya tarehe 22. " : ""}Ripoti hii imefungwa. Unaweza kuisoma tu.</span>
+    </div>
+  );
+}
+
+function RowsList({ rows, edit }: { rows: Row[]; edit?: { value: (i: number) => string | null; set: (i: number, v: string) => void } }) {
+  return (
+    <ol className="food-list">
+      {rows.map((r, i) => {
+        const avail = edit ? edit.value(i) : r.availability;
+        return (
+          <li key={`${r.commodity}:${r.unit}`} className="food-item">
+            <div className="food-line">
+              <span className="food-name">
+                <strong>{r.commodity}</strong>
+                <small>
+                  kwa {r.unit.toLowerCase()}
+                  {r.count > 1 ? `, bei ${r.count}` : ""}
+                </small>
+              </span>
+              <span className="food-price">
+                <strong>Tsh {tsh(r.average)}</strong>
+                {r.min !== r.max && <small>{tsh(r.min)} hadi {tsh(r.max)}</small>}
+              </span>
+            </div>
+            {edit ? (
+              <div className="avail-pick" role="radiogroup" aria-label={`Upatikanaji wa ${r.commodity}`}>
+                {AVAILABILITY.map((a) => (
+                  <button
+                    key={a.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={avail === a.value}
+                    className={`avail-opt avail-${a.value}`}
+                    onClick={() => edit.set(i, a.value)}
+                  >
+                    {SHORT_AVAIL[a.value]}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              avail && <span className={`avail avail-${avail}`}>{availabilityLabel(avail)}</span>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 export function FoodReport() {
-  const { councilId } = useWork();
+  const { councilId, membership } = useWork();
   const areaLabel = useAreaLabel();
-  const current = currentFoodReport(Date.now());
-  const [raw, setPeriod] = useQueryState("kipindi", parseAsString.withDefault(current.period));
-  const period = /^\d{4}-(0[1-9]|1[0-2])$/.test(raw) && raw <= current.period ? raw : current.period;
-  const cycle = foodCycle(period);
+  const openPeriod = useOpenFoodPeriod();
+  const current = currentFoodReport(Date.now()).period;
+  const [raw, setPeriod] = useQueryState("kipindi", parseAsString.withDefault(""));
+  const latest = openPeriod && openPeriod > current ? openPeriod : current;
+  const period = /^\d{4}-(0[1-9]|1[0-2])$/.test(raw) && raw <= latest ? raw : current;
+  const state = useFoodState(period);
 
-  const records = useLiveQuery(
-    () => db.records.where("[councilId+occurredAt]").between([councilId, cycle.start], [councilId, cycle.end], true, false).toArray(),
-    [councilId, cycle.start, cycle.end],
-  );
-  const sends = useLiveQuery(
-    () => db.submissions.where("[councilId+kind+period]").equals([councilId, "food_prices", period]).sortBy("clientSubmittedAt"),
+  const rejected = useLiveQuery(
+    () =>
+      db.submissions
+        .where("[councilId+kind+period]")
+        .equals([councilId, "food_prices", period])
+        .filter((s) => s.syncState === "rejected")
+        .last(),
     [councilId, period],
   );
-  const rows = useMemo(() => (records ? compileFoodPrices(records, cycle) : []), [records, cycle]);
-  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+
+  // Availability choices and the note are kept on the phone while the report is open.
+  const [avail, setAvail] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [sending, setSending] = useState(false);
-
-  const chosen = rows.filter((r) => !excluded.has(r.key));
-  const last = sends?.[sends.length - 1];
-  const daysLeft = Math.ceil((cycle.due - Date.now()) / DAY);
-  const open = Date.now() < cycle.end;
-
-  const toggle = (key: string) =>
-    setExcluded((s) => {
-      const next = new Set(s);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
+  const loaded = useRef<string | null>(null);
+  useEffect(() => {
+    loaded.current = null;
+    void Promise.all([getMeta<Record<string, string>>(`food:avail:${period}`), getMeta<string>(`food:note:${period}`)]).then(([a, n]) => {
+      setAvail(a ?? {});
+      setNote(n ?? "");
+      loaded.current = period;
     });
+  }, [period]);
+  useEffect(() => {
+    if (loaded.current === period) void setMeta(`food:avail:${period}`, avail);
+  }, [avail, period]);
+  useEffect(() => {
+    if (loaded.current !== period) return;
+    const t = window.setTimeout(() => void setMeta(`food:note:${period}`, note), 400);
+    return () => window.clearTimeout(t);
+  }, [note, period]);
+
+  const [confirm, setConfirm] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  if (!state) return <div className="food" aria-busy="true" />;
+  const { cycle, rows, sealed, ready } = state;
+  const sealedPayload = sealed ? (sealed.payload as unknown as FoodReportPayload) : null;
+  const shownRows: Row[] = sealedPayload
+    ? sealedPayload.rows
+    : rows.map(({ commodity, unit, average, min, max, count, availability }) => ({ commodity, unit, average, min, max, count, availability }));
+  const keyOf = (i: number) => rows[i]!.key;
+  const availOf = (i: number) => avail[keyOf(i)] ?? rows[i]!.availability ?? null;
+  const missingAvail = sealed ? 0 : rows.filter((_, i) => !availOf(i)).length;
+  const isOpen = period === openPeriod;
+  const daysLeft = Math.ceil((cycle.due - Date.now()) / DAY);
+  const autoOn = membership.autoSend?.food ?? false;
+  const nextLabel = currentFoodReport(cycle.due + 2 * DAY).label;
 
   const payload = (): FoodReportPayload => ({
-    rows: chosen.map(({ commodity, unit, average, min, max, count, availability }) => ({ commodity, unit, average, min, max, count, availability })),
+    rows: shownRows.map((r, i) => ({ ...r, availability: availOf(i) })),
     ...(note.trim() ? { note: note.trim() } : {}),
   });
 
   const send = async () => {
-    setSending(true);
     await db.submissions.put({
       clientId: uuidv7(),
       councilId,
@@ -79,15 +174,16 @@ export function FoodReport() {
       syncState: "pending",
     });
     requestSync();
-    setSending(false);
+    setConfirm(false);
   };
 
   const copyList = async () => {
+    const list = sealedPayload ?? payload();
     const lines = [
       `UPATIKANAJI WA CHAKULA NA BEI: ${areaLabel.toUpperCase()}, ${cycle.label}`,
       `(${shortDate(cycle.start)} hadi ${shortDate(cycle.end - 1)})`,
-      ...chosen.map((r) => `- ${r.commodity} (${r.unit}): wastani Tsh ${tsh(r.average)} (${tsh(r.min)}–${tsh(r.max)})${r.availability ? `, ${availabilityLabel(r.availability).toLowerCase()}` : ""}`),
-      ...(note.trim() ? ["", note.trim()] : []),
+      ...list.rows.map((r) => `- ${r.commodity} (${r.unit}): Tsh ${tsh(r.average)}${r.min !== r.max ? ` (${tsh(r.min)}–${tsh(r.max)})` : ""}${r.availability ? `, ${availabilityLabel(r.availability).toLowerCase()}` : ""}`),
+      ...(list.note ? ["", list.note] : []),
     ];
     try {
       await navigator.clipboard.writeText(lines.join("\n"));
@@ -101,83 +197,96 @@ export function FoodReport() {
   return (
     <div className="food">
       <header className="month-head">
-        <button className="btn btn-quiet btn-small" onClick={() => void setPeriod(shiftMonth(period, -1))} aria-label="Kipindi kilichopita">‹</button>
+        <button className="btn btn-quiet btn-small" onClick={() => void setPeriod(shiftMonth(period, -1))} aria-label="Ripoti iliyopita">‹</button>
         <div className="food-title">
-          <h2 className="page-title">Chakula na bei: {cycle.label}</h2>
-          <p className="muted">{shortDate(cycle.start)} hadi {shortDate(cycle.end - 1)}</p>
+          <h2 className="page-title">Chakula: {cycle.label}</h2>
+          <p className="muted">Bei za {shortDate(cycle.start)} hadi {shortDate(cycle.end - 1)}</p>
         </div>
-        <button className="btn btn-quiet btn-small" onClick={() => void setPeriod(shiftMonth(period, 1))} disabled={period >= current.period} aria-label="Kipindi kinachofuata">›</button>
+        <button className="btn btn-quiet btn-small" onClick={() => void setPeriod(shiftMonth(period, 1))} disabled={period >= latest} aria-label="Ripoti inayofuata">›</button>
       </header>
 
-      <p className="privacy-note">
-        Bei ulizoandika ni zako. Makao makuu wataona ripoti hii tu, na pale utakapoituma.
-      </p>
+      {sealed && <SentStatus s={sealed} />}
 
-      {last && (
-        <div className={`notice ${last.syncState === "synced" ? "notice-ok" : last.syncState === "rejected" ? "notice-danger" : "notice-wait"}`} role="status">
-          <p>
-            {last.syncState === "synced" && `Imetumwa makao makuu ${relativeWhen(last.submittedAt ?? last.clientSubmittedAt)}${(last.revision ?? 1) > 1 ? ` (toleo la ${last.revision})` : ""}.`}
-            {last.syncState === "pending" && "Ripoti iko tayari kutumwa. Itatumwa ukipata mtandao."}
-            {last.syncState === "rejected" && `Haikukubaliwa: ${last.error ?? ""}`}
-          </p>
+      {!sealed && rejected && (
+        <div className="notice notice-danger" role="alert">
+          <p>Makao makuu hawakuipokea: {rejected.error ?? "jaribu tena"}.</p>
         </div>
       )}
 
-      {!last && open && daysLeft >= 0 && (
-        <p className="due-line">
-          Inatakiwa tarehe {new Date(cycle.due).getDate()}{daysLeft <= 4 ? `: zimebaki siku ${daysLeft}` : ""}. Bei zinazoandikwa hadi tarehe 20 zinaingia kwenye ripoti hii.
-        </p>
+      {!sealed && (
+        <p className="privacy-note">Bei hizi ni zako. Makao makuu wataona ripoti hii tu, baada ya kuituma.</p>
       )}
 
-      {records && rows.length === 0 && (
+      {!sealed && shownRows.length === 0 && (
         <div className="empty">
-          <p>Hakuna bei zilizoandikwa katika kipindi hiki.</p>
-          <Link to="/andika/price" className="btn btn-primary btn-small">Andika bei</Link>
+          <p>Hakuna bei katika ripoti hii.</p>
+          {isOpen && <Link to="/bei" className="btn btn-primary">Andika bei</Link>}
+          {isOpen && autoOn && <p className="muted">Usipoandika bei, hakuna ripoti itakayotumwa tarehe 22.</p>}
         </div>
       )}
 
-      {rows.length > 0 && (
+      {shownRows.length > 0 && (
         <>
-          <ul className="food-list">
-            {rows.map((r) => {
-              const on = !excluded.has(r.key);
-              return (
-                <li key={r.key} className={on ? undefined : "is-off"}>
-                  <label className="food-row">
-                    <input type="checkbox" checked={on} onChange={() => toggle(r.key)} aria-label={`Weka ${r.commodity} kwenye ripoti`} />
-                    <span className="food-name">
-                      <strong>{r.commodity}</strong>
-                      <small>
-                        kwa {r.unit}, bei {r.count} {r.sources ? `(${r.sources.toLowerCase()})` : ""}
-                      </small>
-                    </span>
-                    <span className="food-price">
-                      <strong>{tsh(r.average)}</strong>
-                      <small>{r.min === r.max ? "Tsh" : `${tsh(r.min)}–${tsh(r.max)}`}</small>
-                    </span>
-                    {r.availability && <span className={`avail avail-${r.availability}`}>{availabilityLabel(r.availability)}</span>}
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="muted small">Wastani wa bei zote ulizoandika kwa kila bidhaa na kipimo. Ondoa alama kwenye bidhaa usiyotaka kutuma.</p>
+          {!sealed && !ready && (
+            <p className="due-line">Ripoti itakuwa tayari kutumwa tarehe 20. Endelea kuandika bei.</p>
+          )}
+          {!sealed && ready && (
+            <p className="due-line">
+              {missingAvail > 0 ? `Chagua upatikanaji wa kila bidhaa (zimebaki ${missingAvail}), kisha tuma.` : "Kagua orodha, kisha tuma."}
+            </p>
+          )}
 
-          <label className="field">
-            <span>Maelezo kuhusu hali ya chakula (si lazima)</span>
-            <textarea className="textarea" value={note} onChange={(e) => setNote(e.target.value)} placeholder="mfano: Sukari ni haba madukani; bei ya mahindi imeshuka baada ya mavuno." />
-          </label>
+          <RowsList rows={shownRows} edit={sealed ? undefined : { value: availOf, set: (i, v) => setAvail((a) => ({ ...a, [keyOf(i)]: v })) }} />
 
-          <div className="export-row">
-            <button className="btn btn-primary" disabled={sending || chosen.length === 0} onClick={() => void send()}>
-              {last ? "Tuma tena (toleo jipya)" : "Tuma kwa makao makuu"}
-            </button>
-            <button className="btn btn-quiet" disabled={chosen.length === 0} onClick={() => void copyList()}>
-              {copied ? "Imenakiliwa" : "Nakili orodha"}
-            </button>
-          </div>
+          {!sealed && isOpen && (
+            <Link to="/bei" className="btn btn-quiet btn-block add-more">Ongeza bei</Link>
+          )}
+
+          {sealed ? (
+            sealedPayload?.note && (
+              <div className="sealed-note">
+                <h3>Maelezo</h3>
+                <p>{sealedPayload.note}</p>
+              </div>
+            )
+          ) : (
+            <label className="field">
+              <span>Maelezo kuhusu hali ya chakula (si lazima)</span>
+              <textarea className="textarea" value={note} onChange={(e) => setNote(e.target.value)} placeholder="mfano: Sukari ni haba madukani; bei ya mahindi imeshuka baada ya mavuno." />
+            </label>
+          )}
+
+          <button className="btn btn-quiet" onClick={() => void copyList()}>
+            {copied ? "Imenakiliwa" : "Nakili orodha"}
+          </button>
+
+          {!sealed && (
+            <div className="submit-bar">
+              {autoOn && daysLeft >= 0 && (
+                <p>Usipoituma, itatumwa yenyewe tarehe 22 saa 5:30 usiku na bei zilizopo.</p>
+              )}
+              {!autoOn && daysLeft >= 0 && ready && <p>Inatakiwa tarehe 22{daysLeft <= 2 ? `: ${daysLeft === 0 ? "leo" : `zimebaki siku ${daysLeft}`}` : ""}.</p>}
+              {daysLeft < 0 && <p>Tarehe 22 imepita. Ukiituma sasa itaonekana imechelewa.</p>}
+              <button className="btn btn-primary btn-block" disabled={!ready} onClick={() => setConfirm(true)}>
+                Tuma ripoti
+              </button>
+            </div>
+          )}
         </>
       )}
+
+      <ConfirmSheet
+        open={confirm}
+        title="Tuma ripoti ya chakula?"
+        confirmLabel="Ndiyo, tuma"
+        onConfirm={() => void send()}
+        onCancel={() => setConfirm(false)}
+      >
+        <p>
+          Bidhaa {shownRows.length} za {cycle.label} zitatumwa makao makuu. Baada ya kutuma, ripoti hii itafungwa na huwezi kuibadilisha.
+        </p>
+        <p>Bei utakazoandika baadaye zitaingia ripoti ya {nextLabel}.</p>
+      </ConfirmSheet>
     </div>
   );
 }

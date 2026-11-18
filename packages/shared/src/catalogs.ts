@@ -269,7 +269,7 @@ export const SUGGEST_FISH = ["Sato (Tilapia)", "Kambale (Catfish)", "Kamongo"];
 /** Display name of a priced item: older entries stored a catalogue id ("mahindi"), newer ones the typed name. */
 export function commodityLabel(value: unknown): string {
   const v = typeof value === "string" ? value.trim() : "";
-  return PRICE_COMMODITIES.find((o) => o.value === v)?.label ?? v;
+  return PRICE_COMMODITIES.find((o) => o.value === v)?.label ?? v.charAt(0).toUpperCase() + v.slice(1);
 }
 
 /** Key for grouping prices: "Unga wa Mahindi (Sembe)", "unga wa mahindi  (sembe)" and the id agree. */

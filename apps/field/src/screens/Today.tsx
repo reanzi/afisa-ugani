@@ -8,6 +8,7 @@ import { db } from "../lib/db";
 import { useWork } from "../lib/session";
 import { useMyAreas } from "../lib/areas";
 import { useHomeData } from "../lib/home";
+import { useFoodState, useOpenFoodPeriod } from "../lib/food";
 import { EntryRow } from "./EntryRow";
 import { RecordIcon, SectionIcon } from "./recordIcons";
 
@@ -80,6 +81,37 @@ function ActionGrid({ section }: { section: Section }) {
   );
 }
 
+/** Food prices: always one tap away; from the 20th it turns into the ready report. */
+function FoodCard() {
+  const period = useOpenFoodPeriod();
+  const state = useFoodState(period);
+  if (!state) return <div className="food-card is-loading" aria-hidden />;
+  const n = state.entries.length;
+  const ready = state.ready && !state.sealed && n > 0;
+  return (
+    <Link to={ready ? "/ripoti?aina=chakula" : "/bei"} className={`food-card${ready ? " is-ready" : ""}`}>
+      <span className="food-card-icon"><RecordIcon type="price" size={24} /></span>
+      <span className="food-card-text">
+        <strong>{ready ? "Ripoti yako ya chakula iko tayari" : "Bei za vyakula"}</strong>
+        <small>
+          {ready
+            ? `Kagua bei ${n} kisha uitume kabla ya tarehe 22`
+            : n > 0
+              ? `Bei ${n} kwa ripoti ya ${state.cycle.label}`
+              : "Andika bei za sokoni na dukani"}
+        </small>
+      </span>
+      <span className="food-card-go" aria-hidden>
+        {ready ? (
+          <svg viewBox="0 0 20 20" width="20" height="20"><path d="M7.5 5l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        ) : (
+          "+"
+        )}
+      </span>
+    </Link>
+  );
+}
+
 export function Today() {
   const { me, councilId, sections, membership } = useWork();
   const { byId } = useMyAreas();
@@ -115,6 +147,8 @@ export function Today() {
       </header>
 
       {home && <Reminders items={home.reminders} />}
+
+      <FoodCard />
 
       <section aria-labelledby="andika" className="andika">
         {active === null ? (

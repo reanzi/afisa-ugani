@@ -227,21 +227,28 @@ describe("council codes and NaPA addresses", () => {
   });
 });
 
-describe("HQ sees submitted reports only", () => {
+describe("HQ sees sent reports only, and a sent report is sealed", () => {
   const report = (avg: number) => ({
     rows: [{ commodity: "Sukari", unit: "kg", average: avg, min: avg - 100, max: avg + 100, count: 3, availability: "haba" }],
     note: "Sukari imepanda bei.",
   });
   const uuid = (n: number) => `0192f3a0-7c1e-7d2a-9b3c-${String(n).padStart(12, "0")}`;
+  type Rows = { rows: { average: number }[] };
 
-  it("an officer's prices stay private until they submit; HQ then sees the latest revision", async () => {
-    const { t, councilId, hod, village } = await world();
-    const { user, membershipId } = await join(t, "afisa_bei", councilId, "kilimo");
-    await hod.mutation(api.memberships.approve, { councilId, membershipId, areaIds: [village], client: hq });
+  async function officer(name: string) {
+    const w = await world();
+    const o = await join(w.t, name, w.councilId, "kilimo");
+    await w.hod.mutation(api.memberships.approve, { councilId: w.councilId, membershipId: o.membershipId, areaIds: [w.village], client: hq });
+    return { ...w, user: o.user, membershipId: o.membershipId };
+  }
+  const priceRecord = (n: number, occurredAt: number, payload: Record<string, unknown>) => ({
+    clientId: uuid(n), type: "price", section: "kilimo" as const, occurredAt, payload, payloadVersion: 1, clientUpdatedAt: occurredAt,
+  });
 
+  it("prices stay private until sent; a sent report cannot be sent again", async () => {
+    const { councilId, hod, user } = await officer("afisa_bei");
     await user.mutation(api.sync.pushRecords, {
-      councilId, client,
-      records: [{ clientId: uuid(1), type: "price", section: "kilimo", occurredAt: Date.now() - 1000, payload: { commodity: "Sukari", unit: "kg", price: 3200, priceType: "rejareja" }, payloadVersion: 1, clientUpdatedAt: Date.now() - 1000 }],
+      councilId, client, records: [priceRecord(1, Date.now() - 1000, { commodity: "Sukari", unit: "kg", price: 3200, priceType: "rejareja" })],
     });
     expect(await hod.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" })).toEqual([]);
     expect((await hod.query(api.auditLog.recent, { councilId })).some((a) => a.entity === "records")).toBe(false);
@@ -251,40 +258,104 @@ describe("HQ sees submitted reports only", () => {
         councilId, client, clientId: uuid(100 + n), kind: "food_prices", period: "2026-11", areaLabel: "Kijiji cha Changarawe",
         payload: report(avg), payloadVersion: 1, clientSubmittedAt: Date.now(),
       });
-    expect((await send(1, 3200)).revision).toBe(1);
-    expect((await send(1, 3200)).revision).toBe(1); // a retry is not a new send
-    expect((await send(2, 3300)).revision).toBe(2);
+    await send(1, 3200);
+    await send(1, 3200); // a retry after a lost response is fine
+    await expect(send(2, 3300)).rejects.toThrow(/imefungwa/);
 
     const seen = await hod.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" });
     expect(seen).toHaveLength(1);
-    expect(seen[0]).toMatchObject({ officerName: "Afisa afisa_bei", areaLabel: "Kijiji cha Changarawe", revision: 2, sends: 2 });
-    expect(seen[0]!.payload.rows[0]!.average).toBe(3300);
-    expect(await hod.query(api.submissions.periodsForHq, { councilId, kind: "food_prices" })).toEqual(["2026-11"]);
+    expect((seen[0]!.payload as Rows).rows[0]!.average).toBe(3200);
+    expect(seen[0]).toMatchObject({ officerName: "Afisa afisa_bei", auto: false });
+    const mine = await user.query(api.submissions.mine, { councilId, kind: "food_prices" });
+    expect(mine[0]).toMatchObject({ period: "2026-11", auto: false });
   });
 
   it("section leads see only their section's reports; officers cannot read HQ reports", async () => {
     const { t, councilId, hod, village } = await world();
-    const officer = await join(t, "afisa_k", councilId, "kilimo");
+    const o = await join(t, "afisa_k", councilId, "kilimo");
     const head = await join(t, "mkuu_mifugo", councilId, "mifugo");
-    for (const m of [officer, head]) await hod.mutation(api.memberships.approve, { councilId, membershipId: m.membershipId, areaIds: [village], client: hq });
+    for (const m of [o, head]) await hod.mutation(api.memberships.approve, { councilId, membershipId: m.membershipId, areaIds: [village], client: hq });
     await hod.mutation(api.memberships.assignRole, { councilId, membershipId: head.membershipId, role: "section_head", client: hq });
-    await officer.user.mutation(api.submissions.submit, {
+    await o.user.mutation(api.submissions.submit, {
       councilId, client, clientId: uuid(201), kind: "food_prices", period: "2026-11", areaLabel: "Changarawe",
       payload: report(3000), payloadVersion: 1, clientSubmittedAt: Date.now(),
     });
     expect(await head.user.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" })).toEqual([]);
     expect(await hod.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" })).toHaveLength(1);
-    await expect(officer.user.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" })).rejects.toThrow(/makao makuu/);
+    await expect(o.user.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" })).rejects.toThrow(/makao makuu/);
   });
 
-  it("rejects an empty or malformed report", async () => {
-    const { t, councilId, hod, village } = await world();
-    const { user, membershipId } = await join(t, "afisa_tupu", councilId, "kilimo");
-    await hod.mutation(api.memberships.approve, { councilId, membershipId, areaIds: [village], client: hq });
+  it("rejects an empty report, and a monthly report before the month ends", async () => {
+    const { councilId, user } = await officer("afisa_tupu");
     await expect(user.mutation(api.submissions.submit, {
       councilId, client, clientId: uuid(301), kind: "food_prices", period: "2026-11", areaLabel: "x",
       payload: { rows: [] }, payloadVersion: 1, clientSubmittedAt: Date.now(),
     })).rejects.toThrow(/NO_ROWS/);
+    await expect(user.mutation(api.submissions.submit, {
+      councilId, client, clientId: uuid(302), kind: "monthly", period: "2099-01", areaLabel: "x",
+      payload: { kind: "monthly", month: "2099-01", header: {}, parts: [{}] }, payloadVersion: 1, clientSubmittedAt: Date.now(),
+    })).rejects.toThrow(/mwezi kuisha/);
+  });
+
+  it("only the Head of Department or vice switches auto-send", async () => {
+    const { t, councilId, hod, village } = await world();
+    const head = await join(t, "mkuu_k", councilId, "kilimo");
+    await hod.mutation(api.memberships.approve, { councilId, membershipId: head.membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.assignRole, { councilId, membershipId: head.membershipId, role: "section_head", client: hq });
+    await expect(head.user.mutation(api.councils.setAutoSend, { councilId, food: true, monthly: true, client: hq })).rejects.toThrow(/Mkuu wa Idara/);
+    await hod.mutation(api.councils.setAutoSend, { councilId, food: true, monthly: false, client: hq });
+    expect(await hod.query(api.councils.settings, { councilId })).toMatchObject({ autoSend: { food: true, monthly: false }, canEdit: true });
+    const me = await head.user.query(api.users.me, {});
+    expect(me.memberships[0]!.autoSend).toEqual({ food: true, monthly: false });
+  });
+
+  it("auto-send sends what was entered on the due date, and nothing for an officer who entered nothing", async () => {
+    const { t, councilId, hod, village, user, membershipId } = await officer("afisa_auto");
+    const idle = await join(t, "afisa_kimya", councilId, "kilimo");
+    await hod.mutation(api.memberships.approve, { councilId, membershipId: idle.membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.councils.setAutoSend, { councilId, food: true, monthly: true, client: hq });
+
+    await user.mutation(api.sync.pushRecords, {
+      councilId, client,
+      records: [
+        priceRecord(401, Date.now() - 5000, { commodity: "Sukari", unit: "kg", price: 3000, priceType: "sokoni", foodPeriod: "2026-11" }),
+        priceRecord(402, Date.now() - 4000, { commodity: "sukari", unit: "kg", price: 3400, priceType: "rejareja", foodPeriod: "2026-11" }),
+      ],
+    });
+    const queued = await t.mutation(internal.autoSend.runFood, { period: "2026-11" });
+    expect(queued).toMatchObject({ councils: 1, queued: 2 }); // officers only, not the Head of Department
+    expect(await t.mutation(internal.autoSend.foodForOfficer, { membershipId, period: "2026-11" })).toBe("sent");
+    expect(await t.mutation(internal.autoSend.foodForOfficer, { membershipId, period: "2026-11" })).toBe("already-sent");
+    expect(await t.mutation(internal.autoSend.foodForOfficer, { membershipId: idle.membershipId, period: "2026-11" })).toBe("nothing-entered");
+
+    const seen = await hod.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ auto: true });
+    expect((seen[0]!.payload as Rows).rows[0]!.average).toBe(3200);
+    const missing = await hod.query(api.submissions.missingForHq, { councilId, kind: "food_prices", period: "2026-11" });
+    expect(missing.map((x) => x.name)).toContain("Afisa afisa_kimya");
+    expect(missing.map((x) => x.name)).not.toContain("Afisa afisa_auto");
+    // The officer's phone learns the report is sealed.
+    expect((await user.query(api.submissions.mine, { councilId, kind: "food_prices" }))[0]).toMatchObject({ auto: true, period: "2026-11" });
+  });
+
+  it("auto-send builds the monthly ARDS report on the server from synced entries and the review", async () => {
+    const { t, councilId, hod, user, membershipId } = await officer("afisa_mwezi");
+    // 15 October 2026, 10:00 in Tanzania.
+    const oct15 = Date.UTC(2026, 9, 15, 7, 0);
+    await user.mutation(api.sync.pushRecords, {
+      councilId, client,
+      records: [
+        { clientId: uuid(502), type: "training", section: "kilimo", occurredAt: oct15, payload: { topic: "Kupanda kwa mistari", method: "shamba_darasa", men: 10, women: 12 }, payloadVersion: 1, clientUpdatedAt: oct15 },
+        { clientId: uuid(503), type: "monthly_review", section: "kilimo", occurredAt: oct15, payload: { month: "2026-10", achievements: "Wakulima 22 wamefundishwa." }, payloadVersion: 1, clientUpdatedAt: oct15 },
+      ],
+    });
+    expect(await t.mutation(internal.autoSend.monthlyForOfficer, { membershipId, period: "2026-10" })).toBe("sent");
+    const seen = await hod.query(api.submissions.forHq, { councilId, kind: "monthly", period: "2026-10" });
+    const rep = seen[0]!.payload as { kind: string; month: string; parts: { blocks: { id: string; text?: string }[] }[] };
+    expect(rep).toMatchObject({ kind: "monthly", month: "2026-10" });
+    const achievements = rep.parts.flatMap((p) => p.blocks).find((b) => b.id === "1.3a");
+    expect(achievements?.text).toContain("Wakulima 22");
   });
 });
 

@@ -39,7 +39,7 @@ export type Meta = { key: string; value: unknown };
 export type LocalSubmission = {
   clientId: string;
   councilId: string;
-  kind: "food_prices";
+  kind: "food_prices" | "monthly";
   period: string;
   areaLabel: string;
   payload: Record<string, unknown>;
@@ -49,6 +49,9 @@ export type LocalSubmission = {
   revision?: number;
   submittedAt?: number;
   error?: string;
+  /** Sent by the server on the due date. */
+  auto?: boolean;
+  late?: boolean;
 };
 
 class AfisaDB extends Dexie {

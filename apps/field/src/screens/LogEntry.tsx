@@ -8,6 +8,7 @@ import { captureLocation, type GeoStatus } from "../lib/geo";
 import { useWork } from "../lib/session";
 import { useMyAreas } from "../lib/areas";
 import { requestSync } from "../lib/sync";
+import { useOpenFoodPeriod } from "../lib/food";
 import { draftToPayload, FieldInput, payloadToDraft, type Draft } from "./fields";
 import { Select, type SelectOption } from "@afisa/ui";
 
@@ -119,6 +120,8 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
   }, [editing, attempt]);
 
   const payload = useMemo(() => draftToPayload(spec.fields, draft), [spec, draft]);
+  // Prices go into the food report that is open now (the next one once this one is sent).
+  const foodPeriod = useOpenFoodPeriod();
   const areaOptions = useMemo<SelectOption[]>(() => {
     const out: SelectOption[] = [{ value: "", label: "Sijachagua" }];
     for (const w of wards) {
@@ -161,7 +164,7 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
       section,
       areaId: areaId || undefined,
       occurredAt,
-      payload,
+      payload: spec.type === "price" ? { ...payload, foodPeriod: existing?.payload.foodPeriod ?? foodPeriod } : payload,
       payloadVersion: PAYLOAD_VERSION,
       geo: existing?.geo ?? geoValue,
       clientUpdatedAt: now,

@@ -1,8 +1,8 @@
 import { v } from "convex/values";
 import { query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
-import { generateCouncilCode, isValidCouncilCode, normalizeCouncilCode } from "@afisa/shared";
-import { authedQuery, fail, rootMutation, rootQuery } from "./lib/guards";
+import { DEPARTMENT_ROLES, generateCouncilCode, isValidCouncilCode, normalizeCouncilCode } from "@afisa/shared";
+import { authedQuery, fail, hqMutation, hqQuery, rootMutation, rootQuery } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
 
 /** Crypto-backed random integer in [0, n). */
@@ -187,6 +187,42 @@ export const update = rootMutation({
       councilId,
       before: Object.fromEntries(Object.keys(patch).map((k) => [k, (c as Record<string, unknown>)[k]])),
       after: patch,
+    });
+    return null;
+  },
+});
+
+/** Council settings shown in HQ. */
+export const settings = hqQuery({
+  args: {},
+  handler: async (ctx) => {
+    const c = await ctx.db.get(ctx.viewer.councilId);
+    const { actor } = ctx.viewer;
+    return {
+      autoSend: { food: c?.autoSend?.food ?? false, monthly: c?.autoSend?.monthly ?? false },
+      canEdit: actor.isRoot || (actor.role !== null && DEPARTMENT_ROLES.includes(actor.role)),
+    };
+  },
+});
+
+/** Head of Department (or vice HoD, or root): reports send themselves on their due dates. */
+export const setAutoSend = hqMutation({
+  args: { food: v.boolean(), monthly: v.boolean() },
+  handler: async (ctx, args) => {
+    const { viewer } = ctx;
+    const { actor } = viewer;
+    if (!(actor.isRoot || (actor.role !== null && DEPARTMENT_ROLES.includes(actor.role)))) {
+      fail("FORBIDDEN", "Ni Mkuu wa Idara au Naibu wake tu wanaoweza kubadili mpangilio huu.");
+    }
+    const c = await ctx.db.get(viewer.councilId);
+    const autoSend = { food: args.food, monthly: args.monthly };
+    await ctx.db.patch(viewer.councilId, { autoSend });
+    await writeAudit(ctx, viewer, {
+      action: "council.autoSend",
+      entity: "councils",
+      entityId: viewer.councilId,
+      before: c?.autoSend ?? { food: false, monthly: false },
+      after: autoSend,
     });
     return null;
   },

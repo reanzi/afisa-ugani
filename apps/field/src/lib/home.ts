@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { currentFoodReport, monthKey, monthRange, recentKinds, reminders, shiftMonth, type Reminder } from "@afisa/shared";
+import { monthKey, monthRange, recentKinds, reminders, shiftMonth, type Reminder } from "@afisa/shared";
 import { db } from "./db";
 import { useWork } from "./session";
 import { reviewClientId } from "./report";
@@ -27,14 +27,7 @@ export function useHomeData() {
     const rejected = await db.records.where("[councilId+syncState]").equals([councilId, "rejected"]).filter((r) => !r.deletedAt).count();
     const reviewNow = await db.records.get(reviewClientId(me.userId, councilId, month));
     const reviewPrev = await db.records.get(reviewClientId(me.userId, councilId, prev));
-    const food = currentFoodReport(Date.now());
-    const foodPrices = await db.records
-      .where("[councilId+occurredAt]")
-      .between([councilId, food.start], [councilId, food.end], true, false)
-      .filter((r) => r.type === "price" && !r.deletedAt)
-      .count();
-    const foodSent = (await db.submissions.where("[councilId+kind+period]").equals([councilId, "food_prices", food.period]).count()) > 0;
-    return { recent, monthRecords, prevEntries, pending, rejected, reviewNow, reviewPrev, food, foodPrices, foodSent };
+    return { recent, monthRecords, prevEntries, pending, rejected, reviewNow, reviewPrev };
   }, [councilId, month, prev, me.userId]);
 
   return useMemo(() => {
@@ -49,7 +42,7 @@ export function useHomeData() {
       pendingCount: data.pending.length,
       oldestPendingAt: data.pending.length ? Math.min(...data.pending.map((p) => p.clientUpdatedAt)) : null,
       rejectedCount: data.rejected,
-      foodReport: { label: data.food.label, due: data.food.due, submitted: data.foodSent, prices: data.foodPrices },
+      // Food prices have their own card on the home screen, so no reminder here.
     });
     return {
       month,

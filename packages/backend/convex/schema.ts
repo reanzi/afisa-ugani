@@ -36,6 +36,8 @@ export default defineSchema({
     status: v.union(v.literal("active"), v.literal("disabled")),
     /** Open for officers to register into. */
     registrationOpen: v.boolean(),
+    /** Reports that send themselves when due, switched on by the Head of Department. */
+    autoSend: v.optional(v.object({ food: v.boolean(), monthly: v.boolean() })),
     /** Last NaPA address import: report date and totals. */
     addressImport: v.optional(
       v.object({
@@ -112,22 +114,28 @@ export default defineSchema({
   })
     .index("by_clientId", ["clientId"])
     .index("by_owner_council_updated", ["ownerId", "councilId", "serverUpdatedAt"])
+    .index("by_owner_council_occurred", ["ownerId", "councilId", "occurredAt"])
     .index("by_council_section_occurred", ["councilId", "section", "occurredAt"]),
 
   /**
    * Reports an officer chose to send. This is all HQ ever sees of an
    * officer's work: field records stay private to their author.
-   * Each send is kept; HQ shows the latest revision per officer and period.
+   * One report per officer, kind and period: once sent it is sealed.
    */
   submissions: defineTable({
     councilId: v.id("councils"),
     ownerId: v.id("users"),
     /** UUIDv7 made on the phone; makes the send idempotent. */
     clientId: v.string(),
-    kind: v.literal("food_prices"),
+    kind: v.union(v.literal("food_prices"), v.literal("monthly")),
     /** "2026-11": the reporting period. */
     period: v.string(),
+    /** Always 1: a sent report is sealed. Kept for reports sent before sealing. */
     revision: v.number(),
+    /** Sent by the server on the due date (auto-send), not by the officer. */
+    auto: v.optional(v.boolean()),
+    /** Sent after the due date. */
+    late: v.optional(v.boolean()),
     /** Snapshots at the time of sending, so the report reads the same later. */
     officerName: v.string(),
     areaLabel: v.string(),

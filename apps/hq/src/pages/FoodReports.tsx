@@ -6,10 +6,10 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { parseAsString, useQueryState } from "nuqs";
 import { api } from "@afisa/backend/api";
-import { availabilityLabel, combineFoodReports, currentFoodReport, foodCycle, shiftMonth } from "@afisa/shared";
+import { availabilityLabel, combineFoodReports, currentFoodReport, foodCycle, shiftMonth, validateFoodReport, type FoodReportPayload } from "@afisa/shared";
 import { Select, shortDate } from "@afisa/ui";
 import { useHq } from "../context";
-import { SectionTags, when } from "./common";
+import { MissingReports, SectionTags, SendTags, when } from "./common";
 
 const tsh = (n: number) => n.toLocaleString("en-US");
 
@@ -19,7 +19,12 @@ export function FoodReports() {
   const periods = useQuery(api.submissions.periodsForHq, { councilId, kind: "food_prices" });
   const [chosen, setChosen] = useQueryState("kipindi", parseAsString);
   const period = chosen ?? periods?.[0] ?? current;
-  const reports = useQuery(api.submissions.forHq, { councilId, kind: "food_prices", period });
+  const raw = useQuery(api.submissions.forHq, { councilId, kind: "food_prices", period });
+  // Payloads were checked when they arrived; check again so an old or odd one cannot break the page.
+  const reports = useMemo(
+    () => raw?.filter((r) => validateFoodReport(r.payload) === null).map((r) => ({ ...r, payload: r.payload as FoodReportPayload })),
+    [raw],
+  );
   const combined = useMemo(() => (reports ? combineFoodReports(reports.map((r) => r.payload)) : []), [reports]);
   const [open, setOpen] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -110,7 +115,8 @@ export function FoodReports() {
                   <button type="button" className="food-send-head no-print-toggle" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : r._id)}>
                     <span>
                       <strong>{r.areaLabel}</strong>
-                      <small>{r.officerName}, {when(r.submittedAt)}{r.revision > 1 ? `, toleo la ${r.revision}` : ""}</small>
+                      <small>{r.officerName}, {when(r.submittedAt)}</small>
+                      <SendTags auto={r.auto} late={r.late} />
                     </span>
                     <SectionTags sections={[r.primarySection]} />
                     <span className="muted small">bidhaa {r.payload.rows.length}</span>
@@ -141,6 +147,8 @@ export function FoodReports() {
           </ul>
         </>
       )}
+
+      <MissingReports kind="food_prices" period={period} due={cycle.due} />
     </section>
   );
 }

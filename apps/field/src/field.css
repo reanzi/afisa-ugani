@@ -853,120 +853,6 @@ fieldset.plain legend {
   gap: var(--space-2);
 }
 
-.rv {
-  display: grid;
-  gap: var(--space-3);
-}
-.rv-part {
-  background: var(--surface);
-  border: 2px solid var(--rule);
-  border-radius: var(--radius-tile);
-  padding: 0 var(--space-4);
-}
-.rv-part > summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 56px;
-  cursor: pointer;
-  list-style: none;
-}
-.rv-part > summary::-webkit-details-marker {
-  display: none;
-}
-.rv-part-title {
-  font-weight: 700;
-}
-.rv-part > summary::before {
-  content: "›";
-  font-weight: 700;
-  font-size: 1.3em;
-  transition: transform 0.15s;
-}
-.rv-part[open] > summary::before {
-  transform: rotate(90deg);
-}
-.rv-part-title {
-  flex: 1;
-}
-.rv-state {
-  font-size: var(--t-small);
-  font-weight: 700;
-  color: var(--ink-soft);
-  white-space: nowrap;
-}
-.rv-block {
-  display: grid;
-  gap: var(--space-2);
-  padding-bottom: var(--space-4);
-}
-.rv-block-title {
-  font-size: var(--t-body);
-}
-.rv-table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-control);
-}
-.rv-table {
-  border-collapse: collapse;
-  min-width: 100%;
-  font-size: var(--t-small);
-}
-.rv-table th,
-.rv-table td {
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--rule);
-  border-right: 1px solid var(--rule);
-  text-align: left;
-  vertical-align: top;
-}
-.rv-table thead th {
-  background: var(--surface-sunk);
-  font-weight: 700;
-  min-width: 90px;
-}
-.rv-table tbody th {
-  font-weight: 700;
-  white-space: nowrap;
-}
-.rv-table td.num {
-  text-align: right;
-}
-.rv-group {
-  text-align: center !important;
-}
-.rv-group-empty {
-  background: transparent !important;
-  border-bottom: 0 !important;
-}
-.rv-marker {
-  font-weight: 400;
-  color: var(--ink-soft);
-}
-.rv-total th,
-.rv-total td {
-  font-weight: 700;
-  background: var(--surface-sunk);
-}
-.rv-text {
-  white-space: pre-line;
-  padding: var(--space-3);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-control);
-}
-.rv-text.is-draft {
-  border-style: dashed;
-}
-.rv-text.is-empty {
-  color: var(--ink-soft);
-}
-.rv-hint,
-.rv-note {
-  font-size: var(--t-small);
-  color: var(--ink-soft);
-}
 
 /* ---------- Month-end review ---------- */
 
@@ -1005,25 +891,6 @@ fieldset.plain legend {
 
 .field-label {
   font-weight: 700;
-}
-/* Keep the row name visible while scrolling wide tables sideways. */
-.rv-table tbody th,
-.rv-table thead tr:last-child th:first-child {
-  position: sticky;
-  left: 0;
-  z-index: 1;
-  background: var(--surface);
-  box-shadow: 1px 0 0 var(--rule);
-}
-.rv-table thead tr:last-child th:first-child {
-  background: var(--surface-sunk);
-}
-.rv-total th {
-  background: var(--surface-sunk);
-}
-.rv-table thead th {
-  min-width: 96px;
-  max-width: 160px;
 }
 
 .code-input {
@@ -1160,28 +1027,27 @@ fieldset.plain legend {
   display: grid;
   gap: var(--space-2);
 }
-.food-row {
+.food-item {
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  grid-template-areas: "check name price" "check avail avail";
-  align-items: center;
-  column-gap: var(--space-3);
-  row-gap: 4px;
-  padding: var(--space-3) var(--space-4);
+  gap: var(--space-3);
+  padding: var(--space-4);
   background: var(--surface);
   border: 2px solid var(--rule);
   border-radius: 10px;
-  cursor: pointer;
 }
-.food-row input {
-  grid-area: check;
-  width: 22px;
-  height: 22px;
-  accent-color: var(--ink);
+.food-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 .food-name {
-  grid-area: name;
   display: grid;
+  min-width: 0;
+}
+.food-name strong {
+  font-size: var(--t-lead);
+  line-height: 1.25;
 }
 .food-name small,
 .food-price small {
@@ -1189,19 +1055,16 @@ fieldset.plain legend {
   color: var(--ink-soft);
 }
 .food-price {
-  grid-area: price;
   display: grid;
   justify-items: end;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .food-price strong {
   font-size: var(--t-lead);
 }
-.food-list li.is-off .food-row {
-  opacity: 0.5;
-  border-style: dashed;
-}
 .avail {
-  grid-area: avail;
   justify-self: start;
   padding: 1px 8px;
   border-radius: 6px;
@@ -1220,4 +1083,328 @@ fieldset.plain legend {
 }
 .small {
   font-size: var(--t-small);
+}
+
+/* ---------- Food prices: home card ---------- */
+.food-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 72px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 2px solid var(--rule);
+  border-radius: var(--radius-tile);
+  color: var(--ink);
+  text-decoration: none;
+}
+.food-card.is-loading {
+  border-style: dashed;
+}
+.food-card:active {
+  background: var(--surface-sunk);
+}
+.food-card-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--surface-sunk);
+}
+.food-card-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.food-card-text strong {
+  font-size: var(--t-lead);
+  line-height: 1.2;
+}
+.food-card-text small {
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+.food-card-go {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.food-card.is-ready {
+  background: var(--maize);
+  border-color: var(--maize-press);
+  color: var(--on-maize);
+}
+.food-card.is-ready .food-card-icon {
+  background: color-mix(in srgb, var(--on-maize) 12%, transparent);
+}
+.food-card.is-ready .food-card-text small {
+  color: var(--on-maize);
+}
+.food-card.is-ready .food-card-go {
+  border-color: var(--on-maize);
+}
+.food-card.is-ready:active {
+  background: var(--maize-press);
+}
+
+/* ---------- Food prices: quick entry ---------- */
+.food-entry {
+  display: grid;
+  gap: var(--space-5);
+}
+.food-entry header {
+  display: grid;
+  gap: var(--space-1);
+}
+.ready-banner {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: 10px;
+  background: var(--maize);
+  color: var(--on-maize);
+  text-decoration: none;
+}
+.ready-banner strong {
+  font-size: var(--t-lead);
+}
+.quick-price {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 2px solid var(--rule);
+  border-radius: var(--radius-tile);
+}
+.qp-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-3);
+  align-items: end;
+}
+.qp-price .input {
+  font-size: var(--t-title);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.toggle-2 {
+  display: flex;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  height: var(--tap);
+}
+.toggle-2 button {
+  min-width: 84px;
+  padding: 0 var(--space-3);
+  border: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+}
+.toggle-2 button + button {
+  border-left: 2px solid var(--ink);
+}
+.toggle-2 button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--surface);
+}
+.added.is-removed {
+  background: var(--surface-sunk);
+  color: var(--ink);
+}
+.qp-row .field > span,
+.qp-row legend {
+  display: block;
+  margin: 0 0 var(--space-2);
+  font-weight: 700;
+}
+.unit-chips .chip {
+  min-width: 64px;
+  justify-content: center;
+}
+.added {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+  background: var(--ok-ground);
+  color: var(--ok);
+  font-weight: 700;
+}
+.price-entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 2px solid var(--rule);
+}
+.price-entries li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--rule);
+}
+.pe-name {
+  display: grid;
+  min-width: 0;
+}
+.pe-name strong {
+  font-size: var(--t-lead);
+  line-height: 1.25;
+}
+.pe-name small,
+.pe-price small {
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+.pe-price {
+  font-size: var(--t-lead);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pe-remove {
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
+  background: none;
+  color: var(--danger);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------- Food report: availability, sealing, sending ---------- */
+.avail-pick {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-1);
+}
+.avail-opt {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 2px solid var(--rule);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: 700;
+}
+.avail-opt[aria-checked="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--surface);
+}
+.avail-opt.avail-wingi[aria-checked="true"] {
+  border-color: var(--ok);
+  background: var(--ok);
+}
+.avail-opt.avail-haba[aria-checked="true"],
+.avail-opt.avail-haipatikani[aria-checked="true"] {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+[data-theme="usiku"] .avail-opt[aria-checked="true"] {
+  color: var(--ground);
+}
+.seal {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border-left: 6px solid var(--ok);
+  border-radius: 6px;
+  background: var(--ok-ground);
+}
+.seal strong {
+  font-size: var(--t-lead);
+  color: var(--ok);
+}
+.seal.seal-wait {
+  border-left-color: var(--wait);
+  background: var(--wait-ground);
+}
+.seal.seal-wait strong {
+  color: var(--wait);
+}
+.sealed-note h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--t-body);
+}
+.sealed-note p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.submit-bar {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 2px solid var(--rule);
+}
+.submit-bar p {
+  margin: 0;
+  font-weight: 700;
+}
+.review-lock {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.review-lock:disabled {
+  opacity: 0.85;
+}
+
+/* ---------- Confirm sheet ---------- */
+.confirm-sheet {
+  width: 100%;
+  max-width: 520px;
+  margin: auto auto 0;
+  padding: 0;
+  border: 0;
+  border-radius: 16px 16px 0 0;
+  background: var(--surface);
+  color: var(--ink);
+}
+.confirm-sheet::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+@media (min-width: 640px) {
+  .confirm-sheet {
+    margin: auto;
+    border-radius: 16px;
+  }
+}
+.confirm-body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+}
+.confirm-body h2 {
+  margin: 0;
+  font-size: var(--t-title);
+  line-height: 1.2;
+}
+.confirm-body p {
+  margin: 0;
+  font-size: var(--t-body);
+}
+.confirm-actions {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }

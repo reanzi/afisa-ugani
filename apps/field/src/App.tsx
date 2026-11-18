@@ -12,6 +12,7 @@ import { Me } from "./screens/Me";
 import { UpdatePrompt } from "./screens/UpdatePrompt";
 import { Report } from "./screens/Report";
 import { Review } from "./screens/Review";
+import { FoodPrices } from "./screens/FoodPrices";
 
 export function App() {
   return (
@@ -54,6 +55,7 @@ function Main() {
           <Route path="shughuli" element={<History />} />
           <Route path="ripoti" element={<Report />} />
           <Route path="ripoti/majibu" element={<Review />} />
+          <Route path="bei" element={<FoodPrices />} />
           <Route path="mimi" element={<Me />} />
           <Route path="*" element={<Today />} />
         </Route>
