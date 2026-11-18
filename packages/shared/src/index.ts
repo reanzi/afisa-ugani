@@ -4,3 +4,4 @@ export * from "./catalogs.ts";
 export * from "./actions.ts";
 export * from "./period.ts";
 export * from "./report/monthly.ts";
+export * from "./insights.ts";

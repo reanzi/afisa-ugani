@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useLiveQuery } from "dexie-react-hooks";
 import { v7 as uuidv7 } from "uuid";
 import { fieldVisible, PAYLOAD_VERSION, SECTION_LABELS, specFor, validatePayload, type RecordSpec, type Section } from "@afisa/shared";
@@ -75,14 +75,18 @@ const VALIDATION_TEXT: Record<string, string> = {
 
 function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
   const navigate = useNavigate();
+  // Back to where the officer came from (home section, history), or home if the form was opened directly.
+  const goBack = () => ((window.history.state as { idx?: number } | null)?.idx ? navigate(-1) : navigate("/", { replace: true }));
   const { councilId, sections, membership } = useWork();
   const { wards, villages } = useMyAreas();
   const existing = useLiveQuery(() => (clientId ? db.records.get(clientId) : undefined), [clientId]);
   const editing = Boolean(clientId);
 
+  const [params] = useSearchParams();
+  const preset = params.get("sehemu");
   const allowed = sections.filter((s) => spec.sections.includes(s));
   const [section, setSection] = useState<Section>(
-    allowed.includes(membership.primarySection) ? membership.primarySection : (allowed[0] ?? sections[0]!),
+    allowed.find((s) => s === preset) ?? (allowed.includes(membership.primarySection) ? membership.primarySection : (allowed[0] ?? sections[0]!)),
   );
   const [draft, setDraft] = useState<Draft>({});
   const [areaId, setAreaId] = useState("");
@@ -169,7 +173,7 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
     for (const f of spec.fields) if ((f.kind === "select" || f.kind === "choice") && draft[f.key]) remembered[f.key] = draft[f.key]!;
     await setMeta(`last:${spec.type}`, remembered);
     requestSync();
-    navigate("/", { replace: true });
+    goBack();
   };
 
   const remove = async () => {
@@ -177,7 +181,7 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
     if (!window.confirm("Futa kumbukumbu hii? Itaondolewa kwenye ripoti.")) return;
     await db.records.update(existing.clientId, { deletedAt: Date.now(), clientUpdatedAt: Date.now(), syncState: "pending" });
     requestSync();
-    navigate("/", { replace: true });
+    goBack();
   };
 
   const fieldBlock = (f: (typeof visible)[number]) => (
@@ -189,7 +193,7 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
 
   return (
     <main className="page narrow">
-      <Link to="/" className="back">Rudi</Link>
+      <button type="button" className="back" onClick={goBack}>Rudi</button>
       <h1 className="page-title">{editing ? `Badili: ${spec.label}` : spec.label}</h1>
 
       <form className="stack" onSubmit={submit} noValidate>

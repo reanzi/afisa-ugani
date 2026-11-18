@@ -76,3 +76,16 @@ export function authErrorMessage(err: { error: string; minimumLength?: number; m
       return "Imeshindikana. Angalia mtandao kisha ujaribu tena.";
   }
 }
+
+/** "leo 14:05", "jana 09:30", or "17 Nov" for older times. */
+export function relativeWhen(ms: number, now = Date.now()): string {
+  const day = (t: number) => {
+    const d = new Date(t);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  const diff = Math.round((day(now) - day(ms)) / 86_400_000);
+  if (diff === 0) return `leo ${clock(ms)}`;
+  if (diff === 1) return `jana ${clock(ms)}`;
+  const d = new Date(ms);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]!.slice(0, 3)}`;
+}
