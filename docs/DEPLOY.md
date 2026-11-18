@@ -26,17 +26,20 @@ Still in `packages/backend`. Every command takes `--prod`:
 ```bash
 npx convex run --prod admin:bootstrapRoot '{"username":"900000009","password":"<a strong password>","name":"Msimamizi wa Mfumo"}'
 
-npx convex run --prod admin:createCouncil '{"name":"Halmashauri ya Mji ya Bagamoyo","code":"BAGAMOYO-TC","region":"Pwani"}'
+```
 
-npx convex run --prod admin:addAreas '{"councilCode":"BAGAMOYO-TC","wards":[
-  {"name":"Dunda","villages":["Kisutu","Nianjema"]},
-  {"name":"Magomeni","villages":["Kitopeni","Mwanakalenge"]}
-]}'
+Then sign in to the **HQ app** as root (after step 3) and open **Halmashauri**:
+- Enter the council's name and region and, optionally, choose its **NaPA address report** (.xls/.xlsx, "Idadi ya Anwani za Barabara"). The page shows how many wards, villages/mitaa, roads/hamlets and addresses it found before anything is saved.
+- **Ongeza** creates the council and loads the addresses ward by ward. The council's **8-character code** (e.g. `K7QM-3XPA`) is shown at the end; give it to the Head of Department.
+
+From the CLI instead (prints the generated code):
+
+```bash
+npx convex run --prod admin:createCouncil '{"name":"Halmashauri ya Wilaya ya Bagamoyo","region":"Pwani"}'
 ```
 
 - `bootstrapRoot` creates the account and makes it root in one step. Running it again is safe.
 - Keep the root password somewhere safe. Root can see and do everything, and nobody else can see root.
-- Councils can also be created later by root in HQ, on the **Halmashauri** page.
 
 ## 3. Build and host the two apps
 
@@ -69,7 +72,7 @@ All three serve HTTPS, which the Field app needs for offline use, the camera and
 ## 4. Seat the Head of Department
 
 1. The HoD opens the **HQ address**, chooses **Fungua akaunti** (create account), and signs up with their phone number as the username.
-2. They type the council code (`BAGAMOYO-TC`), pick **Mkuu wa Idara** and their section, and send the request.
+2. They type the 8-character council code (e.g. `K7QM-3XPA`, with or without the dash), pick **Mkuu wa Idara** and their section, and send the request.
 3. Root signs in to HQ, opens **Maombi**, and approves the request. The HoD's screen opens HQ on its own.
 
 From here the HoD runs the council in HQ:

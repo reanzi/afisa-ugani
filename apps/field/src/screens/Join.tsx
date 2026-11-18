@@ -4,7 +4,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
 import { HQ_ROLES, ROLE_LABELS, SECTIONS, SECTION_LABELS, type OfficerLevel, type Role, type Section } from "@afisa/shared";
-import { errorMessage, Select } from "@afisa/ui";
+import { CodeInput, errorMessage, Select } from "@afisa/ui";
 import { clientMeta } from "../lib/client";
 
 type Mode = "afisa" | "makao";
@@ -26,7 +26,7 @@ export function Join({ rejectedNote, defaultName }: { rejectedNote: string | nul
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const codeCouncil = useQuery(api.councils.lookupByCode, mode === "makao" && code.trim().length >= 3 ? { code } : "skip");
+  const codeCouncil = useQuery(api.councils.lookupByCode, mode === "makao" && code.length >= 6 ? { code } : "skip");
   const chosenCouncil = councilId || (councils?.length === 1 ? councils[0]!._id : "");
   const ready =
     name.trim().length >= 3 &&
@@ -110,12 +110,12 @@ export function Join({ rejectedNote, defaultName }: { rejectedNote: string | nul
           </>
         ) : (
           <>
-            <label className="field">
-              <span>Msimbo wa halmashauri</span>
-              <input className="input code-input" autoCapitalize="characters" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="mfano: BAGAMOYO-TC" />
-              {code.trim().length >= 3 && codeCouncil === null && <small className="tone-danger">Msimbo huu haupo.</small>}
-              {codeCouncil && <small className="tone-ok">{codeCouncil.name}, {codeCouncil.region}</small>}
-            </label>
+            <div className="field">
+              <span className="field-label" id="code-label">Msimbo wa halmashauri</span>
+              <CodeInput labelledBy="code-label" value={code} onChange={setCode} invalid={code.length === 8 && codeCouncil === null} />
+              {code.length === 8 && codeCouncil === null && <small className="tone-danger">Msimbo huu haupo. Hakikisha herufi zote 8.</small>}
+              {codeCouncil ? <small className="tone-ok">{codeCouncil.name}, {codeCouncil.region}</small> : <small>Herufi na namba 8 ulizopewa na msimamizi wa mfumo.</small>}
+            </div>
             <div className="field">
               <span className="field-label" id="role-label">Cheo chako</span>
               <Select

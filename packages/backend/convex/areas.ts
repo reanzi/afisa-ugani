@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { canManageAreas } from "@afisa/shared";
-import { fail, hqMutation, memberQuery } from "./lib/guards";
+import { fail, hqMutation, memberQuery, rootMutation } from "./lib/guards";
+import type { Id } from "./_generated/dataModel";
 import { writeAudit } from "./lib/audit";
 import { vAreaKind } from "./lib/validators";
 
@@ -31,6 +32,7 @@ export const create = hqMutation({
     if (!canManageAreas(viewer.actor)) fail("FORBIDDEN", "Huna ruhusa ya kuongeza maeneo.");
     const name = args.name.trim();
     if (name.length < 2) fail("INVALID", "Jina la eneo ni fupi mno.");
+    if (args.kind === "street") fail("INVALID", "Barabara na vitongoji huingizwa kutoka faili la anwani la NaPA.");
     if (args.kind === "village") {
       if (!args.parentId) fail("INVALID", "Kijiji kinahitaji kata yake.");
       const ward = await ctx.db.get(args.parentId);
@@ -65,5 +67,109 @@ export const rename = hqMutation({
       after: { name: clean },
     });
     return null;
+  },
+});
+
+const vNapaStreet = v.object({
+  name: v.string(),
+  kind: v.optional(v.string()),
+  surface: v.optional(v.string()),
+  addresses: v.optional(v.number()),
+});
+
+/**
+ * Root: load one ward of a NaPA address report (ward → villages/mitaa →
+ * roads and hamlets). Called once per ward so each call stays small. Matching
+ * is by name within the parent, so importing an updated report again updates
+ * address counts instead of making duplicates.
+ */
+export const importNapaWard = rootMutation({
+  args: {
+    councilId: v.id("councils"),
+    ward: v.object({
+      name: v.string(),
+      villages: v.array(v.object({ name: v.string(), streets: v.array(vNapaStreet) })),
+    }),
+  },
+  handler: async (ctx, { councilId, ward }) => {
+    const council = await ctx.db.get(councilId);
+    if (!council) fail("NOT_FOUND", "Halmashauri haipo.");
+    const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+    const counts = { wardsAdded: 0, villagesAdded: 0, streetsAdded: 0, streetsUpdated: 0 };
+
+    const wards = await ctx.db.query("areas").withIndex("by_council_kind", (q) => q.eq("councilId", councilId).eq("kind", "ward")).collect();
+    let wardId: Id<"areas"> | undefined = wards.find((w) => same(w.name, ward.name) && w.archivedAt === undefined)?._id;
+    if (!wardId) {
+      wardId = await ctx.db.insert("areas", { councilId, kind: "ward", name: ward.name.trim() });
+      counts.wardsAdded++;
+    }
+    const villages = await ctx.db.query("areas").withIndex("by_parent", (q) => q.eq("parentId", wardId)).collect();
+    for (const village of ward.villages) {
+      let villageId: Id<"areas"> | undefined = villages.find((x) => same(x.name, village.name) && x.kind === "village")?._id;
+      if (!villageId) {
+        villageId = await ctx.db.insert("areas", { councilId, kind: "village", name: village.name.trim(), parentId: wardId });
+        counts.villagesAdded++;
+      }
+      const streets = await ctx.db.query("areas").withIndex("by_parent", (q) => q.eq("parentId", villageId)).collect();
+      for (const st of village.streets) {
+        const meta = { streetKind: st.kind || undefined, surface: st.surface || undefined, addresses: st.addresses };
+        const existing = streets.find((x) => same(x.name, st.name) && x.kind === "street");
+        if (existing) {
+          if (existing.addresses !== meta.addresses || existing.streetKind !== meta.streetKind || existing.surface !== meta.surface) {
+            await ctx.db.patch(existing._id, meta);
+            counts.streetsUpdated++;
+          }
+        } else {
+          await ctx.db.insert("areas", { councilId, kind: "street", name: st.name.trim(), parentId: villageId, ...meta });
+          counts.streetsAdded++;
+        }
+      }
+    }
+    await writeAudit(ctx, ctx.viewer, {
+      action: "area.importNapa",
+      entity: "areas",
+      entityId: wardId,
+      councilId,
+      after: { ward: ward.name, ...counts },
+    });
+    return counts;
+  },
+});
+
+/** Root: record that a NaPA import finished, with the report date and totals shown in HQ. */
+export const finishNapaImport = rootMutation({
+  args: {
+    councilId: v.id("councils"),
+    reportDate: v.optional(v.string()),
+    totals: v.object({ wards: v.number(), villages: v.number(), streets: v.number(), addresses: v.number() }),
+  },
+  handler: async (ctx, { councilId, reportDate, totals }) => {
+    const council = await ctx.db.get(councilId);
+    if (!council) fail("NOT_FOUND", "Halmashauri haipo.");
+    const addressImport = { reportDate, importedAt: Date.now(), ...totals };
+    await ctx.db.patch(councilId, { addressImport });
+    await writeAudit(ctx, ctx.viewer, {
+      action: "council.addressImport",
+      entity: "councils",
+      entityId: councilId,
+      councilId,
+      before: council.addressImport ?? null,
+      after: addressImport,
+    });
+    return null;
+  },
+});
+
+/** Roads and hamlets of one village, for HQ and (later) for a precise "where" in the Field app. */
+export const streets = memberQuery({
+  args: { villageId: v.id("areas") },
+  handler: async (ctx, { villageId }) => {
+    const village = await ctx.db.get(villageId);
+    if (!village || village.councilId !== ctx.viewer.councilId) return [];
+    const rows = await ctx.db.query("areas").withIndex("by_parent", (q) => q.eq("parentId", villageId)).collect();
+    return rows
+      .filter((r) => r.kind === "street" && r.archivedAt === undefined)
+      .map((r) => ({ _id: r._id, name: r.name, kind: r.streetKind ?? null, surface: r.surface ?? null, addresses: r.addresses ?? null }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   },
 });

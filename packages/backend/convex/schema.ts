@@ -36,6 +36,17 @@ export default defineSchema({
     status: v.union(v.literal("active"), v.literal("disabled")),
     /** Open for officers to register into. */
     registrationOpen: v.boolean(),
+    /** Last NaPA address import: report date and totals. */
+    addressImport: v.optional(
+      v.object({
+        reportDate: v.optional(v.string()),
+        importedAt: v.number(),
+        wards: v.number(),
+        villages: v.number(),
+        streets: v.number(),
+        addresses: v.number(),
+      }),
+    ),
     createdAt: v.number(),
   })
     .index("by_code", ["code"])
@@ -45,8 +56,12 @@ export default defineSchema({
     councilId: v.id("councils"),
     kind: vAreaKind,
     name: v.string(),
-    /** The ward of a village. */
+    /** The ward of a village; the village of a street. */
     parentId: v.optional(v.id("areas")),
+    /** Streets only (NaPA): ROAD, STREET, HAMLET…, EARTH/GRAVEL/PAVED, number of addresses. */
+    streetKind: v.optional(v.string()),
+    surface: v.optional(v.string()),
+    addresses: v.optional(v.number()),
     archivedAt: v.optional(v.number()),
   })
     .index("by_council_kind", ["councilId", "kind"])

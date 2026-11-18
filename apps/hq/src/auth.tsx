@@ -11,7 +11,7 @@ import {
 } from "@convex-dev/auth/methods/username-password/react";
 import { api } from "@afisa/backend/api";
 import { HQ_ROLES, ROLE_LABELS, SECTIONS, SECTION_LABELS, type Role, type Section } from "@afisa/shared";
-import { authErrorMessage, errorMessage, Select } from "@afisa/ui";
+import { authErrorMessage, CodeInput, errorMessage, Select } from "@afisa/ui";
 import { hqClient, type Me } from "./context";
 
 export function SignIn() {
@@ -81,7 +81,7 @@ export function JoinWithCode({ me }: { me: Me }) {
   const [section, setSection] = useState<Section | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const council = useQuery(api.councils.lookupByCode, code.trim().length >= 3 ? { code } : "skip");
+  const council = useQuery(api.councils.lookupByCode, code.length >= 6 ? { code } : "skip");
   const ready = name.trim().length >= 3 && council && role && section;
 
   const submit = async (e: FormEvent) => {
@@ -113,12 +113,12 @@ export function JoinWithCode({ me }: { me: Me }) {
         {rejected?.decisionNote && (
           <div className="notice notice-danger"><p>Ombi la awali halikukubaliwa: {rejected.decisionNote}</p></div>
         )}
-        <label className="field">
-          <span>Msimbo wa halmashauri</span>
-          <input className="input code-input" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="mfano: BAGAMOYO-TC" />
-          {code.trim().length >= 3 && council === null && <small className="tone-danger">Msimbo huu haupo.</small>}
-          {council && <small className="tone-ok">{council.name}, {council.region}</small>}
-        </label>
+        <div className="field">
+          <span className="field-label" id="hq-code">Msimbo wa halmashauri</span>
+          <CodeInput labelledBy="hq-code" value={code} onChange={setCode} autoFocus invalid={code.length === 8 && council === null} />
+          {code.length === 8 && council === null && <small className="tone-danger">Msimbo huu haupo. Hakikisha herufi zote 8.</small>}
+          {council ? <small className="tone-ok">{council.name}, {council.region}</small> : <small>Herufi na namba 8, mfano K7QM-3XPA.</small>}
+        </div>
         <label className="field">
           <span>Jina kamili</span>
           <input className="input" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />

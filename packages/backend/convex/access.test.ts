@@ -36,9 +36,8 @@ async function signUp(t: T, username: string) {
 
 async function world() {
   const t = setup();
-  const councilId: Id<"councils"> = await t.mutation(internal.admin.createCouncil, {
+  const { councilId, code }: { councilId: Id<"councils">; code: string } = await t.mutation(internal.admin.createCouncil, {
     name: "Halmashauri ya Majaribio",
-    code: "TEST-DC",
     region: "Morogoro",
   });
   const ward = await t.run((ctx) => ctx.db.insert("areas", { councilId, kind: "ward", name: "Mzumbe" }));
@@ -48,13 +47,13 @@ async function world() {
 
   const hod = await signUp(t, "hod_test");
   await t.mutation(internal.admin.seatMember, {
-    username: "hod_test", councilCode: "TEST-DC", role: "admin", primarySection: "kilimo", name: "Mkuu wa Idara",
+    username: "hod_test", councilCode: code, role: "admin", primarySection: "kilimo", name: "Mkuu wa Idara",
   });
 
   const root = await signUp(t, "root_test");
   await t.mutation(internal.admin.makeRoot, { username: "root_test" });
 
-  return { t, councilId, ward, village, hod, root };
+  return { t, councilId, code, ward, village, hod, root };
 }
 
 async function join(t: T, username: string, councilId: Id<"councils">, section: "kilimo" | "mifugo" | "uvuvi") {
@@ -132,16 +131,19 @@ describe("first deployment and council code sign-up", () => {
   it("a Head of Department joins with the council code and only root can approve", async () => {
     const t = setup();
     await t.action(internal.admin.bootstrapRoot, { username: "900000009", password: "Mzizi-Imara-2026" });
-    const councilId = await t.mutation(internal.admin.createCouncil, { name: "Halmashauri ya Mji ya Bagamoyo", code: "BAGAMOYO-TC", region: "Pwani" });
+    const { councilId, code } = await t.mutation(internal.admin.createCouncil, { name: "Halmashauri ya Mji ya Bagamoyo", region: "Pwani" });
+    expect(code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
     const rootRes = await t.mutation(api.auth.signInWithUsernamePassword, { username: "900000009", password: "Mzizi-Imara-2026" });
     if (rootRes.status !== "complete") throw new Error("root sign-in failed");
     const root = t.withIdentity(sessionIdentity(rootRes.tokens));
     await root.mutation(api.councils.update, { councilId, registrationOpen: false });
 
     const hod = await signUp(t, "100000001");
-    expect(await t.query(api.councils.lookupByCode, { code: "bagamoyo-tc" })).toMatchObject({ name: "Halmashauri ya Mji ya Bagamoyo" });
+    // Typed in lower case, with or without the dash.
+    expect(await t.query(api.councils.lookupByCode, { code: code.toLowerCase() })).toMatchObject({ name: "Halmashauri ya Mji ya Bagamoyo" });
+    expect(await t.query(api.councils.lookupByCode, { code: code.replace("-", "") })).not.toBeNull();
     const membershipId = await hod.mutation(api.memberships.requestJoin, {
-      councilCode: "bagamoyo-tc", requestedRole: "admin", name: "Mkuu Idara Kilimo", primarySection: "kilimo", client: hq,
+      councilCode: code.toLowerCase(), requestedRole: "admin", name: "Mkuu Idara Kilimo", primarySection: "kilimo", client: hq,
     });
     const me = await hod.query(api.users.me, {});
     expect(me.memberships[0]).toMatchObject({ status: "pending", requestedRole: "admin", role: "officer" });
@@ -158,16 +160,70 @@ describe("first deployment and council code sign-up", () => {
   });
 
   it("a HoD cannot approve another HoD request, but approves a section head request", async () => {
-    const { t, councilId, hod } = await world();
-    await t.run((ctx) => ctx.db.patch(councilId, { code: "TEST-DC" }));
+    const { t, councilId, code, hod } = await world();
     const asksAdmin = await signUp(t, "anaomba_hod");
-    const m1 = await asksAdmin.mutation(api.memberships.requestJoin, { councilCode: "TEST-DC", requestedRole: "admin", name: "Mtu Mwingine", primarySection: "mifugo", client: hq });
+    const m1 = await asksAdmin.mutation(api.memberships.requestJoin, { councilCode: code, requestedRole: "admin", name: "Mtu Mwingine", primarySection: "mifugo", client: hq });
     await expect(hod.mutation(api.memberships.approve, { councilId, membershipId: m1, areaIds: [], client: hq })).rejects.toThrow(/msimamizi wa mfumo/);
     const asksHead = await signUp(t, "anaomba_head");
-    const m2 = await asksHead.mutation(api.memberships.requestJoin, { councilCode: "TEST-DC", requestedRole: "section_head", name: "Mkuu Mifugo", primarySection: "mifugo", client: hq });
+    const m2 = await asksHead.mutation(api.memberships.requestJoin, { councilCode: code, requestedRole: "section_head", name: "Mkuu Mifugo", primarySection: "mifugo", client: hq });
     await hod.mutation(api.memberships.approve, { councilId, membershipId: m2, areaIds: [], client: hq });
     const me = await asksHead.query(api.users.me, {});
     expect(me.memberships[0]).toMatchObject({ role: "section_head", status: "active" });
+  });
+});
+
+describe("council codes and NaPA addresses", () => {
+  async function rootOf(t: T) {
+    const res = await t.mutation(api.auth.signInWithUsernamePassword, { username: "root_test", password: "Shamba-la-Mahindi-2026" });
+    if (res.status !== "complete") throw new Error("root sign-in failed");
+    return t.withIdentity(sessionIdentity(res.tokens));
+  }
+  const ward = {
+    name: "Dunda",
+    villages: [
+      { name: "Benki", streets: [{ name: "Bagamoyo Rd.", kind: "ROAD", surface: "PAVED", addresses: 7 }, { name: "Fuko St.", kind: "STREET", surface: "EARTH", addresses: 2 }] },
+      { name: "Majani Mapana", streets: [{ name: "Kihabu St.", kind: "STREET", surface: "EARTH", addresses: 30 }] },
+    ],
+  };
+
+  it("root creates a council with a unique generated code and can replace it", async () => {
+    const { t } = await world();
+    const root = await rootOf(t);
+    const a = await root.mutation(api.councils.create, { name: "Halmashauri ya Wilaya ya Bagamoyo", region: "Pwani" });
+    const b = await root.mutation(api.councils.create, { name: "Halmashauri ya Mji wa Kibaha", region: "Pwani" });
+    expect(a.code).toMatch(/^[A-Z0-9]{8}$/);
+    expect(a.code).not.toBe(b.code);
+    const fresh = await root.mutation(api.councils.regenerateCode, { councilId: a.councilId });
+    expect(fresh).not.toBe(a.code);
+    expect(await t.query(api.councils.lookupByCode, { code: a.code })).toBeNull();
+    expect(await t.query(api.councils.lookupByCode, { code: fresh })).not.toBeNull();
+  });
+
+  it("an old-format code still works until it is replaced", async () => {
+    const { t, councilId } = await world();
+    await t.run((ctx) => ctx.db.patch(councilId, { code: "BAMOYO" }));
+    expect(await t.query(api.councils.lookupByCode, { code: "bamoyo" })).not.toBeNull();
+  });
+
+  it("imports a NaPA ward once, updates counts on re-import, and keeps streets out of officers' lists", async () => {
+    const { t, councilId, hod } = await world();
+    const root = await rootOf(t);
+    const first = await root.mutation(api.areas.importNapaWard, { councilId, ward });
+    expect(first).toEqual({ wardsAdded: 1, villagesAdded: 2, streetsAdded: 3, streetsUpdated: 0 });
+    const updated = { ...ward, villages: [{ ...ward.villages[0]!, streets: [{ ...ward.villages[0]!.streets[0]!, addresses: 9 }] }] };
+    const again = await root.mutation(api.areas.importNapaWard, { councilId, ward: updated });
+    expect(again).toEqual({ wardsAdded: 0, villagesAdded: 0, streetsAdded: 0, streetsUpdated: 1 });
+
+    const list = await hod.query(api.areas.list, { councilId });
+    expect(list.some((a) => a.kind === "street")).toBe(false);
+    const benki = list.find((a) => a.name === "Benki")!;
+    const streets = await hod.query(api.areas.streets, { councilId, villageId: benki._id });
+    expect(streets.find((s) => s.name === "Bagamoyo Rd.")?.addresses).toBe(9);
+
+    await expect(hod.mutation(api.areas.importNapaWard, { councilId, ward, client: hq })).rejects.toThrow(/ruhusa/);
+    await root.mutation(api.areas.finishNapaImport, { councilId, reportDate: "01/07/2026", totals: { wards: 1, villages: 2, streets: 3, addresses: 39 } });
+    const all = await root.query(api.councils.listAll, {});
+    expect(all.find((c) => c._id === councilId)?.addressImport).toMatchObject({ reportDate: "01/07/2026", streets: 3 });
   });
 });
 

@@ -13,6 +13,7 @@ import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { authedMutation, fail, hiddenUserIds, hqMutation, hqQuery, type MemberViewer } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
+import { findCouncilByCode } from "./councils";
 import { vMembershipStatus, vOfficerLevel, vRole, vSection } from "./lib/validators";
 
 const toTarget = (m: Doc<"memberships">): Target => ({
@@ -83,10 +84,7 @@ export const requestJoin = authedMutation({
     const { viewer } = ctx;
     let council: Doc<"councils"> | null = null;
     if (args.councilCode?.trim()) {
-      council = await ctx.db
-        .query("councils")
-        .withIndex("by_code", (q) => q.eq("code", args.councilCode!.trim().toUpperCase()))
-        .unique();
+      council = await findCouncilByCode(ctx, args.councilCode);
       if (!council || council.status !== "active") fail("INVALID", "Msimbo wa halmashauri haupo. Hakikisha umeuandika sawasawa.");
     } else if (args.councilId) {
       council = await ctx.db.get(args.councilId);

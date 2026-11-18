@@ -4,13 +4,15 @@
  *
  * First deployment, in this order:
  *   npx convex run admin:bootstrapRoot '{"username":"900000009","password":"<strong password>","name":"Msimamizi"}'
- *   npx convex run admin:createCouncil '{"name":"Halmashauri ya Mji ya Bagamoyo","code":"BAGAMOYO-TC","region":"Pwani"}'
+ *   npx convex run admin:createCouncil '{"name":"Halmashauri ya Wilaya ya Bagamoyo","region":"Pwani"}'
+ *   (prints the generated council code, e.g. "K7QM-3XPA")
+ * Councils and their NaPA address lists can also be created by root in HQ (Halmashauri).
  * Then the Head of Department signs up in HQ with the council code, and root
  * approves the request in HQ (Maombi). Everything after that happens in HQ.
  *
  * Other tools:
  *   npx convex run admin:createAccount '{"username":"100000001","password":"...","name":"..."}'
- *   npx convex run admin:seatMember '{"username":"100000001","councilCode":"BAGAMOYO-TC","role":"admin","primarySection":"kilimo"}'
+ *   npx convex run admin:seatMember '{"username":"100000001","councilCode":"K7QM-3XPA","role":"admin","primarySection":"kilimo"}'
  *   npx convex run admin:makeRoot '{"username":"900000009"}'
  *   npx convex run admin:setMinClientVersion '{"version":"0.2.0"}'
  */
@@ -18,6 +20,8 @@ import { v } from "convex/values";
 import { api, components, internal } from "./_generated/api";
 import { internalAction, internalMutation } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { formatCouncilCode } from "@afisa/shared";
+import { findCouncilByCode, newCouncilCode } from "./councils";
 import { writeAudit } from "./lib/audit";
 import { vRole, vSection } from "./lib/validators";
 
@@ -93,12 +97,11 @@ export const makeRoot = internalMutation({
   },
 });
 
+/** Creates a council with a generated 8-character code and prints it. */
 export const createCouncil = internalMutation({
-  args: { name: v.string(), code: v.string(), region: v.string() },
+  args: { name: v.string(), region: v.string() },
   handler: async (ctx, args) => {
-    const code = args.code.trim().toUpperCase();
-    const existing = await ctx.db.query("councils").withIndex("by_code", (q) => q.eq("code", code)).unique();
-    if (existing) return existing._id;
+    const code = await newCouncilCode(ctx);
     const id = await ctx.db.insert("councils", {
       name: args.name.trim(),
       code,
@@ -108,7 +111,7 @@ export const createCouncil = internalMutation({
       createdAt: Date.now(),
     });
     await writeAudit(ctx, null, { action: "council.create", entity: "councils", entityId: id, councilId: id, actorIsRootOverride: true });
-    return id;
+    return { councilId: id, code: formatCouncilCode(code) };
   },
 });
 
@@ -128,10 +131,7 @@ export const seatMember = internalMutation({
     const rawId = await ctx.runQuery(components.authUsername.public.getUserIdByUsername, { username: args.username });
     const userId = rawId === null ? null : ctx.db.normalizeId("users", rawId);
     if (!userId) throw new Error(missingAccount(args.username));
-    const council = await ctx.db
-      .query("councils")
-      .withIndex("by_code", (q) => q.eq("code", args.councilCode.trim().toUpperCase()))
-      .unique();
+    const council = await findCouncilByCode(ctx, args.councilCode);
     if (!council) throw new Error(`No council ${args.councilCode}`);
     if (args.name) await ctx.db.patch(userId, { name: args.name });
     const existing = await ctx.db
@@ -170,7 +170,7 @@ export const seatMember = internalMutation({
 /**
  * Load wards and villages for a council in one go (for a new council or a demo).
  * Existing names are skipped, so it is safe to run twice.
- *   npx convex run admin:addAreas '{"councilCode":"BAGAMOYO-TC","wards":[{"name":"Dunda","villages":["Kisutu","Nianjema"]}]}'
+ *   npx convex run admin:addAreas '{"councilCode":"K7QM-3XPA","wards":[{"name":"Dunda","villages":["Kisutu","Nianjema"]}]}'
  */
 export const addAreas = internalMutation({
   args: {
@@ -178,10 +178,7 @@ export const addAreas = internalMutation({
     wards: v.array(v.object({ name: v.string(), villages: v.array(v.string()) })),
   },
   handler: async (ctx, args) => {
-    const council = await ctx.db
-      .query("councils")
-      .withIndex("by_code", (q) => q.eq("code", args.councilCode.trim().toUpperCase()))
-      .unique();
+    const council = await findCouncilByCode(ctx, args.councilCode);
     if (!council) throw new Error(`No council ${args.councilCode}`);
     const existing = await ctx.db.query("areas").withIndex("by_council_kind", (q) => q.eq("councilId", council._id).eq("kind", "ward")).collect();
     let wardsAdded = 0;

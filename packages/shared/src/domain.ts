@@ -60,7 +60,8 @@ export const MEMBERSHIP_STATUSES = [
 ] as const;
 export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number];
 
-export const AREA_KINDS = ["ward", "village"] as const;
+/** "street" is a road or hamlet (kitongoji) under a village/mtaa, from the NaPA address register. */
+export const AREA_KINDS = ["ward", "village", "street"] as const;
 export type AreaKind = (typeof AREA_KINDS)[number];
 
 export const APPS = ["field", "hq"] as const;
