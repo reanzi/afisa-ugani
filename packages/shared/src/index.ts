@@ -7,3 +7,4 @@ export * from "./report/monthly.ts";
 export * from "./insights.ts";
 export * from "./councilCode.ts";
 export * from "./napa.ts";
+export * from "./foodPrices.ts";

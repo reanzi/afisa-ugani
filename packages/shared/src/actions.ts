@@ -17,9 +17,11 @@ import {
   HIDE_PROCESSING,
   LIVESTOCK_PRODUCTS,
   LIVESTOCK_SERVICES,
-  PRICE_COMMODITIES,
+  AVAILABILITY,
   PRICE_TYPES,
   PRICE_UNITS,
+  SUGGEST_FOODS,
+  commodityLabel,
   SERVICE_ANIMALS,
   SEVERITY,
   SLAUGHTER_ANIMALS,
@@ -85,6 +87,9 @@ const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const s = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 const fmt = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const productUnit = (p: Record<string, unknown>) => LIVESTOCK_PRODUCTS.find((x) => x.value === p.product)?.unit ?? "";
+
+/** Foods first, then crops and livestock products, without repeats. */
+const PRICE_SUGGESTIONS: readonly string[] = [...new Set([...SUGGEST_FOODS, ...ALL_CROPS.filter((c) => c.value !== "nyingine").map((c) => c.label)])];
 
 export const RECORD_SPECS: readonly RecordSpec[] = [
   {
@@ -257,18 +262,20 @@ export const RECORD_SPECS: readonly RecordSpec[] = [
   {
     type: "price",
     label: "Bei",
-    hint: "Shambani na sokoni",
+    hint: "Vyakula, mazao na bidhaa",
     sections: ALL,
     ready: true,
     quick: true,
     fields: [
-      { key: "commodity", label: "Bidhaa", kind: "select", options: PRICE_COMMODITIES, required: true },
-      { key: "priceType", label: "Bei ya", kind: "choice", options: PRICE_TYPES, required: true },
+      { key: "commodity", label: "Bidhaa", kind: "text", suggestions: PRICE_SUGGESTIONS, required: true, hint: "Andika jina, mfano Sukari au Mafuta ya kupikia." },
       { key: "unit", label: "Kipimo", kind: "choice", options: PRICE_UNITS, required: true },
       { key: "price", label: "Bei", kind: "money", unit: (p) => `Tsh/${labelOf(PRICE_UNITS, p.unit) || "kipimo"}`, required: true },
-      { key: "market", label: "Soko au mahali", kind: "text" },
+      { key: "priceType", label: "Mahali bei ilipochukuliwa", kind: "choice", options: PRICE_TYPES, required: true },
+      { key: "availability", label: "Upatikanaji", kind: "choice", options: AVAILABILITY },
+      { key: "market", label: "Jina la soko au duka", kind: "text", more: true },
     ],
-    summary: (p) => `Bei ya ${labelOf(PRICE_COMMODITIES, p.commodity).toLowerCase()} (${labelOf(PRICE_TYPES, p.priceType).toLowerCase()}): Tsh ${fmt(n(p.price))}/${labelOf(PRICE_UNITS, p.unit)}`,
+    summary: (p) =>
+      `Bei ya ${commodityLabel(p.commodity)}: Tsh ${fmt(n(p.price))}/${labelOf(PRICE_UNITS, p.unit)} (${labelOf(PRICE_TYPES, p.priceType).toLowerCase()})${p.availability ? `, ${labelOf(AVAILABILITY, p.availability).toLowerCase()}` : ""}`,
   },
   {
     type: "event",

@@ -114,6 +114,34 @@ export default defineSchema({
     .index("by_owner_council_updated", ["ownerId", "councilId", "serverUpdatedAt"])
     .index("by_council_section_occurred", ["councilId", "section", "occurredAt"]),
 
+  /**
+   * Reports an officer chose to send. This is all HQ ever sees of an
+   * officer's work: field records stay private to their author.
+   * Each send is kept; HQ shows the latest revision per officer and period.
+   */
+  submissions: defineTable({
+    councilId: v.id("councils"),
+    ownerId: v.id("users"),
+    /** UUIDv7 made on the phone; makes the send idempotent. */
+    clientId: v.string(),
+    kind: v.literal("food_prices"),
+    /** "2026-11": the reporting period. */
+    period: v.string(),
+    revision: v.number(),
+    /** Snapshots at the time of sending, so the report reads the same later. */
+    officerName: v.string(),
+    areaLabel: v.string(),
+    areaIds: v.array(v.id("areas")),
+    primarySection: vSection,
+    payload: v.any(),
+    payloadVersion: v.number(),
+    clientSubmittedAt: v.number(),
+    submittedAt: v.number(),
+  })
+    .index("by_clientId", ["clientId"])
+    .index("by_council_kind_period", ["councilId", "kind", "period"])
+    .index("by_owner_kind_period", ["ownerId", "kind", "period"]),
+
   /** Append-only. No function patches or deletes these rows. */
   auditLog: defineTable({
     councilId: v.optional(v.id("councils")),

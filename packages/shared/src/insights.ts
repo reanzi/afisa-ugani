@@ -69,6 +69,8 @@ export type ReminderInput = {
   pendingCount: number;
   oldestPendingAt: number | null;
   rejectedCount: number;
+  /** The food prices report being worked on, if the app knows it. */
+  foodReport?: { label: string; due: number; submitted: boolean; prices: number };
 };
 
 const DAY = 86_400_000;
@@ -87,6 +89,20 @@ export function reminders(input: ReminderInput): Reminder[] {
       tone: "danger",
       text: `Kumbukumbu ${input.rejectedCount} hazikukubaliwa na mfumo. Zifungue uzirekebishe ili ziingie kwenye ripoti.`,
       action: { label: "Zione", to: "/shughuli?hali=zilizokataliwa" },
+    });
+  }
+
+  const food = input.foodReport;
+  if (food && !food.submitted && now.getTime() <= food.due && food.due - now.getTime() <= 5 * DAY) {
+    const dueDay = new Date(food.due).getDate();
+    out.push({
+      id: `food-${food.label}`,
+      tone: "wait",
+      text:
+        food.prices > 0
+          ? `Ripoti ya upatikanaji wa chakula (${food.label}) inatakiwa tarehe ${dueDay}. Bei ${food.prices} zimeandikwa; zikague kisha utume.`
+          : `Ripoti ya upatikanaji wa chakula (${food.label}) inatakiwa tarehe ${dueDay}. Andika bei za vyakula vinavyouzwa sokoni na madukani.`,
+      action: { label: food.prices > 0 ? "Andaa ripoti" : "Andika bei", to: food.prices > 0 ? "/ripoti?aina=chakula" : "/andika/price" },
     });
   }
 

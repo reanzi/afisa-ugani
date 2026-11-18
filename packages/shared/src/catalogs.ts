@@ -160,20 +160,60 @@ export const AMOUNT_UNITS = opts([
 ]);
 
 export const PRICE_TYPES = opts([
-  ["shambani", "Shambani"],
   ["sokoni", "Sokoni"],
+  ["rejareja", "Dukani (rejareja)"],
   ["jumla", "Jumla"],
-  ["rejareja", "Rejareja"],
+  ["shambani", "Shambani"],
 ]);
 
 export const PRICE_UNITS = opts([
   ["kg", "kg"],
-  ["debe", "Debe"],
-  ["gunia", "Gunia"],
   ["lita", "Lita"],
   ["kipande", "Kipande"],
+  ["mfuko", "Mfuko / pakiti"],
+  ["fungu", "Fungu"],
+  ["debe", "Debe"],
+  ["gunia", "Gunia"],
   ["trei", "Trei"],
 ]);
+
+export const AVAILABILITY = opts([
+  ["wingi", "Inapatikana kwa wingi"],
+  ["wastani", "Wastani"],
+  ["haba", "Haba"],
+  ["haipatikani", "Haipatikani"],
+]);
+
+/** Common foods and shop items; officers can type anything else. */
+export const SUGGEST_FOODS = [
+  "Mchele",
+  "Unga wa mahindi (sembe)",
+  "Unga wa dona",
+  "Mahindi",
+  "Maharage",
+  "Sukari",
+  "Mafuta ya kupikia",
+  "Chumvi",
+  "Unga wa ngano",
+  "Viazi mviringo",
+  "Viazi vitamu",
+  "Mihogo",
+  "Ndizi",
+  "Kunde",
+  "Mbaazi",
+  "Dengu",
+  "Karanga",
+  "Mtama",
+  "Nyama ya ng’ombe",
+  "Nyama ya mbuzi",
+  "Kuku",
+  "Samaki",
+  "Dagaa",
+  "Maziwa",
+  "Mayai",
+  "Nyanya",
+  "Vitunguu",
+];
 
 export const PRICE_COMMODITIES = [
   ...ALL_CROPS.filter((c) => c.value !== "nyingine"),
@@ -225,6 +265,23 @@ export const SUGGEST_LIVESTOCK_DISEASES = [
 ];
 
 export const SUGGEST_FISH = ["Sato (Tilapia)", "Kambale (Catfish)", "Kamongo"];
+
+/** Display name of a priced item: older entries stored a catalogue id ("mahindi"), newer ones the typed name. */
+export function commodityLabel(value: unknown): string {
+  const v = typeof value === "string" ? value.trim() : "";
+  return PRICE_COMMODITIES.find((o) => o.value === v)?.label ?? v;
+}
+
+/** Key for grouping prices: "Unga wa Mahindi (Sembe)", "unga wa mahindi  (sembe)" and the id agree. */
+export function commodityKey(value: unknown): string {
+  return commodityLabel(value)
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[’'`]/g, "")
+    .replace(/[^a-z0-9()]+/g, " ")
+    .trim();
+}
 
 export function labelOf(list: readonly Option[], value: unknown): string {
   return list.find((o) => o.value === value)?.label ?? (typeof value === "string" ? value : "");

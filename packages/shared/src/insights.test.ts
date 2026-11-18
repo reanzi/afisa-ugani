@@ -56,6 +56,16 @@ describe("reminders", () => {
     expect(out).toHaveLength(2);
     expect(out[0]?.id).toBe("rejected");
   });
+  it("reminds about the food prices report in the days before the 22nd until it is sent", () => {
+    const due = new Date(2026, 10, 22, 23, 59).getTime();
+    const on = (d: number, submitted = false) =>
+      reminders(base({ now: new Date(2026, 10, d, 9), lastEntryAt: new Date(2026, 10, d, 8).getTime(), foodReport: { label: "Novemba 2026", due, submitted, prices: 14 } }));
+    expect(on(12)).toEqual([]);
+    expect(on(19)[0]).toMatchObject({ id: "food-Novemba 2026", action: { to: "/ripoti?aina=chakula" } });
+    expect(on(19)[0]?.text).toContain("tarehe 22");
+    expect(on(19, true)).toEqual([]);
+  });
+
   it("welcomes a new officer and nudges after three idle days", () => {
     expect(reminders(base({ lastEntryAt: null }))[0]?.id).toBe("welcome");
     expect(reminders(base({ lastEntryAt: new Date(2026, 10, 8).getTime() }))[0]?.text).toContain("Siku 4");

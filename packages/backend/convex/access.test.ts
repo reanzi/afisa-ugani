@@ -227,6 +227,67 @@ describe("council codes and NaPA addresses", () => {
   });
 });
 
+describe("HQ sees submitted reports only", () => {
+  const report = (avg: number) => ({
+    rows: [{ commodity: "Sukari", unit: "kg", average: avg, min: avg - 100, max: avg + 100, count: 3, availability: "haba" }],
+    note: "Sukari imepanda bei.",
+  });
+  const uuid = (n: number) => `0192f3a0-7c1e-7d2a-9b3c-${String(n).padStart(12, "0")}`;
+
+  it("an officer's prices stay private until they submit; HQ then sees the latest revision", async () => {
+    const { t, councilId, hod, village } = await world();
+    const { user, membershipId } = await join(t, "afisa_bei", councilId, "kilimo");
+    await hod.mutation(api.memberships.approve, { councilId, membershipId, areaIds: [village], client: hq });
+
+    await user.mutation(api.sync.pushRecords, {
+      councilId, client,
+      records: [{ clientId: uuid(1), type: "price", section: "kilimo", occurredAt: Date.now() - 1000, payload: { commodity: "Sukari", unit: "kg", price: 3200, priceType: "rejareja" }, payloadVersion: 1, clientUpdatedAt: Date.now() - 1000 }],
+    });
+    expect(await hod.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" })).toEqual([]);
+    expect((await hod.query(api.auditLog.recent, { councilId })).some((a) => a.entity === "records")).toBe(false);
+
+    const send = (n: number, avg: number) =>
+      user.mutation(api.submissions.submit, {
+        councilId, client, clientId: uuid(100 + n), kind: "food_prices", period: "2026-11", areaLabel: "Kijiji cha Changarawe",
+        payload: report(avg), payloadVersion: 1, clientSubmittedAt: Date.now(),
+      });
+    expect((await send(1, 3200)).revision).toBe(1);
+    expect((await send(1, 3200)).revision).toBe(1); // a retry is not a new send
+    expect((await send(2, 3300)).revision).toBe(2);
+
+    const seen = await hod.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ officerName: "Afisa afisa_bei", areaLabel: "Kijiji cha Changarawe", revision: 2, sends: 2 });
+    expect(seen[0]!.payload.rows[0]!.average).toBe(3300);
+    expect(await hod.query(api.submissions.periodsForHq, { councilId, kind: "food_prices" })).toEqual(["2026-11"]);
+  });
+
+  it("section leads see only their section's reports; officers cannot read HQ reports", async () => {
+    const { t, councilId, hod, village } = await world();
+    const officer = await join(t, "afisa_k", councilId, "kilimo");
+    const head = await join(t, "mkuu_mifugo", councilId, "mifugo");
+    for (const m of [officer, head]) await hod.mutation(api.memberships.approve, { councilId, membershipId: m.membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.assignRole, { councilId, membershipId: head.membershipId, role: "section_head", client: hq });
+    await officer.user.mutation(api.submissions.submit, {
+      councilId, client, clientId: uuid(201), kind: "food_prices", period: "2026-11", areaLabel: "Changarawe",
+      payload: report(3000), payloadVersion: 1, clientSubmittedAt: Date.now(),
+    });
+    expect(await head.user.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" })).toEqual([]);
+    expect(await hod.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" })).toHaveLength(1);
+    await expect(officer.user.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" })).rejects.toThrow(/makao makuu/);
+  });
+
+  it("rejects an empty or malformed report", async () => {
+    const { t, councilId, hod, village } = await world();
+    const { user, membershipId } = await join(t, "afisa_tupu", councilId, "kilimo");
+    await hod.mutation(api.memberships.approve, { councilId, membershipId, areaIds: [village], client: hq });
+    await expect(user.mutation(api.submissions.submit, {
+      councilId, client, clientId: uuid(301), kind: "food_prices", period: "2026-11", areaLabel: "x",
+      payload: { rows: [] }, payloadVersion: 1, clientSubmittedAt: Date.now(),
+    })).rejects.toThrow(/NO_ROWS/);
+  });
+});
+
 describe("root stays hidden", () => {
   it("root's actions and identity never show to the HoD", async () => {
     const { t, councilId, root, village } = await world();
@@ -288,8 +349,9 @@ describe("sync", () => {
     const pulled = await user.query(api.sync.pullChanges, { councilId, since: 0 });
     expect(pulled.records).toHaveLength(1);
 
+    // The officer's entries are theirs: HQ does not see them, not even in the audit log.
     const audit = await hod.query(api.auditLog.recent, { councilId });
-    expect(audit.some((a) => a.action === "record.create")).toBe(true);
+    expect(audit.some((a) => a.entity === "records")).toBe(false);
   });
 
   it("rejects payloads that do not match their form", async () => {

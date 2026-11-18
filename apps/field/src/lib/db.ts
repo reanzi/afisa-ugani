@@ -35,9 +35,26 @@ export type LocalRecord = {
 
 export type Meta = { key: string; value: unknown };
 
+/** A report the officer chose to send. Queued here until it reaches the server. */
+export type LocalSubmission = {
+  clientId: string;
+  councilId: string;
+  kind: "food_prices";
+  period: string;
+  areaLabel: string;
+  payload: Record<string, unknown>;
+  payloadVersion: number;
+  clientSubmittedAt: number;
+  syncState: SyncState;
+  revision?: number;
+  submittedAt?: number;
+  error?: string;
+};
+
 class AfisaDB extends Dexie {
   records!: EntityTable<LocalRecord, "clientId">;
   meta!: EntityTable<Meta, "key">;
+  submissions!: EntityTable<LocalSubmission, "clientId">;
 
   constructor() {
     super("afisa-ugani");
@@ -45,6 +62,9 @@ class AfisaDB extends Dexie {
     this.version(1).stores({
       records: "&clientId, [councilId+occurredAt], syncState, [councilId+syncState]",
       meta: "&key",
+    });
+    this.version(2).stores({
+      submissions: "&clientId, [councilId+kind+period], [councilId+syncState]",
     });
   }
 }

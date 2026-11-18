@@ -526,3 +526,106 @@ fieldset.plain legend {
   text-underline-offset: 3px;
   cursor: pointer;
 }
+
+/* ---------- Food reports ---------- */
+
+.food-h2 {
+  font-size: var(--t-lead);
+}
+.table .num {
+  text-align: right;
+}
+.table.compact td,
+.table.compact th {
+  padding: 6px 10px;
+}
+.avail {
+  padding: 1px 8px;
+  border-radius: 6px;
+  font-size: var(--t-small);
+  font-weight: 700;
+  background: var(--surface-sunk);
+  white-space: nowrap;
+}
+.avail-wingi {
+  background: var(--ok-ground);
+  color: var(--ok);
+}
+.avail-haba,
+.avail-haipatikani {
+  background: var(--danger-ground);
+  color: var(--danger);
+}
+.food-sends {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.food-sends > li {
+  background: var(--surface);
+  border: 2px solid var(--rule);
+  border-radius: var(--radius-tile);
+}
+.food-send-head {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: 60px;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.food-send-head > span:first-child {
+  display: grid;
+}
+.food-send-head small {
+  color: var(--ink-soft);
+}
+.food-send-body {
+  display: none;
+  padding: 0 var(--space-4) var(--space-4);
+}
+.food-sends > li.is-open .food-send-body {
+  display: grid;
+  gap: var(--space-3);
+}
+.food-note {
+  padding: var(--space-3);
+  border-left: 4px solid var(--maize);
+  background: var(--ground);
+  white-space: pre-line;
+}
+.print-only {
+  display: none;
+}
+
+@media print {
+  .hq-side,
+  .no-print,
+  .hq-page-head p {
+    display: none !important;
+  }
+  .hq {
+    display: block;
+  }
+  .hq-main {
+    padding: 0;
+  }
+  .print-only {
+    display: grid;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+  .food-send-body {
+    display: grid !important;
+  }
+  body {
+    background: #fff;
+  }
+}

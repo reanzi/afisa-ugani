@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
+import { ConvexError } from "convex/values";
 import { SYNC_PUSH_BATCH } from "@afisa/shared";
 import { clientMeta, convex } from "./client";
 import { db, getMeta, setMeta, type LocalRecord } from "./db";
@@ -78,6 +79,34 @@ async function pushPending(councilId: string): Promise<{ updateRequired: boolean
   return { updateRequired };
 }
 
+/** Send queued reports. A report the server refuses is marked, never retried blindly. */
+async function pushSubmissions(councilId: string): Promise<void> {
+  const queued = await db.submissions.where("[councilId+syncState]").equals([councilId, "pending"]).sortBy("clientSubmittedAt");
+  for (const s of queued) {
+    try {
+      const res = await convex.mutation(api.submissions.submit, {
+        councilId: councilId as Id<"councils">,
+        client: await clientMeta(),
+        clientId: s.clientId,
+        kind: s.kind,
+        period: s.period,
+        areaLabel: s.areaLabel,
+        payload: s.payload,
+        payloadVersion: s.payloadVersion,
+        clientSubmittedAt: s.clientSubmittedAt,
+      });
+      await db.submissions.update(s.clientId, { syncState: "synced", revision: res.revision, submittedAt: res.submittedAt, error: undefined });
+    } catch (e) {
+      if (e instanceof ConvexError) {
+        const data = e.data as { message?: string } | undefined;
+        await db.submissions.update(s.clientId, { syncState: "rejected", error: data?.message ?? "Imekataliwa" });
+      } else {
+        throw e; // network: stay queued
+      }
+    }
+  }
+}
+
 async function pullChanges(councilId: string): Promise<void> {
   const key = `cursor:${councilId}`;
   let since = (await getMeta<number>(key)) ?? 0;
@@ -118,7 +147,9 @@ export function useSyncEngine(councilId: string, enabled: boolean): SyncReport &
   const [running, setRunning] = useState(false);
   const busy = useRef(false);
   const pending = useLiveQuery(
-    () => db.records.where("[councilId+syncState]").equals([councilId, "pending"]).count(),
+    async () =>
+      (await db.records.where("[councilId+syncState]").equals([councilId, "pending"]).count()) +
+      (await db.submissions.where("[councilId+syncState]").equals([councilId, "pending"]).count()),
     [councilId],
     0,
   );
@@ -132,6 +163,7 @@ export function useSyncEngine(councilId: string, enabled: boolean): SyncReport &
       setRunning(true);
       try {
         const { updateRequired } = await pushPending(councilId);
+        await pushSubmissions(councilId);
         await pullChanges(councilId);
         if (!cancelled) setReport({ lastSyncedAt: Date.now(), updateRequired });
       } catch (e) {

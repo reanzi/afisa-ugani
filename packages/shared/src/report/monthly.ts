@@ -17,6 +17,7 @@ import {
   SLAUGHTER_ANIMALS,
   ALL_CROPS,
   ANIMALS,
+  commodityKey,
   labelOf,
 } from "../catalogs.ts";
 import { summarize } from "../actions.ts";
@@ -260,7 +261,8 @@ function partCrops(month: string, records: ReportRecord[], review: MonthlyReview
 
   const prices = ofType(records, "price").filter((r) => r.payload.unit === "kg");
   const marketPrice = (crop: string) => {
-    const rows = prices.filter((r) => r.payload.commodity === crop);
+    const key = commodityKey(crop);
+    const rows = prices.filter((r) => commodityKey(r.payload.commodity) === key);
     const market = rows.filter((r) => r.payload.priceType !== "shambani");
     return weightedPrice((market.length ? market : rows).map((r) => ({ price: num(r.payload.price), weight: 1 })));
   };

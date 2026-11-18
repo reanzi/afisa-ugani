@@ -11,12 +11,14 @@ import { Members } from "./pages/Members";
 import { Areas } from "./pages/Areas";
 import { Audit } from "./pages/Audit";
 import { Councils } from "./pages/Councils";
+import { FoodReports } from "./pages/FoodReports";
 import { JoinWithCode, NoAccess, SignIn, Waiting } from "./auth";
 
-const TABS = ["maombi", "wanachama", "maeneo", "kumbukumbu", "halmashauri"] as const;
+const TABS = ["maombi", "ripoti", "wanachama", "maeneo", "kumbukumbu", "halmashauri"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_LABELS: Record<Tab, string> = {
   maombi: "Maombi",
+  ripoti: "Chakula na bei",
   wanachama: "Wanachama",
   maeneo: "Maeneo",
   kumbukumbu: "Kumbukumbu",
@@ -122,6 +124,7 @@ export function App() {
         </aside>
         <main className="hq-main" key={current.councilId}>
           {tab === "maombi" && <Requests />}
+          {tab === "ripoti" && <FoodReports />}
           {tab === "wanachama" && <Members />}
           {tab === "maeneo" && <Areas />}
           {tab === "kumbukumbu" && <Audit />}

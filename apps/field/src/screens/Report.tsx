@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { parseAsString, useQueryState } from "nuqs";
+import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { monthKey, monthLabel, partHasData, shiftMonth } from "@afisa/shared";
 import { errorMessage } from "@afisa/ui";
 import { useMonthlyReport } from "../lib/report";
 import { ReportView } from "./ReportView";
+import { FoodReport } from "./FoodReport";
 
 export function useMonthParam() {
   const current = monthKey(new Date());
@@ -13,7 +14,7 @@ export function useMonthParam() {
   return { month, setMonth, current };
 }
 
-export function Report() {
+function MonthlyReport() {
   const { month, setMonth, current } = useMonthParam();
   const { report, review } = useMonthlyReport(month);
   const [busy, setBusy] = useState<"download" | "share" | null>(null);
@@ -52,10 +53,10 @@ export function Report() {
   };
 
   return (
-    <main className="page">
+    <div className="monthly">
       <header className="month-head">
         <button className="btn btn-quiet btn-small" onClick={() => void setMonth(shiftMonth(month, -1))} aria-label="Mwezi uliopita">‹</button>
-        <h1 className="page-title">Ripoti ya {monthLabel(month)}</h1>
+        <h2 className="page-title">Ripoti ya {monthLabel(month)}</h2>
         <button
           className="btn btn-quiet btn-small"
           onClick={() => void setMonth(shiftMonth(month, 1))}
@@ -93,6 +94,21 @@ export function Report() {
       </section>
 
       {report && <ReportView report={report} />}
+    </div>
+  );
+}
+
+const KINDS = ["mwezi", "chakula"] as const;
+
+export function Report() {
+  const [kind, setKind] = useQueryState("aina", parseAsStringLiteral(KINDS).withDefault("mwezi"));
+  return (
+    <main className="page">
+      <div className="segmented report-kinds" role="tablist" aria-label="Aina ya ripoti">
+        <button role="tab" aria-selected={kind === "mwezi"} onClick={() => void setKind("mwezi")}>Ripoti ya mwezi</button>
+        <button role="tab" aria-selected={kind === "chakula"} onClick={() => void setKind("chakula")}>Chakula na bei</button>
+      </div>
+      {kind === "mwezi" ? <MonthlyReport /> : <FoodReport />}
     </main>
   );
 }

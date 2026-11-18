@@ -17,6 +17,7 @@ import type * as lib_audit from "../lib/audit.js";
 import type * as lib_guards from "../lib/guards.js";
 import type * as lib_validators from "../lib/validators.js";
 import type * as memberships from "../memberships.js";
+import type * as submissions from "../submissions.js";
 import type * as sync from "../sync.js";
 import type * as users from "../users.js";
 
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   "lib/guards": typeof lib_guards;
   "lib/validators": typeof lib_validators;
   memberships: typeof memberships;
+  submissions: typeof submissions;
   sync: typeof sync;
   users: typeof users;
 }>;

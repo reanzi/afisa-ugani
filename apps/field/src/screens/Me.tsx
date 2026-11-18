@@ -40,6 +40,7 @@ export function Me() {
     }
     await signOut();
     await db.records.clear();
+    await db.submissions.clear();
     await db.meta.clear();
   };
 
@@ -72,6 +73,10 @@ export function Me() {
           ))}
         </div>
       </fieldset>
+
+      <p className="privacy-note">
+        Kumbukumbu unazoandika ni zako. Makao makuu huona ripoti unazoamua kutuma tu, si kumbukumbu zenyewe.
+      </p>
 
       <section className="stack">
         <h2 className="section-title">Simu hii</h2>
