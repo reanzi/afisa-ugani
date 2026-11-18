@@ -42,10 +42,10 @@ pnpm dev:hq               # http://localhost:5174
 From `packages/backend` (add `--prod` on the production deployment):
 
 ```bash
-npx convex run admin:bootstrapRoot '{"username":"900000009","password":"<strong password>","name":"Msimamizi"}'
+npx convex run admin:bootstrapRoot '{"username":"90000009","password":"@Download1","name":"Msimamizi"}'
+npx convex run admin:createCouncil '{"name":"Halmashauri ya Mji ya Bagamoyo","code":"BAGAMOYO-TC","region":"Pwani"}'
+npx convex run admin:addAreas '{"councilCode":"BAGAMOYO-TC","wards":[{"name":"Yombo","villages":["Kisutu","Nianjema"]}]}'
 ```
-
-Then sign in to HQ as root and open **Halmashauri** to create the council: name, region and, optionally, its NaPA address report (.xls), which loads every ward, village/mtaa and road/hamlet. The council gets a generated 8-character code such as `K7QM-3XPA`. (CLI alternative: `admin:createCouncil '{"name":"…","region":"…"}'` prints the code.)
 
 Then:
 
