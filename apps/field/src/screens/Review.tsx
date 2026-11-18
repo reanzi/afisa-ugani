@@ -23,7 +23,7 @@ import { db } from "../lib/db";
 import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
 import { reviewClientId, useMonthlyReport, useMonthRecords } from "../lib/report";
-import { approvedFrom, usePresetRows } from "../lib/presets";
+import { approvedFrom, useCouncilDefaults, usePresetRows } from "../lib/presets";
 import { PresetAsk } from "./PresetAsk";
 import { useMonthParam } from "./Report";
 import { useSealed } from "../lib/food";
@@ -140,7 +140,8 @@ export function Review() {
   const { me, councilId, sections, membership } = useWork();
   const { report, review } = useMonthlyReport(month);
   const presetRows = usePresetRows(councilId);
-  const approved = useMemo(() => (presetRows ? approvedFrom(presetRows) : undefined), [presetRows]);
+  const defaults = useCouncilDefaults(councilId);
+  const approved = useMemo(() => (presetRows && defaults ? approvedFrom(presetRows, defaults) : undefined), [presetRows, defaults]);
   const sealed = useSealed("monthly")?.get(month);
   const records = useMonthRecords(month);
   const isJuly = parseMonth(month).month === 7;

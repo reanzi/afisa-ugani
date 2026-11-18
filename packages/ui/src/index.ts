@@ -10,3 +10,4 @@ export * from "./Dialog.tsx";
 export * from "./PasswordInput.tsx";
 export * from "./AuthForm.tsx";
 export * from "./PolicyView.tsx";
+export * from "./FitText.tsx";

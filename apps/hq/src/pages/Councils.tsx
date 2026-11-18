@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
 import { formatCouncilCode, type NapaImport } from "@afisa/shared";
-import { CouncilCodeText, errorMessage, useConfirm, useT } from "@afisa/ui";
+import { CouncilCodeText, errorMessage, useConfirm, usePrompt, useT } from "@afisa/ui";
 import { hqClient } from "../context";
 import { napaErrorText, readNapaFile, useNapaImport, type ImportProgress } from "../napa";
 
@@ -104,6 +104,7 @@ function CreateCouncil() {
   const create = useMutation(api.councils.create);
   const { progress, run, reset } = useNapaImport();
   const [name, setName] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [region, setRegion] = useState("");
   const [data, setData] = useState<NapaImport | null>(null);
   const [busy, setBusy] = useState(false);
@@ -115,7 +116,7 @@ function CreateCouncil() {
     setBusy(true);
     setError(null);
     try {
-      const res = await create({ name, region, registrationOpen: true, client: hqClient });
+      const res = await create({ name, displayName: displayName.trim() || undefined, region, registrationOpen: true, client: hqClient });
       setCreated({ ...res, name: name.trim() });
       if (data) await run(res.councilId, data);
     } catch (err) {
@@ -128,6 +129,7 @@ function CreateCouncil() {
   const startOver = () => {
     setCreated(null);
     setName("");
+    setDisplayName("");
     setRegion("");
     setData(null);
     reset();
@@ -166,6 +168,11 @@ function CreateCouncil() {
         <label className="field">
           <span>{t("Mkoa", "Region")}</span>
           <input className="input" value={region} onChange={(e) => setRegion(e.target.value)} placeholder="Pwani" />
+        </label>
+        <label className="field">
+          <span>{t("Jina fupi (si lazima)", "Short name (optional)")}</span>
+          <input className="input" maxLength={40} value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Bagamoyo DC" />
+          <small>{t("Linaonekana kwenye skrini; ripoti zinatumia jina kamili.", "Shown on screens; reports use the full name.")}</small>
         </label>
       </div>
       <div className="field">
@@ -213,6 +220,7 @@ function UploadForCouncil({ councilId, onClose }: { councilId: Id<"councils">; o
 export function Councils() {
   const t = useT();
   const confirm = useConfirm();
+  const ask = usePrompt();
   const councils = useQuery(api.councils.listAll, {});
   const update = useMutation(api.councils.update);
   const regenerate = useMutation(api.councils.regenerateCode);
@@ -265,7 +273,26 @@ export function Councils() {
               <tr key={c._id}>
                 <td>
                   <strong>{c.name}</strong>
-                  <div className="muted small">{c.region}</div>
+                  <div className="muted small">
+                    {c.region}
+                    {c.displayName ? `, ${t("jina fupi", "short name")}: ${c.displayName}` : ""}
+                  </div>
+                  <button
+                    type="button"
+                    className="link small"
+                    onClick={async () => {
+                      const next = await ask({
+                        title: t("Jina fupi la halmashauri", "Council short name"),
+                        label: t("Jina fupi", "Short name"),
+                        initial: c.displayName ?? "",
+                        placeholder: "Bagamoyo DC",
+                        hint: t("Acha wazi ili kutumia jina kamili.", "Leave empty to use the full name."),
+                      });
+                      if (next !== null) await update({ councilId: c._id, displayName: next, client: hqClient });
+                    }}
+                  >
+                    {c.displayName ? t("Badili jina fupi", "Change short name") : t("Weka jina fupi", "Set short name")}
+                  </button>
                 </td>
                 <td>
                   <div className="code-cell">

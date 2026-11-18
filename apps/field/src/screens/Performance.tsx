@@ -23,7 +23,7 @@ import { errorMessage, ReportView } from "@afisa/ui";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
 import { useAreaLabel } from "../lib/report";
-import { approvedFrom, usePresetRows } from "../lib/presets";
+import { approvedFrom, useCouncilDefaults, usePresetRows } from "../lib/presets";
 import { PresetAsk } from "./PresetAsk";
 
 const PERIODS = ["1", "2", "3", "4", "mwaka"] as const;
@@ -81,7 +81,8 @@ export function Performance() {
     [councilId, start, end],
   );
   const rows = usePresetRows(councilId);
-  const approved = useMemo(() => (rows ? approvedFrom(rows) : undefined), [rows]);
+  const defaults = useCouncilDefaults(councilId);
+  const approved = useMemo(() => (rows && defaults ? approvedFrom(rows, defaults) : undefined), [rows, defaults]);
   const byKey = useMemo(() => new Map((rows ?? []).map((r) => [r.key, r])), [rows]);
 
   const built = useMemo(() => {
@@ -149,7 +150,7 @@ export function Performance() {
         <button className="btn btn-quiet btn-small" onClick={() => void setFy(`${Number(fy.slice(0, 4)) - 1}/${fy.slice(2, 4)}`)} aria-label="Mwaka uliopita">‹</button>
         <div className="food-title">
           <h2 className="page-title">Utekelezaji {fy}</h2>
-          <p className="muted">Mpango dhidi ya matokeo</p>
+          <p className="muted">Mpango dhidi ya matokeo, kwa vikao (si fomu ya ARDS)</p>
         </div>
         <button
           className="btn btn-quiet btn-small"

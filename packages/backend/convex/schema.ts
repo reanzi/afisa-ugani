@@ -35,6 +35,8 @@ export default defineSchema({
 
   councils: defineTable({
     name: v.string(),
+    /** Shorter name for screens, e.g. "Bagamoyo DC"; the full name stays on reports. */
+    displayName: v.optional(v.string()),
     /** Short unique code, e.g. "MVOMERO-DC". */
     code: v.string(),
     region: v.string(),
@@ -216,6 +218,19 @@ export default defineSchema({
     .index("by_owner_council_key", ["ownerId", "councilId", "key"])
     .index("by_council_status", ["councilId", "status"])
     .index("by_council_key", ["councilId", "key"]),
+
+  /**
+   * Council-wide defaults set in HQ (e.g. "tija:mahindi" = 2.2). An officer's
+   * own approved value, when present, takes their place.
+   */
+  councilPresets: defineTable({
+    councilId: v.id("councils"),
+    key: v.string(),
+    value: v.number(),
+    setById: v.id("users"),
+    setByName: v.string(),
+    updatedAt: v.number(),
+  }).index("by_council_key", ["councilId", "key"]),
 
   /** Append-only. No function patches or deletes these rows. */
   auditLog: defineTable({

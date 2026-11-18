@@ -116,6 +116,55 @@ export function ConfirmDialog({
 type Ask = (o: ConfirmOptions) => Promise<boolean>;
 const ConfirmContext = createContext<Ask | null>(null);
 
+export type PromptOptions = {
+  title: string;
+  label: string;
+  initial?: string;
+  placeholder?: string;
+  hint?: string;
+  confirmLabel?: string;
+  maxLength?: number;
+};
+type AskText = (o: PromptOptions) => Promise<string | null>;
+const PromptContext = createContext<AskText | null>(null);
+
+function PromptDialog({ state, done }: { state: (PromptOptions & { resolve: (v: string | null) => void }) | null; done: (v: string | null) => void }) {
+  const t = useT();
+  const [value, setValue] = useState("");
+  useEffect(() => setValue(state?.initial ?? ""), [state]);
+  return (
+    <Dialog
+      open={state !== null}
+      onClose={() => done(null)}
+      title={state?.title ?? ""}
+      actions={
+        <>
+          <button type="button" className="btn btn-primary btn-block" onClick={() => done(value.trim())}>
+            {state?.confirmLabel ?? t("Hifadhi", "Save")}
+          </button>
+          <button type="button" className="btn btn-quiet btn-block" onClick={() => done(null)}>
+            {t("Hapana", "Cancel")}
+          </button>
+        </>
+      }
+    >
+      <form
+        className="field"
+        onSubmit={(e) => {
+          e.preventDefault();
+          done(value.trim());
+        }}
+      >
+        <label className="field">
+          <span>{state?.label}</span>
+          <input className="input" autoFocus value={value} maxLength={state?.maxLength ?? 60} placeholder={state?.placeholder} onChange={(e) => setValue(e.target.value)} />
+          {state?.hint && <small>{state.hint}</small>}
+        </label>
+      </form>
+    </Dialog>
+  );
+}
+
 /** Mount once near the root; then `const confirm = useConfirm(); if (await confirm({...}))`. */
 export function ConfirmProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<(ConfirmOptions & { resolve: (v: boolean) => void }) | null>(null);
@@ -124,9 +173,17 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     state?.resolve(v);
     setState(null);
   };
+  const [prompt, setPrompt] = useState<(PromptOptions & { resolve: (v: string | null) => void }) | null>(null);
+  const askText = useCallback<AskText>((o) => new Promise<string | null>((resolve) => setPrompt({ ...o, resolve })), []);
+  const donePrompt = (v: string | null) => {
+    prompt?.resolve(v);
+    setPrompt(null);
+  };
   return (
     <ConfirmContext.Provider value={ask}>
+      <PromptContext.Provider value={askText}>
       {children}
+      <PromptDialog state={prompt} done={donePrompt} />
       <ConfirmDialog
         open={state !== null}
         title={state?.title ?? ""}
@@ -137,6 +194,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         onConfirm={() => done(true)}
         onCancel={() => done(false)}
       />
+      </PromptContext.Provider>
     </ConfirmContext.Provider>
   );
 }
@@ -144,5 +202,12 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 export function useConfirm(): Ask {
   const ask = useContext(ConfirmContext);
   if (!ask) throw new Error("useConfirm needs <ConfirmProvider> above it");
+  return ask;
+}
+
+/** A small dialog asking for one line of text; resolves null when cancelled. */
+export function usePrompt(): AskText {
+  const ask = useContext(PromptContext);
+  if (!ask) throw new Error("usePrompt needs <ConfirmProvider> above it");
   return ask;
 }

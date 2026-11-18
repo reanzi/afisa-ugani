@@ -656,3 +656,24 @@ describe("presets and production plans", () => {
     expect(ok.status).toBe("pending");
   });
 });
+
+describe("council defaults and display name", () => {
+  it("HQ sets a council-wide yield that officers see; officers cannot set it", async () => {
+    const { t, councilId, hod, village } = await world();
+    const o = await join(t, "afisa_default", councilId, "kilimo");
+    await hod.mutation(api.memberships.approve, { councilId, membershipId: o.membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.presets.setCouncilDefault, { councilId, client: hq, key: "tija:mahindi", value: 2.2 });
+    expect(await o.user.query(api.presets.councilDefaults, { councilId })).toMatchObject([{ key: "tija:mahindi", value: 2.2 }]);
+    await expect(o.user.mutation(api.presets.setCouncilDefault, { councilId, client, key: "tija:mahindi", value: 3 })).rejects.toThrow();
+    await expect(hod.mutation(api.presets.setCouncilDefault, { councilId, client: hq, key: "eneo:kilimo", value: 300 })).rejects.toThrow(/halmashauri nzima/);
+    await hod.mutation(api.presets.setCouncilDefault, { councilId, client: hq, key: "tija:mahindi", value: null });
+    expect(await o.user.query(api.presets.councilDefaults, { councilId })).toHaveLength(0);
+  });
+
+  it("the HoD sets a short display name; the full name stays", async () => {
+    const { councilId, hod } = await world();
+    await hod.mutation(api.councils.setDisplayName, { councilId, client: hq, displayName: "  Majaribio  DC " });
+    const me = await hod.query(api.users.me, {});
+    expect(me.memberships[0]).toMatchObject({ councilName: "Halmashauri ya Majaribio", councilDisplayName: "Majaribio DC" });
+  });
+});

@@ -60,7 +60,7 @@ export const listMine = authedQuery({
     const { viewer } = ctx;
     if (viewer.isRoot) {
       const all = await ctx.db.query("councils").collect();
-      return all.map((c) => ({ _id: c._id, name: c.name, region: c.region, status: c.status }));
+      return all.map((c) => ({ _id: c._id, name: c.name, displayName: c.displayName ?? null, region: c.region, status: c.status }));
     }
     const memberships = await ctx.db
       .query("memberships")
@@ -69,7 +69,7 @@ export const listMine = authedQuery({
     const councils = await Promise.all(memberships.map((m) => ctx.db.get(m.councilId)));
     return councils
       .filter((c) => c !== null)
-      .map((c) => ({ _id: c._id, name: c.name, region: c.region, status: c.status }));
+      .map((c) => ({ _id: c._id, name: c.name, displayName: c.displayName ?? null, region: c.region, status: c.status }));
   },
 });
 
@@ -77,16 +77,19 @@ export const listMine = authedQuery({
 export const create = rootMutation({
   args: {
     name: v.string(),
+    displayName: v.optional(v.string()),
     region: v.string(),
     registrationOpen: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const name = args.name.trim();
+    const displayName = args.displayName?.trim() || undefined;
     if (name.length < 3) fail("INVALID", "Andika jina kamili la halmashauri.");
     if (args.region.trim().length < 2) fail("INVALID", "Andika mkoa.");
     const code = await newCouncilCode(ctx);
     const doc = {
       name,
+      ...(displayName ? { displayName } : {}),
       code,
       region: args.region.trim(),
       status: "active" as const,
@@ -148,6 +151,7 @@ export const listAll = rootQuery({
         return {
           _id: c._id,
           name: c.name,
+          displayName: c.displayName ?? null,
           code: c.code,
           region: c.region,
           status: c.status,
@@ -167,6 +171,7 @@ export const update = rootMutation({
   args: {
     councilId: v.id("councils"),
     name: v.optional(v.string()),
+    displayName: v.optional(v.string()),
     region: v.optional(v.string()),
     registrationOpen: v.optional(v.boolean()),
     status: v.optional(v.union(v.literal("active"), v.literal("disabled"))),
@@ -177,7 +182,7 @@ export const update = rootMutation({
     const patch = Object.fromEntries(
       Object.entries(changes)
         .filter(([, v]) => v !== undefined)
-        .map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]),
+        .map(([k, v]) => [k, typeof v === "string" ? v.trim() || (k === "displayName" ? undefined : v.trim()) : v]),
     );
     await ctx.db.patch(councilId, patch);
     await writeAudit(ctx, ctx.viewer, {
@@ -199,6 +204,8 @@ export const settings = hqQuery({
     const c = await ctx.db.get(ctx.viewer.councilId);
     const { actor } = ctx.viewer;
     return {
+      name: c?.name ?? "",
+      displayName: c?.displayName ?? null,
       autoSend: { food: c?.autoSend?.food ?? false, monthly: c?.autoSend?.monthly ?? false },
       canEdit: actor.isRoot || (actor.role !== null && DEPARTMENT_ROLES.includes(actor.role)),
     };
@@ -223,6 +230,30 @@ export const setAutoSend = hqMutation({
       entityId: viewer.councilId,
       before: c?.autoSend ?? { food: false, monthly: false },
       after: autoSend,
+    });
+    return null;
+  },
+});
+
+/** A shorter name for screens (Head of Department, vice, or root). Empty clears it. */
+export const setDisplayName = hqMutation({
+  args: { displayName: v.string() },
+  handler: async (ctx, { displayName }) => {
+    const { viewer } = ctx;
+    const { actor } = viewer;
+    if (!(actor.isRoot || (actor.role !== null && DEPARTMENT_ROLES.includes(actor.role)))) {
+      fail("FORBIDDEN", "Ni Mkuu wa Idara au Naibu wake tu wanaoweza kubadili jina fupi.");
+    }
+    const clean = displayName.trim().replace(/\s+/g, " ");
+    if (clean.length > 40) fail("INVALID", "Jina fupi lisizidi herufi 40.");
+    const c = await ctx.db.get(viewer.councilId);
+    await ctx.db.patch(viewer.councilId, { displayName: clean || undefined });
+    await writeAudit(ctx, viewer, {
+      action: "council.displayName",
+      entity: "councils",
+      entityId: viewer.councilId,
+      before: { displayName: c?.displayName },
+      after: { displayName: clean || undefined },
     });
     return null;
   },

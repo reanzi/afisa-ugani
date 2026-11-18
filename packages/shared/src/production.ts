@@ -449,7 +449,8 @@ export function buildPerformance(input: PerformanceInput): { report: Report; mis
       header: {
         ministry: "OFISI YA RAIS - TAWALA ZA MIKOA NA SERIKALI ZA MITAA (OR-TAMISEMI)",
         title: "TAARIFA YA UTEKELEZAJI WA MALENGO YA UZALISHAJI",
-        edition: "",
+        // The ARDS quarterly and annual forms have no plan-against-results table.
+        edition: "Si sehemu ya fomu za ARDS: kwa ufuatiliaji wa mpango na vikao vya maendeleo vya kata/kijiji",
         areaLabel: input.areaLabel,
         officerName: input.officerName,
         phone: input.phone ?? "",

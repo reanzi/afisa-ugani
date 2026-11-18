@@ -27,7 +27,7 @@ export function FoodReports() {
   const t = useT();
   const lang = useLang();
   const avail = (v: string | null | undefined) => (v ? (lang === "en" ? (AVAIL_EN[v] ?? v) : availabilityLabel(v)) : "");
-  const { councilId, councilName } = useHq();
+  const { councilId, councilFullName: councilName } = useHq();
   const current = currentFoodReport(Date.now()).period;
   const periods = useQuery(api.submissions.periodsForHq, { councilId, kind: "food_prices" });
   const [chosen, setChosen] = useQueryState("kipindi", parseAsString);

@@ -779,3 +779,23 @@ textarea {
 .policy li {
   line-height: 1.55;
 }
+
+/* One line, always: shrink a little, then cut (see FitText). */
+.fit-text {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Read by screen readers, not shown. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

@@ -12,7 +12,10 @@ export type Me = FunctionReturnType<typeof api.users.me>;
 export type Hq = {
   me: Me;
   councilId: Id<"councils">;
+  /** The short name when set, for screens. */
   councilName: string;
+  /** The full name, for printed reports. */
+  councilFullName: string;
   actor: Actor;
 };
 

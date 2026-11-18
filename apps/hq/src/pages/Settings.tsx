@@ -2,7 +2,7 @@
  * Council settings. For now: whether reports send themselves on their due
  * dates when an officer has not sent them.
  */
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@afisa/backend/api";
 import { errorMessage, useT, type T } from "@afisa/ui";
@@ -28,6 +28,44 @@ const items = (t: T): { key: Key; title: string; body: string }[] => [
     ),
   },
 ];
+
+/** The council's short name, for screens. */
+function CouncilName({ name, displayName, canEdit }: { name: string; displayName: string | null; canEdit: boolean }) {
+  const t = useT();
+  const { councilId } = useHq();
+  const save = useMutation(api.councils.setDisplayName);
+  const [value, setValue] = useState(displayName ?? "");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setMsg(null);
+    try {
+      await save({ councilId, displayName: value, client: hqClient });
+      setMsg({ ok: true, text: t("Imehifadhiwa.", "Saved.") });
+    } catch (err) {
+      setMsg({ ok: false, text: errorMessage(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form className="card-form settings-name" onSubmit={submit}>
+      <h2>{t("Jina la halmashauri", "Council name")}</h2>
+      <p className="muted">
+        {t("Jina kamili (kwenye ripoti)", "Full name (on reports)")}: <strong>{name}</strong>
+      </p>
+      <label className="field">
+        <span>{t("Jina fupi (kwenye skrini)", "Short name (on screens)")}</span>
+        <input className="input" maxLength={40} value={value} disabled={!canEdit} placeholder="Bagamoyo DC" onChange={(e) => setValue(e.target.value)} />
+        <small>{t("Acha wazi ili kutumia jina kamili.", "Leave empty to use the full name.")}</small>
+      </label>
+      {msg && <p className={msg.ok ? "form-ok" : "field-error"} role="status">{msg.text}</p>}
+      {canEdit && <button className="btn btn-primary" disabled={busy || value.trim() === (displayName ?? "")}>{t("Hifadhi", "Save")}</button>}
+    </form>
+  );
+}
 
 export function Settings() {
   const t = useT();
@@ -92,6 +130,7 @@ export function Settings() {
           })}
         </ul>
       )}
+      {settings && <CouncilName key={settings.displayName ?? ""} name={settings.name} displayName={settings.displayName} canEdit={settings.canEdit} />}
       {settings && !settings.canEdit && <p className="muted">{t("Mkuu wa Idara au Naibu wake ndio wanaoweza kubadili mipangilio hii.", "Only the Head of Department or their vice can change these settings.")}</p>}
     </section>
   );

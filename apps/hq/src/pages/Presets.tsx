@@ -10,19 +10,21 @@ import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
 import {
   ALL_CROPS,
+  CROPS,
   labelOf,
   metricsFor,
   parsePlanKey,
   presetDef,
   presetLabel,
   titleCaseName,
+  yieldKey,
   type ProductionPlan,
 } from "@afisa/shared";
 import { Dialog, errorMessage, useT } from "@afisa/ui";
 import { hqClient, useHq } from "../context";
 import { SectionTags, when } from "./common";
 
-const FILTERS = ["zinasubiri", "zote"] as const;
+const FILTERS = ["zinasubiri", "zote", "halmashauri"] as const;
 const fmt = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 function PlanDetails({ plan, yields, section }: { plan: ProductionPlan; yields: Record<string, number> | null; section: "kilimo" | "mifugo" | "uvuvi" }) {
@@ -85,11 +87,103 @@ function PlanDetails({ plan, yields, section }: { plan: ProductionPlan; yields: 
   );
 }
 
+const DEFAULT_CROPS = [...CROPS, ...ALL_CROPS.filter((c) => !CROPS.some((x) => x.value === c.value) && c.value !== "nyingine")];
+
+/**
+ * Yields for the whole council. Officers use these unless they set their own
+ * (which then needs approval), so most officers never have to enter one.
+ */
+function CouncilDefaults() {
+  const t = useT();
+  const { councilId } = useHq();
+  const data = useQuery(api.presets.councilDefaultsForHq, { councilId });
+  const set = useMutation(api.presets.setCouncilDefault);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  if (!data) return <p className="muted">{t("Inapakia…", "Loading…")}</p>;
+  const byKey = new Map(data.values.map((v) => [v.key, v]));
+
+  const save = async (crop: string) => {
+    const key = yieldKey(crop);
+    const raw = (draft[crop] ?? "").trim();
+    const value = raw === "" ? null : Number(raw.replace(",", "."));
+    if (value !== null && !Number.isFinite(value)) return setError(t("Andika namba.", "Write a number."));
+    setBusy(crop);
+    setError(null);
+    try {
+      await set({ councilId, key, value, client: hqClient });
+      setDraft((d) => {
+        const next = { ...d };
+        delete next[crop];
+        return next;
+      });
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="council-defaults">
+      <p className="muted">
+        {t(
+          "Tija (tani kwa hekta) ya kawaida katika halmashauri. Maafisa wanaitumia moja kwa moja; afisa mwenye tija tofauti katika eneo lake anaweka yake, na wewe unaidhinisha.",
+          "Typical yield (tonnes per hectare) in the council. Officers use it directly; an officer whose area differs sets their own, which you approve.",
+        )}
+      </p>
+      {error && <div className="notice notice-danger" role="alert"><p>{error}</p></div>}
+      <table className="plan-table defaults-table">
+        <thead>
+          <tr>
+            <th scope="col">{t("Zao", "Crop")}</th>
+            <th scope="col">{t("Tija (tani/ha)", "Yield (t/ha)")}</th>
+            <th scope="col">{t("Imewekwa na", "Set by")}</th>
+            <th scope="col"><span className="sr-only">{t("Hifadhi", "Save")}</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {DEFAULT_CROPS.map((c) => {
+            const cur = byKey.get(yieldKey(c.value));
+            const value = draft[c.value] ?? (cur ? String(cur.value) : "");
+            const changed = c.value in draft && draft[c.value] !== (cur ? String(cur.value) : "");
+            return (
+              <tr key={c.value}>
+                <th scope="row">{c.label}</th>
+                <td>
+                  <input
+                    className="input input-sm"
+                    inputMode="decimal"
+                    aria-label={t(`Tija ya ${c.label}`, `${c.label} yield`)}
+                    value={value}
+                    disabled={!data.canEdit}
+                    onChange={(e) => setDraft((d) => ({ ...d, [c.value]: e.target.value.replace(/[^0-9.,]/g, "") }))}
+                  />
+                </td>
+                <td className="muted small">{cur ? `${cur.setByName || "—"}, ${when(cur.updatedAt)}` : t("Haijawekwa", "Not set")}</td>
+                <td>
+                  {data.canEdit && changed && (
+                    <button className="btn btn-primary btn-small" disabled={busy !== null} onClick={() => void save(c.value)}>
+                      {busy === c.value ? t("Inahifadhi…", "Saving…") : value.trim() === "" ? t("Ondoa", "Remove") : t("Hifadhi", "Save")}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {!data.canEdit && <p className="muted">{t("Viongozi wa sehemu ya kilimo na Mkuu wa Idara ndio wanaoweka viwango hivi.", "Crop section leads and the Head of Department set these.")}</p>}
+    </div>
+  );
+}
+
 export function Presets() {
   const t = useT();
   const { councilId } = useHq();
   const [filter, setFilter] = useQueryState("hali", parseAsStringLiteral(FILTERS).withDefault("zinasubiri"));
-  const rows = useQuery(api.presets.forHq, { councilId, status: filter === "zinasubiri" ? "pending" : undefined });
+  const rows = useQuery(api.presets.forHq, filter === "halmashauri" ? "skip" : { councilId, status: filter === "zinasubiri" ? "pending" : undefined });
   const decide = useMutation(api.presets.decide);
   const [refusing, setRefusing] = useState<{ id: Id<"presets">; label: string; officer: string } | null>(null);
   const [note, setNote] = useState("");
@@ -139,12 +233,15 @@ export function Presets() {
             {t("Zinasubiri", "Waiting")}
             {filter === "zinasubiri" && pendingCount > 0 ? ` (${pendingCount})` : ""}
           </button>
-          <button role="tab" aria-selected={filter === "zote"} onClick={() => void setFilter("zote")}>{t("Zote", "All")}</button>
+          <button role="tab" aria-selected={filter === "zote"} onClick={() => void setFilter("zote")}>{t("Za maafisa wote", "All officers'")}</button>
+          <button role="tab" aria-selected={filter === "halmashauri"} onClick={() => void setFilter("halmashauri")}>{t("Za halmashauri", "Council-wide")}</button>
         </div>
       </header>
 
+      {filter === "halmashauri" && <CouncilDefaults />}
+
       {error && <div className="notice notice-danger" role="alert"><p>{error}</p></div>}
-      {rows === undefined && <p className="muted">{t("Inapakia…", "Loading…")}</p>}
+      {filter !== "halmashauri" && rows === undefined && <p className="muted">{t("Inapakia…", "Loading…")}</p>}
       {rows?.length === 0 && (
         <p className="empty">{filter === "zinasubiri" ? t("Hakuna kinachosubiri idhini.", "Nothing is waiting for approval.") : t("Bado hakuna viwango.", "No presets yet.")}</p>
       )}

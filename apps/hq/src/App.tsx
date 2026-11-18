@@ -4,7 +4,7 @@ import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
 import { isHqRole, ROLE_LABELS, type Actor } from "@afisa/shared";
-import { ConfirmProvider, PolicyView, Select, useLabel, useT, useTheme, type T } from "@afisa/ui";
+import { ConfirmProvider, FitText, PolicyView, Select, useLabel, useT, useTheme, type T } from "@afisa/ui";
 import { HqContext, useHq, type Me } from "./context";
 import { Requests } from "./pages/Requests";
 import { Members } from "./pages/Members";
@@ -37,12 +37,12 @@ const tabLabel = (t: T, tab: Tab): string =>
     sera: t("Sera ya matumizi", "Usage policy"),
   })[tab];
 
-function hqCouncils(me: Me, rootCouncils: { _id: Id<"councils">; name: string }[] | undefined) {
+function hqCouncils(me: Me, rootCouncils: { _id: Id<"councils">; name: string; displayName: string | null }[] | undefined) {
   const isRoot = "isRoot" in me;
-  if (isRoot) return (rootCouncils ?? []).map((c) => ({ councilId: c._id, councilName: c.name }));
+  if (isRoot) return (rootCouncils ?? []).map((c) => ({ councilId: c._id, councilName: c.displayName || c.name, councilFullName: c.name }));
   return me.memberships
     .filter((m) => m.status === "active" && isHqRole(m.role))
-    .map((m) => ({ councilId: m.councilId, councilName: m.councilName }));
+    .map((m) => ({ councilId: m.councilId, councilName: m.councilDisplayName || m.councilName, councilFullName: m.councilName }));
 }
 
 export function App() {
@@ -118,7 +118,7 @@ function Main() {
   };
 
   return (
-    <HqContext.Provider value={{ me, councilId: current.councilId, councilName: current.councilName, actor }}>
+    <HqContext.Provider value={{ me, councilId: current.councilId, councilName: current.councilName, councilFullName: current.councilFullName, actor }}>
       <div className="hq">
         <aside className="hq-side">
           <div className="hq-brand">
@@ -134,7 +134,7 @@ function Main() {
                   options={councils.map((c) => ({ value: c.councilId, label: c.councilName }))}
                 />
               ) : (
-                <span className="muted">{current.councilName}</span>
+                <FitText text={current.councilName} className="muted" />
               )}
             </div>
           </div>

@@ -113,7 +113,19 @@ export const mine = memberQuery({
   },
 });
 
-/** Approved values of one officer: yields by crop, and plans by section for a financial year. */
+/** Council-wide defaults by key (numeric presets only). */
+export async function councilDefaultsOf(ctx: QueryCtx, councilId: Id<"councils">): Promise<Record<string, number>> {
+  const rows = await ctx.db
+    .query("councilPresets")
+    .withIndex("by_council_key", (q) => q.eq("councilId", councilId))
+    .collect();
+  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+}
+
+/**
+ * Approved values of one officer, over the council's defaults: yields by
+ * crop, and plans by section for a financial year.
+ */
 export async function approvedPresetsOf(
   ctx: QueryCtx,
   ownerId: Id<"users">,
@@ -124,8 +136,9 @@ export async function approvedPresetsOf(
     .query("presets")
     .withIndex("by_owner_council_key", (q) => q.eq("ownerId", ownerId).eq("councilId", councilId))
     .collect();
-  const values: Record<string, number> = {};
+  const values: Record<string, number> = { ...(await councilDefaultsOf(ctx, councilId)) };
   const yields: Record<string, number> = {};
+  for (const [k, val] of Object.entries(values)) if (k.startsWith("tija:")) yields[k.slice(5)] = val;
   const plans: Partial<Record<Section, ProductionPlan>> = {};
   for (const r of rows) {
     if (r.approvedValue === undefined) continue;
@@ -235,6 +248,70 @@ export const decide = hqMutation({
       section: p.section,
       before: { approvedValue: p.approvedValue },
       after: { key: p.key, value: p.value, note: approve ? undefined : note },
+    });
+    return null;
+  },
+});
+
+/** The council's defaults, for the phone: used where the officer has no approved value of their own. */
+export const councilDefaults = memberQuery({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db
+      .query("councilPresets")
+      .withIndex("by_council_key", (q) => q.eq("councilId", ctx.viewer.councilId))
+      .collect();
+    return rows.map((r) => ({ key: r.key, value: r.value, setByName: r.setByName, updatedAt: r.updatedAt }));
+  },
+});
+
+/** Council defaults for HQ, with who may change each. */
+export const councilDefaultsForHq = hqQuery({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db
+      .query("councilPresets")
+      .withIndex("by_council_key", (q) => q.eq("councilId", ctx.viewer.councilId))
+      .collect();
+    return {
+      values: rows.map((r) => ({ key: r.key, value: r.value, setByName: r.setByName, updatedAt: r.updatedAt })),
+      canEdit: canApprovePreset(ctx.viewer.actor, "kilimo"),
+    };
+  },
+});
+
+/** Set (or clear, with null) a council-wide default. Kilimo leads, the HoD and vice, or root. */
+export const setCouncilDefault = hqMutation({
+  args: { key: v.string(), value: v.union(v.number(), v.null()) },
+  handler: async (ctx, { key, value }) => {
+    const { viewer } = ctx;
+    const def = presetDef(key);
+    if (!def || !key.startsWith("tija:")) fail("INVALID", "Kiwango hiki hakiwekwi kwa halmashauri nzima.");
+    if (!canApprovePreset(viewer.actor, def.section)) fail("FORBIDDEN", "Huna mamlaka ya kuweka viwango vya sehemu hii.");
+    if (value !== null) {
+      const problem = validatePreset(key, value);
+      if (problem) fail("INVALID", `Thamani si sahihi (${problem}).`);
+    }
+    const existing = await ctx.db
+      .query("councilPresets")
+      .withIndex("by_council_key", (q) => q.eq("councilId", viewer.councilId).eq("key", key))
+      .unique();
+    const now = Date.now();
+    const byName = viewer.isRoot ? "" : (viewer.user.name ?? "");
+    if (value === null) {
+      if (existing) await ctx.db.delete(existing._id);
+    } else if (existing) {
+      await ctx.db.patch(existing._id, { value, setById: viewer.userId, setByName: byName, updatedAt: now });
+    } else {
+      await ctx.db.insert("councilPresets", { councilId: viewer.councilId, key, value, setById: viewer.userId, setByName: byName, updatedAt: now });
+    }
+    await writeAudit(ctx, viewer, {
+      action: "council.preset",
+      entity: "councilPresets",
+      entityId: key,
+      section: def.section,
+      before: { value: existing?.value },
+      after: { value },
     });
     return null;
   },

@@ -21,7 +21,7 @@ import {
 } from "@afisa/shared";
 import { IconTrash, Select } from "@afisa/ui";
 import { useWork } from "../lib/session";
-import { proposePreset, usePresetRows } from "../lib/presets";
+import { proposePreset, useCouncilDefaults, usePresetRows, type CouncilDefault } from "../lib/presets";
 import type { LocalPreset } from "../lib/db";
 import { PresetAsk } from "./PresetAsk";
 
@@ -71,7 +71,7 @@ function PlanStatus({ row }: { row: LocalPreset | undefined }) {
   return <p className="plan-status tone-wait">Unasubiri idhini ya mkuu wa sehemu.{row.approvedValue ? " Mpango ulioidhinishwa awali unaendelea kutumika." : ""}</p>;
 }
 
-function SectionPlan({ fy, section, rows }: { fy: string; section: Section; rows: LocalPreset[] }) {
+function SectionPlan({ fy, section, rows, defaults }: { fy: string; section: Section; rows: LocalPreset[]; defaults: CouncilDefault[] }) {
   const { councilId } = useWork();
   const key = planKey(fy, section);
   const row = rows.find((r) => r.key === key);
@@ -92,10 +92,13 @@ function SectionPlan({ fy, section, rows }: { fy: string; section: Section; rows
   const unchanged = JSON.stringify(plan) === JSON.stringify(row?.value ?? {});
   const empty = Object.keys(plan.crops ?? {}).length === 0 && !plan.targets;
 
-  const tijaOf = (crop: string) => {
+  const councilOf = (crop: string) => defaults.find((d) => d.key === yieldKey(crop))?.value;
+  const ownOf = (crop: string) => {
     const r = byKey.get(yieldKey(crop));
     return typeof r?.approvedValue === "number" ? r.approvedValue : undefined;
   };
+  // The officer's approved yield, else the council's.
+  const tijaOf = (crop: string) => ownOf(crop) ?? councilOf(crop);
   const totalArea = Object.values(plan.crops ?? {}).reduce((a, c) => a + c.area, 0);
   const totalTarget = Object.entries(plan.crops ?? {}).reduce((a, [c, v]) => a + v.area * (tijaOf(c) ?? 0), 0);
 
@@ -146,12 +149,21 @@ function SectionPlan({ fy, section, rows }: { fy: string; section: Section; rows
                     <span className="unit">ha</span>
                   </span>
                 </label>
-                {tija !== undefined ? (
+                {tija !== undefined && (
                   <p className="computed">
-                    Tija {fmt(tija)} tani/ha{area ? `: lengo la mavuno tani ${fmt(area * tija)}` : ""}
+                    Tija {fmt(tija)} tani/ha{ownOf(c.value) === undefined ? " (ya halmashauri)" : ""}
+                    {area ? `: lengo la mavuno tani ${fmt(area * tija)}` : ""}
                   </p>
-                ) : (
-                  <PresetAsk councilId={councilId} presetKey={yieldKey(c.value)} row={byKey.get(yieldKey(c.value))} reason="Kukokotoa lengo la mavuno" />
+                )}
+                {(ownOf(c.value) === undefined || byKey.get(yieldKey(c.value))?.status !== "approved") && (
+                  <PresetAsk
+                    councilId={councilId}
+                    presetKey={yieldKey(c.value)}
+                    row={byKey.get(yieldKey(c.value))}
+                    reason="Kukokotoa lengo la mavuno"
+                    councilValue={councilOf(c.value)}
+                    compact={councilOf(c.value) !== undefined && !byKey.get(yieldKey(c.value))}
+                  />
                 )}
               </div>
             );
@@ -219,6 +231,7 @@ export function Plan() {
   const navigate = useNavigate();
   const { councilId, sections, membership } = useWork();
   const rows = usePresetRows(councilId);
+  const defaults = useCouncilDefaults(councilId);
   const current = financialYear(monthKey(new Date()));
   const [fyParam, setFy] = useQueryState("mwaka", parseAsString);
   const fy = fyParam && /^\d{4}\/\d{2}$/.test(fyParam) ? fyParam : current;
@@ -253,7 +266,7 @@ export function Plan() {
         </div>
       )}
 
-      {rows && <SectionPlan key={`${fy}:${section}`} fy={fy} section={section} rows={rows} />}
+      {rows && defaults && <SectionPlan key={`${fy}:${section}`} fy={fy} section={section} rows={rows} defaults={defaults} />}
     </main>
   );
 }

@@ -51,8 +51,21 @@ export type Approved = {
   plans: Record<string, Partial<Record<Section, ProductionPlan>>>;
 };
 
-export function approvedFrom(rows: readonly LocalPreset[]): Approved {
+/** Council-wide defaults (set in HQ), kept on the phone for offline use. */
+export type CouncilDefault = { key: string; value: number; setByName: string; updatedAt: number };
+const defaultsKey = (councilId: string) => `councilPresets:${councilId}`;
+
+export function useCouncilDefaults(councilId: string): CouncilDefault[] | undefined {
+  return useLiveQuery(async () => ((await db.meta.get(defaultsKey(councilId)))?.value as CouncilDefault[] | undefined) ?? [], [councilId]);
+}
+
+/** Officer's approved values over the council's defaults. */
+export function approvedFrom(rows: readonly LocalPreset[], defaults: readonly CouncilDefault[] = []): Approved {
   const out: Approved = { values: {}, yields: {}, plans: {} };
+  for (const d of defaults) {
+    out.values[d.key] = d.value;
+    if (d.key.startsWith("tija:")) out.yields[d.key.slice(5)] = d.value;
+  }
   for (const r of rows) {
     if (r.approvedValue === undefined || r.approvedValue === null) continue;
     if (presetDef(r.key) && typeof r.approvedValue === "number") {
@@ -67,7 +80,8 @@ export function approvedFrom(rows: readonly LocalPreset[]): Approved {
 
 export function useApproved(councilId: string): Approved | undefined {
   const rows = usePresetRows(councilId);
-  return useMemo(() => (rows ? approvedFrom(rows) : undefined), [rows]);
+  const defaults = useCouncilDefaults(councilId);
+  return useMemo(() => (rows && defaults ? approvedFrom(rows, defaults) : undefined), [rows, defaults]);
 }
 
 /** Send proposals waiting on the phone. A refused one is marked, not retried. */
@@ -96,8 +110,10 @@ export async function pushPresets(councilId: string): Promise<void> {
   }
 }
 
-/** Approvals and rejections from HQ come down here. */
+/** Approvals and rejections from HQ, and the council's defaults, come down here. */
 export async function pullPresets(councilId: string): Promise<void> {
+  const defaults = await convex.query(api.presets.councilDefaults, { councilId: councilId as Id<"councils"> });
+  await db.meta.put({ key: defaultsKey(councilId), value: defaults });
   const rows = await convex.query(api.presets.mine, { councilId: councilId as Id<"councils"> });
   await db.transaction("rw", db.presets, async () => {
     for (const r of rows) {

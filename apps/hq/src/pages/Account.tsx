@@ -79,7 +79,7 @@ export function AccountPage({ me }: { me: Me }) {
           .filter((m) => m.status === "active")
           .map((m) => (
             <div key={m._id}>
-              <dt>{m.councilName}</dt>
+              <dt>{m.councilDisplayName || m.councilName}</dt>
               <dd>
                 {label(ROLE_LABELS[m.role])}, {m.sections.map((s) => label(SECTION_LABELS[s])).join(", ")}
               </dd>

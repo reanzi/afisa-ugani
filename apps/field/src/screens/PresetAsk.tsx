@@ -15,6 +15,7 @@ export function PresetAsk({
   row,
   reason,
   compact = false,
+  councilValue,
 }: {
   councilId: string;
   presetKey: string;
@@ -22,9 +23,11 @@ export function PresetAsk({
   /** Why the app is asking: "Kukokotoa mavuno ya Mahindi". */
   reason?: string;
   compact?: boolean;
+  /** The council's default, when HQ set one: used unless the officer sets their own. */
+  councilValue?: number;
 }) {
   const def = presetDef(presetKey);
-  const [editing, setEditing] = useState(!row);
+  const [editing, setEditing] = useState(!row && councilValue === undefined);
   const [text, setText] = useState(row ? fmt(row.value) : "");
   const [problem, setProblem] = useState<string | null>(null);
   if (!def) return null;
@@ -52,7 +55,9 @@ export function PresetAsk({
               tone: "wait",
               text: `Umeweka ${fmt(row.value)} ${def.unit}; inasubiri idhini ya mkuu wa sehemu${row.approvedValue !== undefined ? ` (inayotumika sasa ${fmt(row.approvedValue)})` : ""}.`,
             }
-    : null;
+    : councilValue !== undefined
+      ? { tone: "ok", text: `Ya halmashauri: ${fmt(councilValue)} ${def.unit} (inatumika). Kama eneo lako ni tofauti, weka yako.` }
+      : null;
 
   return (
     <div className={`preset-ask${compact ? " is-compact" : ""}${status ? ` tone-${status.tone}` : ""}`}>
@@ -65,7 +70,7 @@ export function PresetAsk({
       {status && !editing && (
         <p className="preset-status">
           {status.text}{" "}
-          <button type="button" className="link" onClick={() => setEditing(true)}>Badili</button>
+          <button type="button" className="link" onClick={() => setEditing(true)}>{row ? "Badili" : "Weka yangu"}</button>
         </p>
       )}
       {editing && (
