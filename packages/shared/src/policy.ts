@@ -5,7 +5,7 @@
  */
 
 /** Bump when the text changes in substance; officers then agree again. */
-export const POLICY_VERSION = "2026-11";
+export const POLICY_VERSION = "2026-11-2";
 
 export type PolicySection = { title: { sw: string; en: string }; points: { sw: string; en: string }[] };
 
@@ -44,6 +44,10 @@ export const POLICY_SECTIONS: PolicySection[] = [
       {
         sw: "Programu haisomi picha zilizoko kwenye simu yako. Inatumia tu picha unazopiga ndani yake kwa ajili ya kumbukumbu zako.",
         en: "The app does not read the photos stored on your phone. It uses only the photos you take inside it for your records.",
+      },
+      {
+        sw: "Ukituma ripoti, picha za kumbukumbu za kipindi cha ripoti hiyo zinaonekana makao makuu pamoja nayo, kwa ufuatiliaji na hatua zaidi.",
+        en: "When you send a report, the photos of the records in that report's period are seen by head office with it, for follow-up and further action.",
       },
       {
         sw: "Picha za kazi zinaweza kutumiwa na Idara na Wizara kwa utafiti, mafunzo, na kufundisha mifumo ya kutambua wadudu na magonjwa, bila jina lako wala la mkulima.",

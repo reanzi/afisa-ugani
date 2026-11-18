@@ -93,3 +93,38 @@ export const PHOTO_MAX_AGE_MS = 10 * 60 * 1000;
 export function isFreshPhoto(lastModified: number, now = Date.now()): boolean {
   return Number.isFinite(lastModified) && lastModified > 0 && now - lastModified <= PHOTO_MAX_AGE_MS && lastModified <= now + 60_000;
 }
+
+/**
+ * Labels for a photo, from the record it belongs to: what a viewer or a
+ * dataset needs to know about the picture, with no names of people.
+ */
+export type PhotoLabels = {
+  section: string;
+  recordType: string;
+  category?: string;
+  subject?: string;
+  observation?: string;
+  suspected?: string;
+  severity?: string;
+  stage?: string;
+};
+
+export function photoLabels(record: { type: string; section: string; payload: Record<string, unknown> }): PhotoLabels {
+  const p = record.payload;
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  const out: PhotoLabels = { section: record.section, recordType: record.type };
+  if (record.type === "photo") {
+    out.category = PHOTO_CATEGORIES.find((c) => c.value === p.category)?.label ?? str(p.category);
+    out.subject = str(p.subject);
+    out.observation = str(p.observation);
+    out.suspected = str(p.suspected);
+    out.severity = str(p.severity);
+    out.stage = GROWTH_STAGES.find((g) => g.value === p.stage)?.label ?? str(p.stage);
+  } else {
+    // Other records: the crop or animal and the problem, where the form has them.
+    out.subject = str(p.crop) ?? str(p.animal) ?? str(p.species) ?? str(p.commodity);
+    out.suspected = str(p.pest) ?? str(p.disease);
+    out.severity = str(p.severity);
+  }
+  return out;
+}

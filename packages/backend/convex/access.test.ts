@@ -677,3 +677,43 @@ describe("council defaults and display name", () => {
     expect(me.memberships[0]).toMatchObject({ councilName: "Halmashauri ya Majaribio", councilDisplayName: "Majaribio DC" });
   });
 });
+
+describe("photos with sent reports", () => {
+  const rid = "0192f3a0-7c1e-7d2a-9b3c-4d5e6f708500";
+  const pid = "0192f3a0-7c1e-7d2a-9b3c-4d5e6f708501";
+
+  it("HQ sees the photos of a sent report's period, never before it is sent; research data names nobody", async () => {
+    const { t, councilId, hod, root, village } = await world();
+    const { user, membershipId } = await join(t, "afisa_ripoti_picha", councilId, "kilimo");
+    await hod.mutation(api.memberships.approve, { councilId, membershipId, areaIds: [village], client: hq });
+    // A record in October (council time), with a photo.
+    const occurredAt = Date.UTC(2026, 9, 14, 7);
+    await user.mutation(api.sync.pushRecords, {
+      councilId, client,
+      records: [{
+        clientId: rid, type: "photo", section: "kilimo", areaId: village, occurredAt,
+        payload: { category: "wadudu", subject: "Mahindi", observation: "Viwavijeshi kwenye majani", suspected: "Viwavijeshi vamizi" },
+        payloadVersion: 1, clientUpdatedAt: occurredAt, geo: { lat: -6.8234, lng: 37.6612, accuracy: 8, capturedAt: occurredAt },
+      }],
+    });
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob([new Uint8Array(3000)], { type: "image/jpeg" })));
+    await user.mutation(api.media.attach, { councilId, client, clientId: pid, recordClientId: rid, storageId, shot: "karibu", width: 1600, height: 1200, takenAt: occurredAt });
+
+    const { report } = await import("@afisa/shared").then((s) => ({
+      report: s.buildMonthlyReport({ month: "2026-10", records: [], areaLabel: "Kijiji cha Changarawe", officerName: "Afisa" }),
+    }));
+    await user.mutation(api.submissions.submit, {
+      councilId, client, clientId: "0192f3a0-7c1e-7d2a-9b3c-4d5e6f708502", kind: "monthly", period: "2026-10",
+      areaLabel: "Kijiji cha Changarawe", payload: report as unknown as Record<string, unknown>, payloadVersion: 1, clientSubmittedAt: Date.now(),
+    });
+    const [sent] = await hod.query(api.submissions.forHq, { councilId, kind: "monthly", period: "2026-10" });
+    const photos = await hod.query(api.submissions.photosForHq, { councilId, submissionId: sent!._id });
+    expect(photos).toHaveLength(1);
+    expect(photos[0]).toMatchObject({ shot: "karibu", record: { type: "photo", labels: { category: "Wadudu waharibifu", subject: "Mahindi" } } });
+
+    const data = await root.query(api.research.photoDataset, {});
+    expect(data.items[0]).toMatchObject({ month: "2026-10", ward: "Mzumbe", geo: { lat: -6.8, lng: 37.7 } });
+    expect(JSON.stringify(data.items[0])).not.toMatch(/Afisa|afisa_ripoti_picha/);
+    await expect(hod.query(api.research.photoDataset, {})).rejects.toThrow(/ruhusa/);
+  });
+});

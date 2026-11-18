@@ -103,3 +103,18 @@ describe("which report a price belongs to", () => {
     expect(rows[0]!.average).toBe(3000);
   });
 });
+
+describe("food report as a printable report", () => {
+  it("lays out the sent rows and note like the other reports", async () => {
+    const { foodReportAsReport } = await import("./foodPrices.ts");
+    const r = foodReportAsReport(
+      { rows: [{ commodity: "Sukari", unit: "kg", average: 3300, min: 3000, max: 3500, count: 3, availability: "haba" }], note: "Sukari ni haba." },
+      { period: "2026-11", areaLabel: "Kata ya Dunda", officerName: "Neema" },
+    );
+    expect(r.kind).toBe("food");
+    expect(r.header.financialYear).toBe("2026/27");
+    const table = r.parts[0]!.blocks[0]!;
+    expect(table.kind === "table" && table.rows[0]).toEqual(["Sukari", "kg", 3300, "3,000–3,500", 3, "Haba"]);
+    expect(r.parts[1]!.blocks[0]).toMatchObject({ kind: "text", text: "Sukari ni haba." });
+  });
+});

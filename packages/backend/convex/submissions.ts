@@ -8,8 +8,12 @@ import { v } from "convex/values";
 import {
   canReopenReport,
   canViewMembership,
+  COUNCIL_UTC_OFFSET_MINUTES,
   foodCycle,
   monthlyWindow,
+  monthRange,
+  photoLabels,
+  summarize,
   toCouncilWallClock,
   validateFoodReport,
   validateMonthlyReport,
@@ -336,5 +340,68 @@ export const reopen = hqMutation({
       after: { kind: s.kind, period: s.period, officer: s.officerName, note: clean },
     });
     return null;
+  },
+});
+
+/**
+ * Photos that go with a sent report: those attached to the officer's records
+ * in the report's period. HQ sees them only once the report is sent, and
+ * only for officers whose reports the viewer may see.
+ */
+export const photosForHq = hqQuery({
+  args: { submissionId: v.id("submissions") },
+  handler: async (ctx, { submissionId }) => {
+    const { viewer } = ctx;
+    const s = await ctx.db.get(submissionId);
+    if (!s || s.councilId !== viewer.councilId) return [];
+    const hidden = await hiddenUserIds(ctx, viewer);
+    if (hidden.has(s.ownerId)) return [];
+    const m = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_council", (q) => q.eq("userId", s.ownerId).eq("councilId", viewer.councilId))
+      .unique();
+    const target: Target = m ? targetOf(m) : { userId: s.ownerId, role: "officer", status: "active", primarySection: s.primarySection, sections: [s.primarySection] };
+    if (!canViewMembership(viewer.actor, target)) return [];
+
+    // The period in council time (UTC+3): local midnight is 21:00 UTC the day before.
+    const offset = COUNCIL_UTC_OFFSET_MINUTES * 60_000;
+    const window = s.kind === "monthly" ? monthRange(s.period) : foodCycle(s.period);
+    const start = window.start - offset;
+    const end = window.end - offset;
+
+    const records = await ctx.db
+      .query("records")
+      .withIndex("by_owner_council_occurred", (q) => q.eq("ownerId", s.ownerId).eq("councilId", viewer.councilId).gte("occurredAt", start).lt("occurredAt", end))
+      .collect();
+    const out = [];
+    for (const r of records) {
+      if (r.deletedAt) continue;
+      const media = await ctx.db
+        .query("media")
+        .withIndex("by_record", (q) => q.eq("recordClientId", r.clientId))
+        .collect();
+      for (const p of media) {
+        if (p.deletedAt || p.ownerId !== s.ownerId) continue;
+        const url = await ctx.storage.getUrl(p.storageId);
+        if (!url) continue;
+        out.push({
+          clientId: p.clientId,
+          url,
+          width: p.width,
+          height: p.height,
+          shot: p.shot,
+          caption: p.caption ?? null,
+          takenAt: p.takenAt,
+          record: {
+            type: r.type,
+            section: r.section,
+            occurredAt: r.occurredAt,
+            summary: summarize(r.type, r.payload as Record<string, unknown>),
+            labels: photoLabels({ type: r.type, section: r.section, payload: r.payload as Record<string, unknown> }),
+          },
+        });
+      }
+    }
+    return out.sort((a, b) => a.record.occurredAt - b.record.occurredAt || a.takenAt - b.takenAt);
   },
 });

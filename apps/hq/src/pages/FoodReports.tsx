@@ -11,6 +11,7 @@ import {
   combineFoodReports,
   currentFoodReport,
   foodCycle,
+  foodReportAsReport,
   monthLabel,
   shiftMonth,
   validateFoodReport,
@@ -18,6 +19,7 @@ import {
 } from "@afisa/shared";
 import { Select, shortDate, useLang, useT } from "@afisa/ui";
 import { useHq } from "../context";
+import { Reader, type ReaderDoc } from "../reader/Reader";
 import { MissingReports, ReopenReport, SectionTags, SendTags, when } from "./common";
 
 const tsh = (n: number) => n.toLocaleString("en-US");
@@ -40,6 +42,7 @@ export function FoodReports() {
   );
   const combined = useMemo(() => (reports ? combineFoodReports(reports.map((r) => r.payload)) : []), [reports]);
   const [open, setOpen] = useState<string | null>(null);
+  const [reading, setReading] = useState<ReaderDoc | null>(null);
   const [copied, setCopied] = useState(false);
   const cycle = foodCycle(period);
   const label = monthLabel(period, lang);
@@ -144,6 +147,21 @@ export function FoodReports() {
                   </button>
                   <div className="food-send-body">
                     <div className="row-actions no-print">
+                      <button
+                        type="button"
+                        className="btn btn-quiet btn-small"
+                        onClick={() =>
+                          setReading({
+                            kind: "report",
+                            title: `${r.areaLabel}: ${t("chakula na bei", "food and prices")}, ${cycle.label}`,
+                            subtitle: `${r.officerName}, ${t("ilitumwa", "sent")} ${when(r.submittedAt)}`,
+                            report: foodReportAsReport(r.payload, { period, areaLabel: r.areaLabel, officerName: r.officerName, councilName }),
+                            submissionId: r._id,
+                          })
+                        }
+                      >
+                        {t("Soma kama ripoti", "Read as a report")}
+                      </button>
                       <ReopenReport id={r._id} officer={r.officerName} canReopen={r.canReopen} reopened={r.reopened} />
                     </div>
                     <table className="table compact">
@@ -176,6 +194,7 @@ export function FoodReports() {
       )}
 
       <MissingReports kind="food_prices" period={period} due={cycle.due} />
+      {reading && <Reader doc={reading} onClose={() => setReading(null)} />}
     </section>
   );
 }

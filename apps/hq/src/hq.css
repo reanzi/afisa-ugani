@@ -1173,3 +1173,35 @@ fieldset.plain legend {
   padding: 6px 10px;
   font-variant-numeric: tabular-nums;
 }
+
+/* Reports: kind tabs with the PDF reader button beside them */
+.reports-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.reports-bar .report-kinds {
+  margin: 0;
+}
+.report-row {
+  display: grid;
+  gap: var(--space-2);
+}
+.report-row .row-actions {
+  padding: 0 var(--space-4) var(--space-3);
+}
+.read-cta {
+  justify-self: end;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: var(--maize);
+  color: var(--on-maize);
+  font-weight: 700;
+}
+.report-row .food-send-head {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+}

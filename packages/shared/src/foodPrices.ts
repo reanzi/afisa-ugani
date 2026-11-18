@@ -8,7 +8,8 @@
  * one report; it is named after the month of the 20th.
  */
 import { AVAILABILITY, PRICE_TYPES, PRICE_UNITS, commodityKey, commodityLabel, labelOf } from "./catalogs.ts";
-import { monthKey, monthLabel, parseMonth, shiftMonth } from "./period.ts";
+import { financialYear, monthKey, monthLabel, parseMonth, shiftMonth } from "./period.ts";
+import type { Cell, Report } from "./report/model.ts";
 
 export const FOOD_CYCLE_LAST_DAY = 20;
 export const FOOD_REPORT_DUE_DAY = 22;
@@ -223,4 +224,64 @@ export function validateMonthlyReport(p: unknown, month: string): string | null 
   if (!r.header || typeof r.header !== "object") return "BAD_HEADER";
   if (JSON.stringify(p).length > 600_000) return "TOO_LARGE";
   return null;
+}
+
+/**
+ * A sent food report as a printable report (the same shape as the ARDS
+ * monthly report), so HQ's reader and the Word export show it the same way.
+ */
+export function foodReportAsReport(
+  payload: FoodReportPayload,
+  meta: { period: string; areaLabel: string; officerName: string; phone?: string | null; councilName?: string },
+): Report {
+  const cycle = foodCycle(meta.period);
+  const day = (ms: number) => new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const rows: Cell[][] = payload.rows.map((r) => [r.commodity, r.unit, r.average, r.min === r.max ? "" : `${r.min.toLocaleString("en-US")}–${r.max.toLocaleString("en-US")}`, r.count, availabilityLabel(r.availability)]);
+  return {
+    kind: "food",
+    formVersion: "2018-07",
+    month: meta.period,
+    header: {
+      ministry: meta.councilName ? meta.councilName.toUpperCase() : "OFISI YA RAIS - TAWALA ZA MIKOA NA SERIKALI ZA MITAA (OR-TAMISEMI)",
+      title: "TAARIFA YA UPATIKANAJI WA CHAKULA NA BEI",
+      edition: "",
+      areaLabel: meta.areaLabel,
+      officerName: meta.officerName,
+      phone: meta.phone ?? "",
+      monthLabel: `${cycle.label} (${day(cycle.start)} – ${day(cycle.end - 1)})`,
+      periodName: "Kipindi",
+      financialYear: financialYear(meta.period),
+      submitNote: "Inatakiwa tarehe 22 ya kila mwezi.",
+      instructions: [],
+    },
+    parts: [
+      {
+        id: "bei",
+        number: "1",
+        title: "Bei na upatikanaji",
+        blocks: [
+          {
+            kind: "table",
+            id: "bei",
+            columns: [
+              { label: "Bidhaa" },
+              { label: "Kipimo" },
+              { label: "Bei ya wastani (Tsh)" },
+              { label: "Chini–juu (Tsh)" },
+              { label: "Idadi ya bei" },
+              { label: "Upatikanaji" },
+            ],
+            rows,
+            hasData: rows.length > 0,
+          },
+        ],
+      },
+      {
+        id: "maelezo",
+        number: "2",
+        title: "Maelezo kuhusu hali ya chakula",
+        blocks: [{ kind: "text", id: "maelezo", text: payload.note ?? "", hasData: Boolean(payload.note), source: payload.note ? "review" : "empty" }],
+      },
+    ],
+  };
 }

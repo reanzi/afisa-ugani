@@ -7,8 +7,9 @@ import { useQuery } from "convex/react";
 import { parseAsString, useQueryState } from "nuqs";
 import { api } from "@afisa/backend/api";
 import { monthKey, monthLabel, monthlyWindow, partHasData, shiftMonth, type Report } from "@afisa/shared";
-import { errorMessage, IconDownload, ReportView, Select, useLang, useT } from "@afisa/ui";
+import { errorMessage, IconDownload, Select, useLang, useT } from "@afisa/ui";
 import { useHq } from "../context";
+import { Reader, type ReaderDoc } from "../reader/Reader";
 import { MissingReports, ReopenReport, SectionTags, SendTags, when } from "./common";
 
 function isReport(p: unknown, month: string): p is Report {
@@ -27,7 +28,7 @@ export function MonthlyReports() {
   const month = chosen ?? last;
   const raw = useQuery(api.submissions.forHq, { councilId, kind: "monthly", period: month });
   const reports = useMemo(() => raw?.flatMap((r) => (isReport(r.payload, month) ? [{ ...r, report: r.payload }] : [])), [raw, month]);
-  const [open, setOpen] = useState<string | null>(null);
+  const [reading, setReading] = useState<ReaderDoc | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { due } = monthlyWindow(month);
@@ -81,11 +82,22 @@ export function MonthlyReports() {
       {reports && reports.length > 0 && (
         <ul className="food-sends">
           {reports.map((r) => {
-            const expanded = open === r._id;
             const filled = r.report.parts.filter(partHasData).length;
             return (
-              <li key={r._id} className={expanded ? "is-open" : undefined}>
-                <button type="button" className="food-send-head" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : r._id)}>
+              <li key={r._id} className="report-row">
+                <button
+                  type="button"
+                  className="food-send-head"
+                  onClick={() =>
+                    setReading({
+                      kind: "report",
+                      title: `${r.areaLabel}: ${monthLabel(month)}`,
+                      subtitle: `${r.officerName}, ${t("ilitumwa", "sent")} ${when(r.submittedAt)}`,
+                      report: r.report,
+                      submissionId: r._id,
+                    })
+                  }
+                >
                   <span>
                     <strong>{r.areaLabel}</strong>
                     <small>{r.officerName}, {when(r.submittedAt)}</small>
@@ -93,19 +105,15 @@ export function MonthlyReports() {
                   </span>
                   <SectionTags sections={[r.primarySection]} />
                   <span className="muted small">{t(`sehemu ${filled}/${r.report.parts.length}`, `${filled}/${r.report.parts.length} parts`)}</span>
+                  <span className="read-cta">{t("Soma", "Read")}</span>
                 </button>
-                {expanded && (
-                  <div className="food-send-body monthly-body">
-                    <div className="row-actions">
-                      <button className="btn btn-quiet btn-small btn-with-icon" disabled={busy !== null} onClick={() => void download(r._id, r.report)}>
-                        <IconDownload size={18} />
-                        {busy === r._id ? t("Inaandaa…", "Preparing…") : t("Pakua Word (.docx)", "Download Word (.docx)")}
-                      </button>
-                      <ReopenReport id={r._id} officer={r.officerName} canReopen={r.canReopen} reopened={r.reopened} />
-                    </div>
-                    <ReportView report={r.report} />
-                  </div>
-                )}
+                <div className="row-actions">
+                  <button className="btn btn-quiet btn-small btn-with-icon" disabled={busy !== null} onClick={() => void download(r._id, r.report)}>
+                    <IconDownload size={18} />
+                    {busy === r._id ? t("Inaandaa…", "Preparing…") : "Word"}
+                  </button>
+                  <ReopenReport id={r._id} officer={r.officerName} canReopen={r.canReopen} reopened={r.reopened} />
+                </div>
               </li>
             );
           })}
@@ -113,6 +121,7 @@ export function MonthlyReports() {
       )}
 
       <MissingReports kind="monthly" period={month} due={due} />
+      {reading && <Reader doc={reading} onClose={() => setReading(null)} />}
     </section>
   );
 }

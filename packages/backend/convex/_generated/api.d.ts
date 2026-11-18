@@ -21,6 +21,7 @@ import type * as lib_validators from "../lib/validators.js";
 import type * as media from "../media.js";
 import type * as memberships from "../memberships.js";
 import type * as presets from "../presets.js";
+import type * as research from "../research.js";
 import type * as submissions from "../submissions.js";
 import type * as sync from "../sync.js";
 import type * as users from "../users.js";
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   media: typeof media;
   memberships: typeof memberships;
   presets: typeof presets;
+  research: typeof research;
   submissions: typeof submissions;
   sync: typeof sync;
   users: typeof users;
