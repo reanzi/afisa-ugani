@@ -1,9 +1,23 @@
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, useLocation } from "react-router";
 import { clock } from "@afisa/ui";
 import { useOnline, useWork } from "../lib/session";
 import { requestSync, useSyncEngine } from "../lib/sync";
+import { IconLog, IconMe, IconReport, IconToday } from "./icons";
 
-function SyncStatus() {
+const TABS = [
+  { to: "/", label: "Leo", Icon: IconToday },
+  { to: "/shughuli", label: "Shughuli", Icon: IconLog },
+  { to: "/ripoti", label: "Ripoti", Icon: IconReport },
+  { to: "/mimi", label: "Mimi", Icon: IconMe },
+] as const;
+
+/** The bottom bar belongs to the four main screens only; nested pages have their own way back. */
+function isTopLevel(path: string) {
+  const clean = path.replace(/\/+$/, "") || "/";
+  return TABS.some((t) => t.to === clean);
+}
+
+function SyncStrip() {
   const { councilId } = useWork();
   const online = useOnline();
   const sync = useSyncEngine(councilId, true);
@@ -31,7 +45,7 @@ function SyncStatus() {
           <p>Toleo hili ni la zamani. Fungua upya programu ukiwa na mtandao ili kupata toleo jipya.</p>
         </div>
       )}
-      <button className={`sync-pill sync-${tone}`} onClick={requestSync} aria-live="polite">
+      <button className={`sync-strip sync-${tone}`} onClick={requestSync} aria-live="polite" title="Tuma sasa">
         <span className="dot" aria-hidden />
         {text}
       </button>
@@ -40,20 +54,29 @@ function SyncStatus() {
 }
 
 export function Shell() {
+  const { pathname } = useLocation();
+  const top = isTopLevel(pathname);
   return (
-    <div className="shell">
+    <div className={`shell ${top ? "has-dock" : "is-nested"}`}>
       <div className="shell-body">
         <Outlet />
       </div>
-      <footer className="dock">
-        <SyncStatus />
+      {/* Sync keeps running on nested pages; only the bar is hidden. */}
+      <footer className="dock" hidden={!top}>
+        <SyncStrip />
         <nav className="tabs" aria-label="Kuu">
-          <NavLink to="/" end>
-            Leo
-          </NavLink>
-          <NavLink to="/shughuli">Shughuli</NavLink>
-          <NavLink to="/ripoti">Ripoti</NavLink>
-          <NavLink to="/mimi">Mimi</NavLink>
+          {TABS.map(({ to, label, Icon }) => (
+            <NavLink key={to} to={to} end={to === "/"}>
+              {({ isActive }) => (
+                <>
+                  <span className="tab-icon">
+                    <Icon active={isActive} />
+                  </span>
+                  <span className="tab-label">{label}</span>
+                </>
+              )}
+            </NavLink>
+          ))}
         </nav>
       </footer>
     </div>

@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { fieldVisible, type FieldSpec } from "@afisa/shared";
+import { Select, SuggestInput } from "@afisa/ui";
 
 /** Draft values: numbers stay as typed strings until saving, so "1." can be typed. */
 export type Draft = Record<string, string>;
@@ -42,8 +43,9 @@ export function FieldInput({
 }) {
   const id = useId();
   const unit = unitOf(field, payload);
+  const labelId = `${id}-label`;
   const label = (
-    <span className="field-label">
+    <span className="field-label" id={labelId}>
       {field.label}
       {!field.required && <span className="optional"> (si lazima)</span>}
     </span>
@@ -73,16 +75,18 @@ export function FieldInput({
 
   if (field.kind === "select") {
     return (
-      <label className={`field ${error ? "has-error" : ""}`} htmlFor={id}>
+      <div className={`field ${error ? "has-error" : ""}`}>
         {label}
-        <select id={id} className="select" value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">Chagua</option>
-          {field.options?.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+        <Select
+          labelledBy={labelId}
+          label={field.label}
+          value={value}
+          onChange={onChange}
+          options={field.options ?? []}
+          invalid={error}
+        />
         {field.hint && <small>{field.hint}</small>}
-      </label>
+      </div>
     );
   }
 
@@ -143,16 +147,20 @@ export function FieldInput({
     );
   }
 
-  const listId = field.suggestions ? `${id}-list` : undefined;
+  if (field.suggestions) {
+    return (
+      <div className={`field ${error ? "has-error" : ""}`}>
+        {label}
+        <SuggestInput id={id} labelledBy={labelId} value={value} onChange={onChange} suggestions={field.suggestions} invalid={error} />
+        {field.hint && <small>{field.hint}</small>}
+      </div>
+    );
+  }
+
   return (
     <label className={`field ${error ? "has-error" : ""}`} htmlFor={id}>
       {label}
-      <input id={id} className="input" list={listId} value={value} onChange={(e) => onChange(e.target.value)} autoComplete="off" />
-      {listId && (
-        <datalist id={listId}>
-          {field.suggestions!.map((s) => <option key={s} value={s} />)}
-        </datalist>
-      )}
+      <input id={id} className="input" value={value} onChange={(e) => onChange(e.target.value)} autoComplete="off" />
       {field.hint && <small>{field.hint}</small>}
     </label>
   );

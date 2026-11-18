@@ -9,6 +9,7 @@ import { useWork } from "../lib/session";
 import { useMyAreas } from "../lib/areas";
 import { requestSync } from "../lib/sync";
 import { draftToPayload, FieldInput, payloadToDraft, type Draft } from "./fields";
+import { Select, type SelectOption } from "@afisa/ui";
 
 /** "2026-11-17T14:05" in local time, for <input type="datetime-local">. */
 export function toLocalInput(ms: number): string {
@@ -114,6 +115,16 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
   }, [editing, attempt]);
 
   const payload = useMemo(() => draftToPayload(spec.fields, draft), [spec, draft]);
+  const areaOptions = useMemo<SelectOption[]>(() => {
+    const out: SelectOption[] = [{ value: "", label: "Sijachagua" }];
+    for (const w of wards) {
+      const group = `Kata ya ${w.name}`;
+      out.push({ value: w._id, label: `Kata ya ${w.name} (yote)`, group });
+      for (const v of villages.filter((x) => x.parentId === w._id)) out.push({ value: v._id, label: v.name, group });
+    }
+    for (const v of villages.filter((x) => !wards.some((w) => w._id === x.parentId))) out.push({ value: v._id, label: v.name, group: "Vijiji" });
+    return out;
+  }, [wards, villages]);
   const visible = spec.fields.filter((f) => fieldVisible(f, payload));
   const main = visible.filter((f) => !f.more);
   const more = visible.filter((f) => f.more);
@@ -198,23 +209,10 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
 
         {main.map(fieldBlock)}
 
-        <label className="field">
-          <span>Wapi?</span>
-          <select className="select" value={areaId} onChange={(e) => setAreaId(e.target.value)}>
-            <option value="">Sijachagua</option>
-            {wards.map((w) => (
-              <optgroup key={w._id} label={`Kata ya ${w.name}`}>
-                <option value={w._id}>Kata nzima</option>
-                {villages.filter((v) => v.parentId === w._id).map((v) => (
-                  <option key={v._id} value={v._id}>{v.name}</option>
-                ))}
-              </optgroup>
-            ))}
-            {villages.filter((v) => !wards.some((w) => w._id === v.parentId)).map((v) => (
-              <option key={v._id} value={v._id}>{v.name}</option>
-            ))}
-          </select>
-        </label>
+        <div className="field">
+          <span className="field-label" id="where-label">Wapi?</span>
+          <Select labelledBy="where-label" label="Wapi?" value={areaId} onChange={setAreaId} options={areaOptions} placeholder="Sijachagua" />
+        </div>
 
         {more.length > 0 && (
           <div className="more">

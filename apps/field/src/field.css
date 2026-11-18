@@ -152,57 +152,92 @@ fieldset.plain legend {
   bottom: 0;
   z-index: 5;
   background: var(--surface);
-  border-top: 2px solid var(--rule);
+  border-top: 1px solid var(--rule);
+  box-shadow: 0 -6px 18px rgb(16 35 26 / 0.06);
   padding-bottom: env(safe-area-inset-bottom);
+}
+.dock[hidden] {
+  display: none;
 }
 .tabs {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   max-width: 760px;
   margin: 0 auto;
+  padding: 6px var(--space-2) 8px;
 }
 .tabs a {
-  min-height: 56px;
   display: grid;
-  place-items: center;
-  font-weight: 700;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  min-height: 58px;
   color: var(--ink-soft);
   text-decoration: none;
-  border-top: 4px solid transparent;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.tab-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 30px;
+  border-radius: 8px;
+  transition: background-color 0.15s;
+}
+.tab-label {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 .tabs a.active {
   color: var(--ink);
-  border-top-color: var(--maize);
 }
-.sync-pill {
+.tabs a.active .tab-icon {
+  background: var(--maize);
+  color: var(--on-maize);
+}
+.tabs a:active .tab-icon {
+  background: var(--surface-sunk);
+}
+.tabs a.active:active .tab-icon {
+  background: var(--maize-press);
+}
+
+/* Thin status line above the tabs; tap to send now. */
+.sync-strip {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  justify-content: center;
+  gap: 6px;
   width: 100%;
-  min-height: 36px;
+  min-height: 24px;
   padding: 0 var(--space-4);
   border: 0;
   border-bottom: 1px solid var(--rule);
   background: var(--surface-sunk);
-  font-size: var(--t-small);
+  color: var(--ink-soft);
+  font-size: 0.75rem;
   font-weight: 700;
-  justify-content: center;
   cursor: pointer;
 }
-.sync-pill .dot {
-  width: 10px;
-  height: 10px;
+.sync-strip .dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
 }
 .sync-ok .dot {
   background: var(--ok);
+}
+.sync-wait {
+  color: var(--wait);
 }
 .sync-wait .dot {
   background: var(--wait);
 }
 .sync-off .dot {
   background: transparent;
-  border: 2px solid var(--ink-soft);
+  box-shadow: inset 0 0 0 1.5px var(--ink-soft);
 }
 .update-bar {
   display: flex;
@@ -418,7 +453,8 @@ fieldset.plain legend {
   display: grid;
   gap: var(--space-3);
   position: sticky;
-  bottom: calc(96px + env(safe-area-inset-bottom));
+  bottom: 0;
+  padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
   padding: var(--space-3) 0;
   background: linear-gradient(to top, var(--ground) 70%, transparent);
 }

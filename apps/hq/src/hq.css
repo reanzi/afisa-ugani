@@ -336,3 +336,10 @@ fieldset.plain legend {
     overflow-x: auto;
   }
 }
+
+.field.inline .sel-trigger {
+  min-width: 170px;
+}
+.hq-brand .sel-trigger {
+  margin-top: 4px;
+}

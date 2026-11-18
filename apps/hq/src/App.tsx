@@ -6,7 +6,7 @@ import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
 import { isHqRole, ROLE_LABELS, type Actor } from "@afisa/shared";
-import { authErrorMessage, useTheme } from "@afisa/ui";
+import { authErrorMessage, Select, useTheme } from "@afisa/ui";
 import { HqContext, useHq, type Me } from "./context";
 import { Requests } from "./pages/Requests";
 import { Members } from "./pages/Members";
@@ -112,14 +112,13 @@ export function App() {
             <div>
               <strong>Afisa Ugani</strong>
               {councils.length > 1 ? (
-                <select
-                  className="select council-select"
+                <Select
+                  size="sm"
+                  label="Halmashauri"
                   value={current.councilId}
-                  onChange={(e) => void setCouncilParam(e.target.value)}
-                  aria-label="Halmashauri"
-                >
-                  {councils.map((c) => <option key={c.councilId} value={c.councilId}>{c.councilName}</option>)}
-                </select>
+                  onChange={(v) => void setCouncilParam(v)}
+                  options={councils.map((c) => ({ value: c.councilId, label: c.councilName }))}
+                />
               ) : (
                 <span className="muted">{current.councilName}</span>
               )}

@@ -4,7 +4,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
 import { SECTIONS, SECTION_LABELS, type OfficerLevel, type Section } from "@afisa/shared";
-import { errorMessage } from "@afisa/ui";
+import { errorMessage, Select } from "@afisa/ui";
 import { clientMeta } from "../lib/client";
 
 export function Join({ rejectedNote, defaultName }: { rejectedNote: string | null; defaultName: string | null }) {
@@ -69,17 +69,17 @@ export function Join({ rejectedNote, defaultName }: { rejectedNote: string | nul
         </label>
 
         {councils && councils.length > 1 && (
-          <label className="field">
-            <span>Halmashauri</span>
-            <select className="select" value={councilId} onChange={(e) => setCouncilId(e.target.value)}>
-              <option value="">Chagua halmashauri</option>
-              {councils.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name} — {c.region}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="field">
+            <span className="field-label" id="council-label">Halmashauri</span>
+            <Select
+              labelledBy="council-label"
+              label="Halmashauri"
+              value={councilId}
+              onChange={setCouncilId}
+              placeholder="Chagua halmashauri"
+              options={councils.map((c) => ({ value: c._id, label: c.name, hint: c.region }))}
+            />
+          </div>
         )}
         {councils && councils.length === 1 && (
           <p className="muted">Halmashauri: <strong>{councils[0]!.name}</strong></p>

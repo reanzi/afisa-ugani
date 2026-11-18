@@ -14,7 +14,7 @@ import {
   SECTIONS,
   type Role,
 } from "@afisa/shared";
-import { errorMessage } from "@afisa/ui";
+import { errorMessage, Select } from "@afisa/ui";
 import { hqClient, useHq } from "../context";
 import { AreaPicker, areaNames, SectionTags, toTarget, useAreas, type MemberRow } from "./common";
 
@@ -54,23 +54,21 @@ function Manage({ row }: { row: MemberRow }) {
   return (
     <div className="manage">
       {roles.length > 0 && (
-        <label className="field">
-          <span>Cheo</span>
-          <select
-            className="select"
+        <div className="field">
+          <span className="field-label" id={`role-${row._id}`}>Cheo</span>
+          <Select
+            labelledBy={`role-${row._id}`}
+            label="Badili cheo"
             value=""
             disabled={busy}
-            onChange={(e) => e.target.value && void run(() => assignRole({ ...base, role: e.target.value as Role }))}
-          >
-            <option value="">{ROLE_LABELS[row.role].sw} (sasa). Badili kuwa…</option>
-            {roles.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABELS[r].sw}
-                {r === "section_head" || r === "section_vice" ? ` wa ${SECTION_LABELS[row.primarySection].sw}` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+            placeholder={`${ROLE_LABELS[row.role].sw} (sasa). Badili kuwa…`}
+            onChange={(v) => v && void run(() => assignRole({ ...base, role: v as Role }))}
+            options={roles.map((r) => ({
+              value: r,
+              label: `${ROLE_LABELS[r].sw}${r === "section_head" || r === "section_vice" ? ` wa ${SECTION_LABELS[row.primarySection].sw}` : ""}`,
+            }))}
+          />
+        </div>
       )}
 
       <div className="field">
@@ -147,22 +145,33 @@ export function Members() {
       <header className="hq-page-head">
         <h1>Wanachama</h1>
         <div className="filters">
-          <label className="field inline">
-            <span>Hali</span>
-            <select className="select" value={filters.hali} onChange={(e) => void setFilters({ hali: e.target.value as (typeof statusFilter)[number] })}>
-              <option value="active">Hai</option>
-              <option value="suspended">Waliositishwa</option>
-              <option value="rejected">Waliokataliwa</option>
-              <option value="zote">Wote</option>
-            </select>
-          </label>
-          <label className="field inline">
-            <span>Sehemu</span>
-            <select className="select" value={filters.sehemu} onChange={(e) => void setFilters({ sehemu: e.target.value as (typeof sectionFilter)[number] })}>
-              <option value="zote">Zote</option>
-              {SECTIONS.map((s) => <option key={s} value={s}>{SECTION_LABELS[s].sw}</option>)}
-            </select>
-          </label>
+          <div className="field inline">
+            <span id="f-hali">Hali</span>
+            <Select
+              size="sm"
+              labelledBy="f-hali"
+              label="Hali"
+              value={filters.hali}
+              onChange={(v) => void setFilters({ hali: v as (typeof statusFilter)[number] })}
+              options={[
+                { value: "active", label: "Hai" },
+                { value: "suspended", label: "Waliositishwa" },
+                { value: "rejected", label: "Waliokataliwa" },
+                { value: "zote", label: "Wote" },
+              ]}
+            />
+          </div>
+          <div className="field inline">
+            <span id="f-sehemu">Sehemu</span>
+            <Select
+              size="sm"
+              labelledBy="f-sehemu"
+              label="Sehemu"
+              value={filters.sehemu}
+              onChange={(v) => void setFilters({ sehemu: v as (typeof sectionFilter)[number] })}
+              options={[{ value: "zote", label: "Zote" }, ...SECTIONS.map((s) => ({ value: s, label: SECTION_LABELS[s].sw }))]}
+            />
+          </div>
         </div>
       </header>
 

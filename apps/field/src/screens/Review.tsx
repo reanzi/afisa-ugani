@@ -15,6 +15,7 @@ import {
   type MonthlyReview,
   type TextBlock,
 } from "@afisa/shared";
+import { Select } from "@afisa/ui";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
@@ -105,15 +106,13 @@ function CropTable({
         );
       })}
       {remaining.length > 0 && (
-        <select
-          className="select"
+        <Select
           value=""
-          aria-label={`Ongeza zao kwenye ${title}`}
-          onChange={(e) => e.target.value && onChange({ ...value, [e.target.value]: {} })}
-        >
-          <option value="">Ongeza zao…</option>
-          {remaining.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-        </select>
+          label={`Ongeza zao: ${title}`}
+          placeholder="Ongeza zao…"
+          onChange={(v) => v && onChange({ ...value, [v]: {} })}
+          options={remaining.map((c) => ({ value: c.value, label: c.label }))}
+        />
       )}
     </section>
   );
