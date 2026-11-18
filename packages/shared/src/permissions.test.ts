@@ -4,6 +4,7 @@ import {
   authoritySections,
   canApproveRequest,
   canAssignRole,
+  canReopenReport,
   canGrantSection,
   canManageMember,
   canReadRecord,
@@ -182,5 +183,18 @@ describe("helpers", () => {
     expect(compareVersions("1.2.10", "1.2.9")).toBe(1);
     expect(compareVersions("1.0", "1.0.0")).toBe(0);
     expect(compareVersions("0.9.9", "1.0.0")).toBe(-1);
+  });
+});
+
+describe("reopening sent reports", () => {
+  it("lets the report's section leads, the department and root reopen; nobody else", () => {
+    expect(canReopenReport(actor("section_head", "mifugo"), "mifugo")).toBe(true);
+    expect(canReopenReport(actor("section_vice", "mifugo"), "mifugo")).toBe(true);
+    expect(canReopenReport(actor("section_head", "kilimo"), "mifugo")).toBe(false);
+    expect(canReopenReport(actor("admin"), "uvuvi")).toBe(true);
+    expect(canReopenReport(actor("moderator"), "uvuvi")).toBe(true);
+    expect(canReopenReport(actor("officer", "mifugo"), "mifugo")).toBe(false);
+    expect(canReopenReport(actor("section_head", "mifugo", [], { status: "suspended" }), "mifugo")).toBe(false);
+    expect(canReopenReport(root, "kilimo")).toBe(true);
   });
 });

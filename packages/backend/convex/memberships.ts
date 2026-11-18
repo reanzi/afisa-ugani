@@ -8,6 +8,10 @@ import {
   canRevokeSection,
   canViewMembership,
   type Target,
+  cleanName,
+  isFullName,
+  isValidPhone,
+  normalizePhone,
 } from "@afisa/shared";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -99,8 +103,10 @@ export const requestJoin = authedMutation({
     if (requestedRole && !HQ_ROLES.includes(requestedRole)) fail("INVALID", "Cheo hiki hakiombwi.");
     if (!requestedRole && !args.level) fail("INVALID", "Chagua ngazi yako ya kazi.");
 
-    const name = args.name.trim();
-    if (name.length < 3) fail("INVALID", "Andika jina lako kamili.");
+    const name = cleanName(args.name);
+    if (!isFullName(name)) fail("INVALID", "Andika jina lako kamili: majina mawili au zaidi.");
+    const phone = args.phone?.trim() ? normalizePhone(args.phone) : undefined;
+    if (phone && !isValidPhone(phone)) fail("INVALID", "Namba ya simu si sahihi. Mfano 0712345678.");
 
     const existing = await ctx.db
       .query("memberships")
@@ -110,7 +116,7 @@ export const requestJoin = authedMutation({
       fail("INVALID", "Tayari umeomba kujiunga na halmashauri hii.");
     }
 
-    await ctx.db.patch(viewer.userId, { name, phone: args.phone?.trim() || undefined });
+    await ctx.db.patch(viewer.userId, { name, phone });
     const doc = {
       userId: viewer.userId,
       councilId: council._id,
@@ -172,6 +178,7 @@ export const listForHq = hqQuery({
           userId: m.userId,
           name: user?.name ?? "—",
           phone: user?.phone ?? null,
+          checkNumber: user?.checkNumber ?? null,
           role: m.role,
           requestedRole: m.requestedRole ?? null,
           status: m.status,

@@ -4,7 +4,7 @@ import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
 import { isHqRole, ROLE_LABELS, type Actor } from "@afisa/shared";
-import { Select, useTheme } from "@afisa/ui";
+import { ConfirmProvider, IconLogout, Select, useLabel, useT, useTheme, type T } from "@afisa/ui";
 import { HqContext, useHq, type Me } from "./context";
 import { Requests } from "./pages/Requests";
 import { Members } from "./pages/Members";
@@ -14,18 +14,46 @@ import { Councils } from "./pages/Councils";
 import { Reports } from "./pages/Reports";
 import { Settings } from "./pages/Settings";
 import { JoinWithCode, NoAccess, SignIn, Waiting } from "./auth";
+import { LangSwitch } from "./LangSwitch";
+import { NAV_ICONS } from "./navIcons";
 
 const TABS = ["maombi", "ripoti", "wanachama", "maeneo", "kumbukumbu", "mipangilio", "halmashauri"] as const;
 type Tab = (typeof TABS)[number];
-const TAB_LABELS: Record<Tab, string> = {
-  maombi: "Maombi",
-  ripoti: "Ripoti",
-  wanachama: "Wanachama",
-  maeneo: "Maeneo",
-  kumbukumbu: "Kumbukumbu",
-  mipangilio: "Mipangilio",
-  halmashauri: "Halmashauri",
-};
+const tabLabel = (t: T, tab: Tab): string =>
+  ({
+    maombi: t("Maombi", "Requests"),
+    ripoti: t("Ripoti", "Reports"),
+    wanachama: t("Wanachama", "Members"),
+    maeneo: t("Maeneo", "Areas"),
+    kumbukumbu: t("Kumbukumbu", "Activity log"),
+    mipangilio: t("Mipangilio", "Settings"),
+    halmashauri: t("Halmashauri", "Councils"),
+  })[tab];
+
+function initials(name: string | null): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1]![0] : "")).toUpperCase() || "?";
+}
+
+/** Who is signed in, with language and sign-out, at the foot of the side menu. */
+function Account({ name, roleText, onSignOut }: { name: string | null; roleText: string; onSignOut: () => void }) {
+  const t = useT();
+  return (
+    <div className="hq-account">
+      <LangSwitch />
+      <div className="hq-who">
+        <span className="avatar" aria-hidden>{initials(name)}</span>
+        <span className="hq-who-text">
+          <strong>{name ?? "—"}</strong>
+          <span>{roleText}</span>
+        </span>
+        <button type="button" className="icon-btn" onClick={onSignOut} aria-label={t("Toka", "Sign out")} title={t("Toka", "Sign out")}>
+          <IconLogout />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function hqCouncils(me: Me, rootCouncils: { _id: Id<"councils">; name: string }[] | undefined) {
   const isRoot = "isRoot" in me;
@@ -36,7 +64,17 @@ function hqCouncils(me: Me, rootCouncils: { _id: Id<"councils">; name: string }[
 }
 
 export function App() {
+  return (
+    <ConfirmProvider>
+      <Main />
+    </ConfirmProvider>
+  );
+}
+
+function Main() {
   useTheme();
+  const t = useT();
+  const label = useLabel();
   const { isLoading, isAuthenticated } = useConvexAuth();
   const me = useQuery(api.users.me, isAuthenticated ? {} : "skip");
   const rootCouncils = useQuery(api.councils.listMine, me && "isRoot" in me ? {} : "skip");
@@ -45,7 +83,7 @@ export function App() {
   const { signOut } = useAuthActions();
 
   if (isLoading || (isAuthenticated && me === undefined)) {
-    return <main className="hq-auth"><p className="muted">Inafungua…</p></main>;
+    return <main className="hq-auth"><p className="muted">{t("Inafungua…", "Opening…")}</p></main>;
   }
   if (!isAuthenticated || !me) return <SignIn />;
 
@@ -64,15 +102,12 @@ export function App() {
         <aside className="hq-side">
           <div className="hq-brand">
             <img src="/favicon.svg" alt="" width={36} height={36} />
-            <div><strong>Afisa Ugani</strong><span className="muted">Msimamizi wa mfumo</span></div>
+            <div><strong>Afisa Ugani</strong><span className="muted">{t("Msimamizi wa mfumo", "System administrator")}</span></div>
           </div>
-          <nav className="hq-nav" aria-label="Kuu">
-            <button aria-current="page">Halmashauri</button>
+          <nav className="hq-nav" aria-label={t("Kuu", "Main")}>
+            <button aria-current="page">{NAV_ICONS.halmashauri}<span>{tabLabel(t, "halmashauri")}</span></button>
           </nav>
-          <div className="hq-who">
-            <strong>{me.name ?? "—"}</strong>
-            <button className="btn btn-quiet btn-small" onClick={() => void signOut()}>Toka</button>
-          </div>
+          <Account name={me.name} roleText={t("Msimamizi wa mfumo", "System administrator")} onSignOut={() => void signOut()} />
         </aside>
         <main className="hq-main"><Councils /></main>
       </div>
@@ -100,7 +135,7 @@ export function App() {
               {councils.length > 1 ? (
                 <Select
                   size="sm"
-                  label="Halmashauri"
+                  label={t("Halmashauri", "Council")}
                   value={current.councilId}
                   onChange={(v) => void setCouncilParam(v)}
                   options={councils.map((c) => ({ value: c.councilId, label: c.councilName }))}
@@ -110,19 +145,20 @@ export function App() {
               )}
             </div>
           </div>
-          <nav className="hq-nav" aria-label="Kuu">
-            {TABS.filter((t) => t !== "halmashauri" || isRoot).map((t) => (
-              <button key={t} aria-current={tab === t ? "page" : undefined} onClick={() => void setTab(t)}>
-                {TAB_LABELS[t]}
-                {t === "maombi" && <PendingCount />}
+          <nav className="hq-nav" aria-label={t("Kuu", "Main")}>
+            {TABS.filter((x) => x !== "halmashauri" || isRoot).map((x) => (
+              <button key={x} aria-current={tab === x ? "page" : undefined} onClick={() => void setTab(x)}>
+                {NAV_ICONS[x]}
+                <span>{tabLabel(t, x)}</span>
+                {x === "maombi" && <PendingCount />}
               </button>
             ))}
           </nav>
-          <div className="hq-who">
-            <strong>{me.name ?? "—"}</strong>
-            <span className="muted">{actor.isRoot ? "Msimamizi wa mfumo" : actor.role ? ROLE_LABELS[actor.role].sw : ""}</span>
-            <button className="btn btn-quiet btn-small" onClick={() => void signOut()}>Toka</button>
-          </div>
+          <Account
+            name={me.name}
+            roleText={actor.isRoot ? t("Msimamizi wa mfumo", "System administrator") : actor.role ? label(ROLE_LABELS[actor.role]) : ""}
+            onSignOut={() => void signOut()}
+          />
         </aside>
         <main className="hq-main" key={current.councilId}>
           {tab === "maombi" && <Requests />}
@@ -139,8 +175,9 @@ export function App() {
 }
 
 function PendingCount() {
+  const t = useT();
   const { councilId } = useHq();
   const pending = useQuery(api.memberships.listForHq, { councilId, status: "pending" });
   if (!pending || pending.length === 0) return null;
-  return <span className="badge" aria-label={`${pending.length} yanasubiri`}>{pending.length}</span>;
+  return <span className="badge" aria-label={t(`${pending.length} yanasubiri`, `${pending.length} waiting`)}>{pending.length}</span>;
 }

@@ -107,13 +107,19 @@ async function pushSubmissions(councilId: string): Promise<void> {
   }
 }
 
-/** Learn about sealed reports sent elsewhere: by auto-send, or from another phone. */
+/**
+ * Learn about reports sent elsewhere (by auto-send, or from another phone),
+ * reports sent back for correction, and corrected reports that replaced them.
+ */
 async function pullSubmissions(councilId: string): Promise<void> {
   const mine = await convex.query(api.submissions.mine, { councilId: councilId as Id<"councils"> });
   await db.transaction("rw", db.submissions, async () => {
     for (const s of mine) {
-      const local = await db.submissions.get(s.clientId);
-      if (local?.syncState === "synced") continue;
+      // The server keeps one report per period; drop older local copies it replaced.
+      const same = await db.submissions.where("[councilId+kind+period]").equals([councilId, s.kind, s.period]).toArray();
+      for (const old of same) {
+        if (old.clientId !== s.clientId && old.syncState === "synced") await db.submissions.delete(old.clientId);
+      }
       await db.submissions.put({
         clientId: s.clientId,
         councilId,
@@ -127,6 +133,8 @@ async function pullSubmissions(councilId: string): Promise<void> {
         syncState: "synced",
         auto: s.auto,
         late: s.late,
+        revision: s.revision,
+        reopened: s.reopened,
       });
     }
   });

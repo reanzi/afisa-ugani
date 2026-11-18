@@ -1,8 +1,17 @@
 import { v } from "convex/values";
-import { internalMutation } from "./_generated/server";
+import { internalMutation, type QueryCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { components } from "./_generated/api";
 import { authedMutation, authedQuery } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
 import { vClientMeta } from "./lib/validators";
+import { cleanName, isFullName, isValidPhone, normalizePhone } from "@afisa/shared";
+
+/** The sign-in name, when it is a check number (accounts made before check numbers may use a phone or a word). */
+async function checkNumberOf(ctx: QueryCtx, userId: Id<"users">): Promise<string | null> {
+  const username = await ctx.runQuery(components.authUsername.public.getUsername, { userId });
+  return username && /^\d{5,12}$/.test(username) && !/^0[67]\d{8}$/.test(username) ? username : null;
+}
 
 /** Called by convex-auth once, when an account is created. */
 export const createUser = internalMutation({
@@ -33,7 +42,9 @@ export const onSignIn = internalMutation({
   handler: async (ctx, { userId }) => {
     const user = await ctx.db.get(userId);
     if (!user) return null;
-    await ctx.db.patch(userId, { lastSignInAt: Date.now() });
+    // The sign-in name is the check number; keep a copy on the user for HQ lists.
+    const checkNumber = (await checkNumberOf(ctx, userId)) ?? undefined;
+    await ctx.db.patch(userId, { lastSignInAt: Date.now(), ...(checkNumber && checkNumber !== user.checkNumber ? { checkNumber } : {}) });
     await writeAudit(ctx, null, {
       action: "user.signIn",
       entity: "users",
@@ -80,6 +91,7 @@ export const me = authedQuery({
       userId: user._id,
       name: user.name ?? null,
       phone: user.phone ?? null,
+      checkNumber: user.checkNumber ?? (await checkNumberOf(ctx, user._id)),
       ...(user.isRoot ? { isRoot: true as const } : {}),
       memberships: withCouncil,
     };
@@ -94,16 +106,19 @@ export const updateProfile = authedMutation({
   },
   handler: async (ctx, { name, phone, client }) => {
     const { user } = ctx.viewer;
-    const clean = name.trim();
-    if (clean.length < 3) throw new Error("Jina ni fupi mno.");
+    const clean = cleanName(name);
+    if (!isFullName(clean)) throw new Error("Andika jina kamili: majina mawili au zaidi.");
+    const tel = phone?.trim() ? normalizePhone(phone) : undefined;
+    if (tel && !isValidPhone(tel)) throw new Error("Namba ya simu si sahihi.");
     const before = { name: user.name, phone: user.phone };
-    await ctx.db.patch(user._id, { name: clean, phone: phone?.trim() || undefined });
+    const checkNumber = user.checkNumber ?? (await checkNumberOf(ctx, user._id)) ?? undefined;
+    await ctx.db.patch(user._id, { name: clean, phone: tel, checkNumber });
     await writeAudit(ctx, ctx.viewer, {
       action: "user.updateProfile",
       entity: "users",
       entityId: user._id,
       before,
-      after: { name: clean, phone },
+      after: { name: clean, phone: tel },
       client,
     });
     return null;

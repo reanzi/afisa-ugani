@@ -192,3 +192,13 @@ export function canWriteSection(actor: Actor, section: Section): boolean {
 export function canReadAudit(actor: Actor): boolean {
   return actor.isRoot || (isActive(actor) && isHqRole(actor.role));
 }
+
+/**
+ * Send a sealed report back to its officer for correction. Heads and vices of
+ * the report's section, the Head of Department and vice, and root.
+ */
+export function canReopenReport(actor: Actor, reportSection: Section): boolean {
+  if (actor.isRoot) return true;
+  if (!isActive(actor)) return false;
+  return authoritySections(actor).includes(reportSection);
+}

@@ -22,6 +22,8 @@ export default defineSchema({
   users: defineTable({
     name: v.optional(v.string()),
     phone: v.optional(v.string()),
+    /** Public-service check number; it is also the sign-in name (copied from it at sign-in). */
+    checkNumber: v.optional(v.string()),
     /** Global, hidden super-user. Never exposed to anyone but root. */
     isRoot: v.optional(v.boolean()),
     createdAt: v.number(),
@@ -130,8 +132,14 @@ export default defineSchema({
     kind: v.union(v.literal("food_prices"), v.literal("monthly")),
     /** "2026-11": the reporting period. */
     period: v.string(),
-    /** Always 1: a sent report is sealed. Kept for reports sent before sealing. */
+    /** 1 when first sent; +1 each time it is corrected and sent again after being reopened. */
     revision: v.number(),
+    /** Present while a section lead has sent the report back for correction. */
+    reopened: v.optional(v.object({ at: v.number(), byId: v.id("users"), byName: v.string(), note: v.string() })),
+    /** Every reopening, kept so the corrections stay visible. */
+    corrections: v.optional(
+      v.array(v.object({ reopenedAt: v.number(), byName: v.string(), note: v.string(), resubmittedAt: v.optional(v.number()) })),
+    ),
     /** Sent by the server on the due date (auto-send), not by the officer. */
     auto: v.optional(v.boolean()),
     /** Sent after the due date. */

@@ -4,13 +4,12 @@ import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { useLiveQuery } from "dexie-react-hooks";
 import { v7 as uuidv7 } from "uuid";
 import { monthKey, monthLabel, monthlyWindow, partHasData, PAYLOAD_VERSION, shiftMonth, type Report as ArdsReport } from "@afisa/shared";
-import { errorMessage, ReportView, shortDate } from "@afisa/ui";
+import { ConfirmDialog, errorMessage, ReportView, shortDate } from "@afisa/ui";
 import { useAreaLabel, useMonthlyReport } from "../lib/report";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
-import { useSealed } from "../lib/food";
-import { ConfirmSheet } from "./ConfirmSheet";
+import { useReopened, useSealed } from "../lib/food";
 import { FoodReport } from "./FoodReport";
 
 export function useMonthParam() {
@@ -26,6 +25,7 @@ function MonthlyReport() {
   const areaLabel = useAreaLabel();
   const { report: live, review } = useMonthlyReport(month);
   const sealed = useSealed("monthly")?.get(month) ?? null;
+  const reopened = useReopened()?.find((s) => s.kind === "monthly" && s.period === month) ?? null;
   const rejected = useLiveQuery(
     () => db.submissions.where("[councilId+kind+period]").equals([councilId, "monthly", month]).filter((s) => s.syncState === "rejected").last(),
     [councilId, month],
@@ -114,6 +114,13 @@ function MonthlyReport() {
           <span>{sealed.late ? "Ilifika baada ya tarehe 5. " : ""}Ripoti hii imefungwa. Unaweza kuisoma na kuipakua tu.</span>
         </div>
       )}
+      {reopened?.reopened && (
+        <div className="seal seal-reopened" role="status">
+          <strong>Imerudishwa kwa marekebisho</strong>
+          <span>{reopened.reopened.byName || "Makao makuu"}: “{reopened.reopened.note}”</span>
+          <span>Rekebisha kumbukumbu au majibu ya mwisho wa mwezi, kisha uitume tena.</span>
+        </div>
+      )}
       {!sealed && rejected && (
         <div className="notice notice-danger" role="alert"><p>Makao makuu hawakuipokea: {rejected.error ?? "jaribu tena"}.</p></div>
       )}
@@ -155,13 +162,15 @@ function MonthlyReport() {
           {canSend ? (
             <>
               <p>
-                {now > window_.due
+                {reopened
+                  ? "Ukimaliza marekebisho, itume tena. Itafungwa tena baada ya kutumwa."
+                  : now > window_.due
                   ? "Tarehe 5 imepita. Ukiituma sasa itaonekana imechelewa."
                   : autoOn
                     ? `Itume kabla ya tarehe 5. Usipoituma, itatumwa yenyewe tarehe 5 saa 5:30 usiku.`
                     : "Mwezi umeisha. Itume kabla ya tarehe 5."}
               </p>
-              <button className="btn btn-primary btn-block" disabled={!live} onClick={() => setConfirm(true)}>Tuma ripoti ya mwezi</button>
+              <button className="btn btn-primary btn-block" disabled={!live} onClick={() => setConfirm(true)}>{reopened ? "Tuma tena" : "Tuma ripoti ya mwezi"}</button>
             </>
           ) : (
             <p>Utaweza kuituma kuanzia {shortDate(window_.opens)}, mwezi ukiisha.{autoOn ? " Usipoituma, itatumwa yenyewe tarehe 5." : ""}</p>
@@ -169,10 +178,10 @@ function MonthlyReport() {
         </section>
       )}
 
-      <ConfirmSheet open={confirm} title={`Tuma ripoti ya ${monthLabel(month)}?`} confirmLabel="Ndiyo, tuma" onConfirm={() => void send()} onCancel={() => setConfirm(false)}>
+      <ConfirmDialog open={confirm} title={`Tuma ripoti ya ${monthLabel(month)}?`} confirmLabel="Ndiyo, tuma" onConfirm={() => void send()} onCancel={() => setConfirm(false)}>
         <p>Ripoti itatumwa makao makuu na kufungwa. Huwezi kuibadilisha baada ya kutuma.</p>
         {!review && <p><strong>Hujajibu maswali ya mwisho wa mwezi.</strong> Sehemu za mvua, mafanikio na changamoto zitakuwa tupu.</p>}
-      </ConfirmSheet>
+      </ConfirmDialog>
 
       {report && <ReportView report={report} />}
     </div>

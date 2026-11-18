@@ -45,9 +45,11 @@ export const SW_MONTHS = [
   "Julai", "Agosti", "Septemba", "Oktoba", "Novemba", "Desemba",
 ];
 
-export function monthLabel(key: string): string {
+const EN_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+export function monthLabel(key: string, lang: "sw" | "en" = "sw"): string {
   const { year, month } = parseMonth(key);
-  return `${SW_MONTHS[month - 1]} ${year}`;
+  return `${(lang === "en" ? EN_MONTHS : SW_MONTHS)[month - 1]} ${year}`;
 }
 
 /**

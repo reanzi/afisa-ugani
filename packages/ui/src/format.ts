@@ -1,18 +1,29 @@
-const DAYS = ["Jumapili", "Jumatatu", "Jumanne", "Jumatano", "Alhamisi", "Ijumaa", "Jumamosi"];
-const MONTHS = [
+import { getLang } from "./i18n";
+
+const DAYS_SW = ["Jumapili", "Jumatatu", "Jumanne", "Jumatano", "Alhamisi", "Ijumaa", "Jumamosi"];
+const DAYS_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const MONTHS_SW = [
   "Januari", "Februari", "Machi", "Aprili", "Mei", "Juni",
   "Julai", "Agosti", "Septemba", "Oktoba", "Novemba", "Desemba",
 ];
+const MONTHS_EN = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const en = () => getLang() === "en";
+// Read at call time so text follows the language switch.
+const days = () => (en() ? DAYS_EN : DAYS_SW);
+const months = () => (en() ? MONTHS_EN : MONTHS_SW);
 
 /** "Jumanne, 17 Novemba" */
 export function dayTitle(d: Date): string {
-  return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return `${days()[d.getDay()]}, ${d.getDate()} ${months()[d.getMonth()]}`;
 }
 
 /** "17 Nov 2026" */
 export function shortDate(ms: number): string {
   const d = new Date(ms);
-  return `${d.getDate()} ${MONTHS[d.getMonth()]!.slice(0, 3)} ${d.getFullYear()}`;
+  return `${d.getDate()} ${months()[d.getMonth()]!.slice(0, 3)} ${d.getFullYear()}`;
 }
 
 /** "14:05" (24-hour clock, as used on official forms) */
@@ -22,7 +33,7 @@ export function clock(ms: number): string {
 }
 
 export function monthName(month: number): string {
-  return MONTHS[month] ?? "";
+  return months()[month] ?? "";
 }
 
 export function sameDay(a: number, b: number): boolean {
@@ -39,41 +50,40 @@ export function errorMessage(e: unknown): string {
     if (typeof data === "string") return data;
   }
   if (e instanceof Error && /fetch|network|connection/i.test(e.message)) {
-    return "Hakuna mtandao. Jaribu tena ukipata mtandao.";
+    return en() ? "No connection. Try again when you are online." : "Hakuna mtandao. Jaribu tena ukipata mtandao.";
   }
-  return "Kuna hitilafu. Jaribu tena.";
+  return en() ? "Something went wrong. Try again." : "Kuna hitilafu. Jaribu tena.";
 }
 
-/** Swahili text for the user errors returned by convex-auth sign-in/sign-up. */
+/** Text for the user errors returned by convex-auth sign-in/sign-up. The sign-in name is the check number. */
 export function authErrorMessage(err: { error: string; minimumLength?: number; maximumLength?: number; retryAfterMs?: number }): string {
+  const t = (sw: string, e: string) => (en() ? e : sw);
   switch (err.error) {
     case "USER_NOT_FOUND":
-      return "Hakuna akaunti yenye jina hili. Angalia jina au jisajili.";
+      return t("Hakuna akaunti yenye namba hii ya utumishi. Angalia namba, au fungua akaunti.", "No account has this check number. Check the number, or create an account.");
     case "INVALID_CREDENTIALS":
-      return "Nenosiri si sahihi.";
+      return t("Nenosiri si sahihi.", "The password is not correct.");
     case "RATE_LIMITED": {
       const mins = Math.max(1, Math.ceil((err.retryAfterMs ?? 60_000) / 60_000));
-      return `Majaribio mengi mno. Subiri dakika ${mins} kisha ujaribu tena.`;
+      return t(`Majaribio mengi mno. Subiri dakika ${mins} kisha ujaribu tena.`, `Too many attempts. Wait ${mins} minute(s) and try again.`);
     }
     case "USERNAME_TAKEN":
-      return "Jina hili tayari linatumika. Ingia, au chagua jina jingine.";
+      return t("Namba hii ya utumishi tayari ina akaunti. Ingia badala yake.", "This check number already has an account. Sign in instead.");
     case "USERNAME_TOO_SHORT":
-      return `Jina la mtumiaji liwe na herufi ${err.minimumLength ?? 3} au zaidi.`;
     case "USERNAME_TOO_LONG":
-      return `Jina la mtumiaji lisizidi herufi ${err.maximumLength ?? 64}.`;
     case "USERNAME_HAS_INVALID_CHARACTERS":
     case "USERNAME_HAS_SURROUNDING_WHITESPACE":
-      return "Jina la mtumiaji liwe na herufi na namba tu, bila nafasi mwanzoni au mwishoni.";
+      return t("Namba ya utumishi iwe tarakimu 5 hadi 12.", "The check number should be 5 to 12 digits.");
     case "PASSWORD_TOO_SHORT":
-      return `Nenosiri liwe na herufi ${err.minimumLength ?? 8} au zaidi.`;
+      return t(`Nenosiri liwe na herufi ${err.minimumLength ?? 8} au zaidi.`, `The password needs ${err.minimumLength ?? 8} or more characters.`);
     case "PASSWORD_TOO_LONG":
-      return "Nenosiri ni refu mno.";
+      return t("Nenosiri ni refu mno.", "The password is too long.");
     case "PASSWORD_TOO_COMMON":
-      return "Nenosiri hili linajulikana sana. Chagua jingine gumu zaidi.";
+      return t("Nenosiri hili linajulikana sana. Chagua jingine gumu zaidi.", "This password is too common. Choose a harder one.");
     case "PASSWORD_HAS_SURROUNDING_WHITESPACE":
-      return "Nenosiri lisianze wala kuishia na nafasi.";
+      return t("Nenosiri lisianze wala kuishia na nafasi.", "The password cannot start or end with a space.");
     default:
-      return "Imeshindikana. Angalia mtandao kisha ujaribu tena.";
+      return t("Imeshindikana. Angalia mtandao kisha ujaribu tena.", "That did not work. Check the connection and try again.");
   }
 }
 
@@ -84,8 +94,8 @@ export function relativeWhen(ms: number, now = Date.now()): string {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   };
   const diff = Math.round((day(now) - day(ms)) / 86_400_000);
-  if (diff === 0) return `leo ${clock(ms)}`;
-  if (diff === 1) return `jana ${clock(ms)}`;
+  if (diff === 0) return `${en() ? "today" : "leo"} ${clock(ms)}`;
+  if (diff === 1) return `${en() ? "yesterday" : "jana"} ${clock(ms)}`;
   const d = new Date(ms);
-  return `${d.getDate()} ${MONTHS[d.getMonth()]!.slice(0, 3)}`;
+  return `${d.getDate()} ${months()[d.getMonth()]!.slice(0, 3)}`;
 }

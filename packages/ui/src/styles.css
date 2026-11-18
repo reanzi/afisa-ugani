@@ -579,3 +579,132 @@ textarea {
     font-size: 1.2rem;
   }
 }
+
+/* ---------- Dialogs (never the browser's alert/confirm) ---------- */
+.dialog {
+  width: 100%;
+  max-width: 520px;
+  max-height: 92dvh;
+  margin: auto auto 0;
+  padding: 0;
+  border: 0;
+  border-radius: 16px 16px 0 0;
+  background: var(--surface);
+  color: var(--ink);
+  overflow: auto;
+}
+.dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+@media (min-width: 640px) {
+  .dialog {
+    margin: auto;
+    border-radius: 16px;
+  }
+}
+.dialog-body {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-5) calc(var(--space-5) + env(safe-area-inset-bottom));
+}
+.dialog-title {
+  margin: 0;
+  font-size: var(--t-title);
+  line-height: 1.2;
+}
+.dialog-content {
+  display: grid;
+  gap: var(--space-3);
+  font-size: var(--t-body);
+}
+.dialog-content p {
+  margin: 0;
+}
+.dialog-actions {
+  display: grid;
+  gap: var(--space-2);
+}
+@media (min-width: 640px) {
+  .dialog-actions {
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    direction: rtl; /* the main action sits on the right on wide screens */
+  }
+  .dialog-actions > * {
+    direction: ltr;
+  }
+}
+.dialog .btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--surface);
+}
+
+/* ---------- Icon buttons ---------- */
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.icon-btn:hover {
+  background: var(--surface-sunk);
+  color: var(--ink);
+}
+.icon-btn:active {
+  background: var(--rule);
+}
+.icon-btn.is-danger {
+  color: var(--danger);
+}
+.icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- Password with show/hide ---------- */
+.password-input {
+  position: relative;
+  display: block;
+}
+.password-input .input {
+  width: 100%;
+  padding-right: 56px;
+}
+.password-eye {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.password-eye[aria-pressed="true"] {
+  color: var(--ink);
+}
+.btn-with-icon {
+  gap: var(--space-2);
+}
+
+/* Sign-in and registration: room between fields so each hint reads with its own field. */
+.auth-form {
+  display: grid;
+  gap: var(--space-5);
+}
+.auth-form .segmented {
+  margin-bottom: var(--space-1);
+}

@@ -52,6 +52,8 @@ export type LocalSubmission = {
   /** Sent by the server on the due date. */
   auto?: boolean;
   late?: boolean;
+  /** Sent back by a section lead for correction: the officer corrects it and sends it again. */
+  reopened?: { at: number; byName: string; note: string } | null;
 };
 
 class AfisaDB extends Dexie {

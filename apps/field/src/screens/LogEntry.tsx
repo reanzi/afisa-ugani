@@ -10,7 +10,7 @@ import { useMyAreas } from "../lib/areas";
 import { requestSync } from "../lib/sync";
 import { useOpenFoodPeriod } from "../lib/food";
 import { draftToPayload, FieldInput, payloadToDraft, type Draft } from "./fields";
-import { Select, type SelectOption } from "@afisa/ui";
+import { IconTrash, Select, useConfirm, type SelectOption } from "@afisa/ui";
 
 /** "2026-11-17T14:05" in local time, for <input type="datetime-local">. */
 export function toLocalInput(ms: number): string {
@@ -76,6 +76,7 @@ const VALIDATION_TEXT: Record<string, string> = {
 
 function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   // Back to where the officer came from (home section, history), or home if the form was opened directly.
   const goBack = () => ((window.history.state as { idx?: number } | null)?.idx ? navigate(-1) : navigate("/", { replace: true }));
   const { councilId, sections, membership } = useWork();
@@ -181,7 +182,14 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
 
   const remove = async () => {
     if (!existing) return;
-    if (!window.confirm("Futa kumbukumbu hii? Itaondolewa kwenye ripoti.")) return;
+    const ok = await confirm({
+      title: "Futa kumbukumbu hii?",
+      body: "Itaondolewa kwenye historia na kwenye ripoti.",
+      confirmLabel: "Futa",
+      cancelLabel: "Hapana",
+      tone: "danger",
+    });
+    if (!ok) return;
     await db.records.update(existing.clientId, { deletedAt: Date.now(), clientUpdatedAt: Date.now(), syncState: "pending" });
     requestSync();
     goBack();
@@ -196,7 +204,14 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
 
   return (
     <main className="page narrow">
-      <button type="button" className="back" onClick={goBack}>Rudi</button>
+      <div className="page-bar">
+        <button type="button" className="back" onClick={goBack}>Rudi</button>
+        {editing && existing && !existing.deletedAt && (
+          <button type="button" className="icon-btn is-danger" onClick={() => void remove()} aria-label="Futa kumbukumbu hii" title="Futa">
+            <IconTrash />
+          </button>
+        )}
+      </div>
       <h1 className="page-title">{editing ? `Badili: ${spec.label}` : spec.label}</h1>
 
       <form className="stack" onSubmit={submit} noValidate>
@@ -241,9 +256,6 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
           <button className="btn btn-primary btn-block" disabled={saving}>
             {saving ? "Inahifadhi…" : "Hifadhi"}
           </button>
-          {editing && existing && !existing.deletedAt && (
-            <button type="button" className="btn btn-danger btn-block" onClick={remove}>Futa</button>
-          )}
         </div>
       </form>
     </main>

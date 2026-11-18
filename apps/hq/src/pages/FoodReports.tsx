@@ -6,14 +6,27 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { parseAsString, useQueryState } from "nuqs";
 import { api } from "@afisa/backend/api";
-import { availabilityLabel, combineFoodReports, currentFoodReport, foodCycle, shiftMonth, validateFoodReport, type FoodReportPayload } from "@afisa/shared";
-import { Select, shortDate } from "@afisa/ui";
+import {
+  availabilityLabel,
+  combineFoodReports,
+  currentFoodReport,
+  foodCycle,
+  monthLabel,
+  shiftMonth,
+  validateFoodReport,
+  type FoodReportPayload,
+} from "@afisa/shared";
+import { Select, shortDate, useLang, useT } from "@afisa/ui";
 import { useHq } from "../context";
-import { MissingReports, SectionTags, SendTags, when } from "./common";
+import { MissingReports, ReopenReport, SectionTags, SendTags, when } from "./common";
 
 const tsh = (n: number) => n.toLocaleString("en-US");
+const AVAIL_EN: Record<string, string> = { wingi: "Plenty", wastani: "Average", haba: "Scarce", haipatikani: "Not available" };
 
 export function FoodReports() {
+  const t = useT();
+  const lang = useLang();
+  const avail = (v: string | null | undefined) => (v ? (lang === "en" ? (AVAIL_EN[v] ?? v) : availabilityLabel(v)) : "");
   const { councilId, councilName } = useHq();
   const current = currentFoodReport(Date.now()).period;
   const periods = useQuery(api.submissions.periodsForHq, { councilId, kind: "food_prices" });
@@ -29,15 +42,19 @@ export function FoodReports() {
   const [open, setOpen] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const cycle = foodCycle(period);
+  const label = monthLabel(period, lang);
 
   const options = useMemo(() => {
     const set = new Set<string>([...(periods ?? []), current, shiftMonth(current, -1)]);
-    return [...set].sort().reverse().map((p) => ({ value: p, label: foodCycle(p).label }));
-  }, [periods, current]);
+    return [...set].sort().reverse().map((p) => ({ value: p, label: monthLabel(p, lang) }));
+  }, [periods, current, lang]);
 
   const copyTable = async () => {
-    const head = ["Bidhaa", "Kipimo", "Wastani (Tsh)", "Chini", "Juu", "Kata", "Bei zilizoandikwa", "Upatikanaji"].join("\t");
-    const body = combined.map((r) => [r.commodity, r.unit, r.average, r.min, r.max, r.wards, r.prices, availabilityLabel(r.availability)].join("\t"));
+    const head = [
+      t("Bidhaa", "Item"), t("Kipimo", "Unit"), t("Wastani (Tsh)", "Average (Tsh)"), t("Chini", "Low"), t("Juu", "High"),
+      t("Kata", "Wards"), t("Bei zilizoandikwa", "Prices recorded"), t("Upatikanaji", "Availability"),
+    ].join("\t");
+    const body = combined.map((r) => [r.commodity, r.unit, r.average, r.min, r.max, r.wards, r.prices, avail(r.availability)].join("\t"));
     try {
       await navigator.clipboard.writeText([head, ...body].join("\n"));
       setCopied(true);
@@ -50,45 +67,49 @@ export function FoodReports() {
   return (
     <section className="hq-page food-reports">
       <header className="hq-page-head">
-        <h1>Upatikanaji wa chakula na bei</h1>
+        <h1>{t("Upatikanaji wa chakula na bei", "Food availability and prices")}</h1>
         <p className="muted">
-          Ripoti zilizotumwa na maafisa, kipindi cha {shortDate(cycle.start)} hadi {shortDate(cycle.end - 1)}. Kumbukumbu za maafisa zenyewe hazionekani hapa;
-          ni zile walizoamua kutuma tu.
+          {t(
+            `Ripoti zilizotumwa na maafisa, bei za ${shortDate(cycle.start)} hadi ${shortDate(cycle.end - 1)}. Kumbukumbu za maafisa zenyewe hazionekani hapa; ni zile walizoamua kutuma tu.`,
+            `Reports sent by officers, prices from ${shortDate(cycle.start)} to ${shortDate(cycle.end - 1)}. Officers' own records are not shown here; only what they chose to send.`,
+          )}
         </p>
         <div className="filters no-print">
           <div className="field inline">
-            <span id="f-kipindi">Kipindi</span>
-            <Select size="sm" labelledBy="f-kipindi" label="Kipindi" value={period} onChange={(v) => void setChosen(v)} options={options} />
+            <span id="f-kipindi">{t("Kipindi", "Period")}</span>
+            <Select size="sm" labelledBy="f-kipindi" label={t("Kipindi", "Period")} value={period} onChange={(v) => void setChosen(v)} options={options} />
           </div>
-          <button className="btn btn-quiet btn-small" onClick={() => window.print()} disabled={!reports?.length}>Chapisha</button>
+          <button className="btn btn-quiet btn-small" onClick={() => window.print()} disabled={!reports?.length}>{t("Chapisha", "Print")}</button>
           <button className="btn btn-quiet btn-small" onClick={() => void copyTable()} disabled={!combined.length}>
-            {copied ? "Imenakiliwa" : "Nakili jedwali (Excel)"}
+            {copied ? t("Imenakiliwa", "Copied") : t("Nakili jedwali (Excel)", "Copy table (Excel)")}
           </button>
         </div>
       </header>
 
       <div className="print-only print-head">
         <strong>{councilName}</strong>
-        <span>Upatikanaji wa chakula na bei: {cycle.label} ({shortDate(cycle.start)} hadi {shortDate(cycle.end - 1)})</span>
+        <span>
+          {t("Upatikanaji wa chakula na bei", "Food availability and prices")}: {label} ({shortDate(cycle.start)} – {shortDate(cycle.end - 1)})
+        </span>
       </div>
 
-      {reports === undefined && <p className="muted">Inapakia…</p>}
+      {reports === undefined && <p className="muted">{t("Inapakia…", "Loading…")}</p>}
       {reports?.length === 0 && (
-        <p className="empty">Hakuna ripoti iliyotumwa kwa kipindi hiki bado. Maafisa hutuma kufikia tarehe 22.</p>
+        <p className="empty">{t("Hakuna ripoti iliyotumwa kwa kipindi hiki bado. Maafisa hutuma kufikia tarehe 22.", "No reports sent for this period yet. Officers send by the 22nd.")}</p>
       )}
 
       {reports && reports.length > 0 && (
         <>
-          <h2 className="food-h2">Halmashauri nzima: kata {reports.length}</h2>
+          <h2 className="food-h2">{t(`Halmashauri nzima: ripoti ${reports.length}`, `Whole council: ${reports.length} reports`)}</h2>
           <table className="table">
             <thead>
               <tr>
-                <th>Bidhaa</th>
-                <th>Kipimo</th>
-                <th className="num">Wastani (Tsh)</th>
-                <th className="num">Chini–juu</th>
-                <th className="num">Kata</th>
-                <th>Upatikanaji</th>
+                <th>{t("Bidhaa", "Item")}</th>
+                <th>{t("Kipimo", "Unit")}</th>
+                <th className="num">{t("Wastani (Tsh)", "Average (Tsh)")}</th>
+                <th className="num">{t("Chini–juu", "Low–high")}</th>
+                <th className="num">{t("Ripoti", "Reports")}</th>
+                <th>{t("Upatikanaji", "Availability")}</th>
               </tr>
             </thead>
             <tbody>
@@ -99,14 +120,14 @@ export function FoodReports() {
                   <td className="num"><strong>{tsh(r.average)}</strong></td>
                   <td className="num small">{r.min === r.max ? "" : `${tsh(r.min)}–${tsh(r.max)}`}</td>
                   <td className="num">{r.wards}</td>
-                  <td>{r.availability ? <span className={`avail avail-${r.availability}`}>{availabilityLabel(r.availability)}</span> : null}</td>
+                  <td>{r.availability ? <span className={`avail avail-${r.availability}`}>{avail(r.availability)}</span> : null}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="muted small">Wastani wa halmashauri umepimwa kwa idadi ya bei zilizoandikwa katika kila kata.</p>
+          <p className="muted small">{t("Wastani wa halmashauri umepimwa kwa idadi ya bei zilizoandikwa katika kila ripoti.", "The council average is weighted by the number of prices recorded in each report.")}</p>
 
-          <h2 className="food-h2">Ripoti za kata na vijiji</h2>
+          <h2 className="food-h2">{t("Ripoti za kata na vijiji", "Ward and village reports")}</h2>
           <ul className="food-sends">
             {reports.map((r) => {
               const expanded = open === r._id;
@@ -116,15 +137,21 @@ export function FoodReports() {
                     <span>
                       <strong>{r.areaLabel}</strong>
                       <small>{r.officerName}, {when(r.submittedAt)}</small>
-                      <SendTags auto={r.auto} late={r.late} />
+                      <SendTags r={r} />
                     </span>
                     <SectionTags sections={[r.primarySection]} />
-                    <span className="muted small">bidhaa {r.payload.rows.length}</span>
+                    <span className="muted small">{t(`bidhaa ${r.payload.rows.length}`, `${r.payload.rows.length} items`)}</span>
                   </button>
                   <div className="food-send-body">
+                    <div className="row-actions no-print">
+                      <ReopenReport id={r._id} officer={r.officerName} canReopen={r.canReopen} reopened={r.reopened} />
+                    </div>
                     <table className="table compact">
                       <thead>
-                        <tr><th>Bidhaa</th><th>Kipimo</th><th className="num">Wastani</th><th className="num">Chini–juu</th><th className="num">Bei</th><th>Upatikanaji</th></tr>
+                        <tr>
+                          <th>{t("Bidhaa", "Item")}</th><th>{t("Kipimo", "Unit")}</th><th className="num">{t("Wastani", "Average")}</th>
+                          <th className="num">{t("Chini–juu", "Low–high")}</th><th className="num">{t("Bei", "Prices")}</th><th>{t("Upatikanaji", "Availability")}</th>
+                        </tr>
                       </thead>
                       <tbody>
                         {r.payload.rows.map((row) => (
@@ -134,7 +161,7 @@ export function FoodReports() {
                             <td className="num">{tsh(row.average)}</td>
                             <td className="num small">{row.min === row.max ? "" : `${tsh(row.min)}–${tsh(row.max)}`}</td>
                             <td className="num">{row.count}</td>
-                            <td>{availabilityLabel(row.availability)}</td>
+                            <td>{avail(row.availability)}</td>
                           </tr>
                         ))}
                       </tbody>

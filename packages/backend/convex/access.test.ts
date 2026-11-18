@@ -227,6 +227,18 @@ describe("council codes and NaPA addresses", () => {
   });
 });
 
+describe("accounts", () => {
+  it("the check number used to sign up is kept on the user; name and phone are checked", async () => {
+    const t = setup();
+    const user = await signUp(t, "111234567");
+    expect(await user.query(api.users.me, {})).toMatchObject({ checkNumber: "111234567", name: null });
+    await expect(user.mutation(api.users.updateProfile, { name: "Neema", phone: "0712345678" })).rejects.toThrow(/jina kamili/);
+    await expect(user.mutation(api.users.updateProfile, { name: "Neema Mwakalinga", phone: "12345" })).rejects.toThrow(/simu/);
+    await user.mutation(api.users.updateProfile, { name: "  Neema   Mwakalinga ", phone: "+255 712 345 678" });
+    expect(await user.query(api.users.me, {})).toMatchObject({ name: "Neema Mwakalinga", phone: "0712345678" });
+  });
+});
+
 describe("HQ sees sent reports only, and a sent report is sealed", () => {
   const report = (avg: number) => ({
     rows: [{ commodity: "Sukari", unit: "kg", average: avg, min: avg - 100, max: avg + 100, count: 3, availability: "haba" }],
@@ -268,6 +280,42 @@ describe("HQ sees sent reports only, and a sent report is sealed", () => {
     expect(seen[0]).toMatchObject({ officerName: "Afisa afisa_bei", auto: false });
     const mine = await user.query(api.submissions.mine, { councilId, kind: "food_prices" });
     expect(mine[0]).toMatchObject({ period: "2026-11", auto: false });
+  });
+
+  it("a section lead reopens a report with a note; the officer corrects and sends it again", async () => {
+    const { t, councilId, hod, village } = await world();
+    const o = await join(t, "afisa_rek", councilId, "kilimo");
+    const lead = await join(t, "mkuu_kilimo", councilId, "kilimo");
+    const other = await join(t, "mkuu_mif", councilId, "mifugo");
+    for (const m of [o, lead, other]) await hod.mutation(api.memberships.approve, { councilId, membershipId: m.membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.assignRole, { councilId, membershipId: lead.membershipId, role: "section_head", client: hq });
+    await hod.mutation(api.memberships.assignRole, { councilId, membershipId: other.membershipId, role: "section_head", client: hq });
+    const send = (n: number, avg: number) =>
+      o.user.mutation(api.submissions.submit, {
+        councilId, client, clientId: uuid(600 + n), kind: "food_prices", period: "2026-11", areaLabel: "Changarawe",
+        payload: report(avg), payloadVersion: 1, clientSubmittedAt: Date.now(),
+      });
+    await send(1, 3200);
+    const [sent] = await lead.user.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" });
+    expect(sent).toMatchObject({ revision: 1, reopened: null, canReopen: true });
+
+    // Another section's head cannot see or reopen it; an officer cannot reopen.
+    await expect(other.user.mutation(api.submissions.reopen, { councilId, submissionId: sent!._id, note: "Rekebisha bei.", client: hq })).rejects.toThrow(/mamlaka/);
+    await expect(o.user.mutation(api.submissions.reopen, { councilId, submissionId: sent!._id, note: "Rekebisha bei.", client: hq })).rejects.toThrow(/makao makuu/);
+    await expect(lead.user.mutation(api.submissions.reopen, { councilId, submissionId: sent!._id, note: "x", client: hq })).rejects.toThrow(/rekebisha nini/);
+
+    await lead.user.mutation(api.submissions.reopen, { councilId, submissionId: sent!._id, note: "Bei ya sukari si sahihi; angalia tena.", client: hq });
+    const mine = await o.user.query(api.submissions.mine, { councilId, kind: "food_prices" });
+    expect(mine[0]!.reopened).toMatchObject({ byName: "Afisa mkuu_kilimo", note: "Bei ya sukari si sahihi; angalia tena." });
+
+    await send(2, 3000);
+    const [fixed] = await hod.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" });
+    expect(fixed).toMatchObject({ revision: 2, reopened: null, corrections: 1 });
+    expect((fixed!.payload as Rows).rows[0]!.average).toBe(3000);
+    // Sealed again.
+    await expect(send(3, 2900)).rejects.toThrow(/imefungwa/);
+    const actions = (await hod.query(api.auditLog.recent, { councilId })).map((a) => a.action);
+    expect(actions).toEqual(expect.arrayContaining(["submission.reopen", "submission.resubmit"]));
   });
 
   it("section leads see only their section's reports; officers cannot read HQ reports", async () => {

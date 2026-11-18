@@ -33,7 +33,8 @@ fieldset.plain legend {
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: var(--space-5);
+  position: relative;
+  padding: var(--space-7) var(--space-5) var(--space-5);
 }
 .hq-auth-card {
   width: min(420px, 100%);
@@ -57,12 +58,15 @@ fieldset.plain legend {
   position: sticky;
   top: 0;
   height: 100dvh;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-5);
-  padding: var(--space-5) var(--space-4);
+  padding: var(--space-5) var(--space-4) 0;
   background: var(--surface);
   border-right: 2px solid var(--rule);
+  /* Short windows: the menu scrolls; the account box stays reachable at its foot. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .hq-brand {
   display: flex;
@@ -82,11 +86,12 @@ fieldset.plain legend {
   display: grid;
   align-content: start;
   gap: 2px;
+  flex: 1 0 auto;
 }
 .hq-nav button {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-3);
   min-height: 46px;
   padding: 0 var(--space-3);
   border: 0;
@@ -97,6 +102,12 @@ fieldset.plain legend {
   color: var(--ink-soft);
   text-align: left;
   cursor: pointer;
+}
+.hq-nav button > span:not(.badge) {
+  flex: 1;
+}
+.hq-nav button:hover {
+  color: var(--ink);
 }
 .hq-nav button[aria-current="page"] {
   background: var(--surface-sunk);
@@ -112,12 +123,94 @@ fieldset.plain legend {
   font-size: var(--t-small);
   text-align: center;
 }
+.hq-account {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  gap: var(--space-3);
+  margin: 0 calc(-1 * var(--space-4));
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  background: var(--surface);
+  border-top: 1px solid var(--rule);
+}
 .hq-who {
   display: grid;
-  gap: var(--space-1);
-  justify-items: start;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--maize);
+  color: var(--on-maize);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.hq-who-text {
+  display: grid;
+  min-width: 0;
+  line-height: 1.3;
+}
+.hq-who-text strong,
+.hq-who-text span {
+  overflow-wrap: anywhere;
+}
+.hq-who-text span {
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+.lang-switch {
+  display: inline-flex;
+  justify-self: start;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 10px;
+  background: var(--surface-sunk);
+}
+.lang-switch button {
+  min-width: 44px;
+  min-height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: 700;
+  cursor: pointer;
+}
+.lang-switch button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-lift);
+}
+.hq-auth-lang {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+}
+.hq-auth-lang .lang-switch {
+  background: var(--surface);
 }
 
+@media (max-width: 760px) {
+  .hq {
+    grid-template-columns: 1fr;
+  }
+  .hq-side {
+    position: static;
+    height: auto;
+    border-right: 0;
+    border-bottom: 2px solid var(--rule);
+  }
+  .hq-account {
+    position: static;
+  }
+}
 .hq-main {
   min-width: 0;
   padding: var(--space-6) var(--space-6) var(--space-7);
@@ -768,4 +861,23 @@ fieldset.plain legend {
   .switch-thumb {
     transition: none;
   }
+}
+.send-tag.is-reopened {
+  background: var(--danger-ground);
+  color: var(--danger);
+}
+.reopen-note {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-left: 4px solid var(--danger);
+  border-radius: 6px;
+  background: var(--danger-ground);
+}
+.reopen-note strong {
+  color: var(--danger);
+}
+.row-actions {
+  flex-wrap: wrap;
+  align-items: center;
 }

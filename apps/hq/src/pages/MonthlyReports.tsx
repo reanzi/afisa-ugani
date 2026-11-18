@@ -7,9 +7,9 @@ import { useQuery } from "convex/react";
 import { parseAsString, useQueryState } from "nuqs";
 import { api } from "@afisa/backend/api";
 import { monthKey, monthLabel, monthlyWindow, partHasData, shiftMonth, type Report } from "@afisa/shared";
-import { errorMessage, ReportView, Select } from "@afisa/ui";
+import { errorMessage, IconDownload, ReportView, Select, useLang, useT } from "@afisa/ui";
 import { useHq } from "../context";
-import { MissingReports, SectionTags, SendTags, when } from "./common";
+import { MissingReports, ReopenReport, SectionTags, SendTags, when } from "./common";
 
 function isReport(p: unknown, month: string): p is Report {
   if (!p || typeof p !== "object") return false;
@@ -18,6 +18,8 @@ function isReport(p: unknown, month: string): p is Report {
 }
 
 export function MonthlyReports() {
+  const t = useT();
+  const lang = useLang();
   const { councilId } = useHq();
   const last = shiftMonth(monthKey(new Date()), -1);
   const periods = useQuery(api.submissions.periodsForHq, { councilId, kind: "monthly" });
@@ -32,8 +34,8 @@ export function MonthlyReports() {
 
   const options = useMemo(() => {
     const set = new Set<string>([...(periods ?? []), last, shiftMonth(last, -1)]);
-    return [...set].sort().reverse().map((p) => ({ value: p, label: monthLabel(p) }));
-  }, [periods, last]);
+    return [...set].sort().reverse().map((p) => ({ value: p, label: monthLabel(p, lang) }));
+  }, [periods, last, lang]);
 
   const download = async (id: string, report: Report) => {
     setBusy(id);
@@ -57,21 +59,24 @@ export function MonthlyReports() {
   return (
     <section className="hq-page">
       <header className="hq-page-head">
-        <h1>Ripoti za mwezi (ARDS)</h1>
+        <h1>{t("Ripoti za mwezi (ARDS)", "Monthly reports (ARDS)")}</h1>
         <p className="muted">
-          Ripoti walizotuma maafisa kwa {monthLabel(month)}. Zinatakiwa kufikia tarehe 5 ya mwezi unaofuata. Kila ripoti ni nakala iliyofungwa; haibadiliki.
+          {t(
+            `Ripoti walizotuma maafisa kwa ${monthLabel(month)}. Zinatakiwa kufikia tarehe 5 ya mwezi unaofuata. Kila ripoti ni nakala iliyofungwa; ikihitaji marekebisho, irudishe kwa afisa.`,
+            `Reports officers sent for ${monthLabel(month, "en")}. They are due by the 5th of the next month. Each is a sealed copy; if one needs correcting, send it back to the officer.`,
+          )}
         </p>
         <div className="filters">
           <div className="field inline">
-            <span id="f-mwezi">Mwezi</span>
-            <Select size="sm" labelledBy="f-mwezi" label="Mwezi" value={month} onChange={(v) => void setChosen(v)} options={options} />
+            <span id="f-mwezi">{t("Mwezi", "Month")}</span>
+            <Select size="sm" labelledBy="f-mwezi" label={t("Mwezi", "Month")} value={month} onChange={(v) => void setChosen(v)} options={options} />
           </div>
         </div>
       </header>
 
       {error && <div className="notice notice-danger" role="alert"><p>{error}</p></div>}
-      {reports === undefined && <p className="muted">Inapakia…</p>}
-      {reports?.length === 0 && <p className="empty">Hakuna ripoti iliyotumwa kwa {monthLabel(month)} bado.</p>}
+      {reports === undefined && <p className="muted">{t("Inapakia…", "Loading…")}</p>}
+      {reports?.length === 0 && <p className="empty">{t(`Hakuna ripoti iliyotumwa kwa ${monthLabel(month)} bado.`, `No reports sent for ${monthLabel(month, "en")} yet.`)}</p>}
 
       {reports && reports.length > 0 && (
         <ul className="food-sends">
@@ -84,17 +89,19 @@ export function MonthlyReports() {
                   <span>
                     <strong>{r.areaLabel}</strong>
                     <small>{r.officerName}, {when(r.submittedAt)}</small>
-                    <SendTags auto={r.auto} late={r.late} />
+                    <SendTags r={r} />
                   </span>
                   <SectionTags sections={[r.primarySection]} />
-                  <span className="muted small">sehemu {filled}/{r.report.parts.length}</span>
+                  <span className="muted small">{t(`sehemu ${filled}/${r.report.parts.length}`, `${filled}/${r.report.parts.length} parts`)}</span>
                 </button>
                 {expanded && (
                   <div className="food-send-body monthly-body">
                     <div className="row-actions">
-                      <button className="btn btn-quiet btn-small" disabled={busy !== null} onClick={() => void download(r._id, r.report)}>
-                        {busy === r._id ? "Inaandaa…" : "Pakua Word (.docx)"}
+                      <button className="btn btn-quiet btn-small btn-with-icon" disabled={busy !== null} onClick={() => void download(r._id, r.report)}>
+                        <IconDownload size={18} />
+                        {busy === r._id ? t("Inaandaa…", "Preparing…") : t("Pakua Word (.docx)", "Download Word (.docx)")}
                       </button>
+                      <ReopenReport id={r._id} officer={r.officerName} canReopen={r.canReopen} reopened={r.reopened} />
                     </div>
                     <ReportView report={r.report} />
                   </div>

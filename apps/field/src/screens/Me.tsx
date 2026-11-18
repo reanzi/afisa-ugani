@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ROLE_LABELS, SECTION_LABELS } from "@afisa/shared";
-import { useTheme, type ThemeChoice } from "@afisa/ui";
+import { useConfirm, useTheme, type ThemeChoice } from "@afisa/ui";
 import { APP_VERSION } from "../lib/client";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
@@ -31,11 +31,16 @@ export function Me() {
     })();
   }, []);
 
+  const confirm = useConfirm();
   const doSignOut = async () => {
     if (pending > 0) {
-      const ok = window.confirm(
-        `Kumbukumbu ${pending} bado hazijatumwa. Ukitoka sasa zitafutwa kwenye simu hii. Unganisha mtandao kwanza ili zitumwe. Utoke hata hivyo?`,
-      );
+      const ok = await confirm({
+        title: "Utoke bila kutuma?",
+        body: `Kumbukumbu ${pending} bado hazijatumwa. Ukitoka sasa zitafutwa kwenye simu hii. Unganisha mtandao kwanza ili zitumwe.`,
+        confirmLabel: "Toka hata hivyo",
+        cancelLabel: "Bado",
+        tone: "danger",
+      });
       if (!ok) return;
     }
     await signOut();
@@ -53,6 +58,8 @@ export function Me() {
       <dl className="facts">
         <div><dt>Cheo</dt><dd>{ROLE_LABELS[membership.role].sw}{membership.level ? ` (${membership.level.toUpperCase()})` : ""}</dd></div>
         <div><dt>Halmashauri</dt><dd>{membership.councilName}</dd></div>
+        {me.checkNumber && <div><dt>Namba ya utumishi</dt><dd>{me.checkNumber}</dd></div>}
+        {me.phone && <div><dt>Simu</dt><dd>{me.phone}</dd></div>}
         <div>
           <dt>Sehemu</dt>
           <dd className="sec-list">

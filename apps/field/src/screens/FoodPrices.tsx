@@ -6,11 +6,12 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { v7 as uuidv7 } from "uuid";
 import { commodityKey, commodityLabel, PAYLOAD_VERSION, PRICE_UNITS, SUGGEST_FOODS, labelOf } from "@afisa/shared";
-import { relativeWhen, shortDate, SuggestInput } from "@afisa/ui";
+import { IconTrash, IconUndo, relativeWhen, shortDate, SuggestInput } from "@afisa/ui";
 import { db, getMeta, setMeta } from "../lib/db";
 import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
-import { useFoodState, useOpenFoodPeriod } from "../lib/food";
+import { useFoodState, useOpenFoodPeriod, useReopened } from "../lib/food";
+import { parseAsString, useQueryState } from "nuqs";
 
 const UNITS = PRICE_UNITS.filter((u) => ["kg", "lita", "kipande", "mfuko", "fungu", "debe"].includes(u.value));
 const PLACES = [
@@ -22,7 +23,12 @@ const tsh = (n: number) => n.toLocaleString("en-US");
 export function FoodPrices() {
   const navigate = useNavigate();
   const { councilId, sections, membership } = useWork();
-  const period = useOpenFoodPeriod();
+  const open = useOpenFoodPeriod();
+  const reopened = useReopened();
+  // ?kipindi= adds to a report sent back for correction; otherwise prices go to the open report.
+  const [asked] = useQueryState("kipindi", parseAsString);
+  const correcting = asked && reopened?.some((s) => s.kind === "food_prices" && s.period === asked) ? asked : null;
+  const period = correcting ?? open;
   const state = useFoodState(period);
   const [commodity, setCommodity] = useState("");
   const [price, setPrice] = useState("");
@@ -97,7 +103,14 @@ export function FoodPrices() {
         )}
       </header>
 
-      {state?.ready && !state.sealed && (
+      {correcting && state && (
+        <Link to={`/ripoti?aina=chakula&kipindi=${correcting}`} className="ready-banner is-correcting">
+          <strong>Unarekebisha ripoti ya {state.cycle.label}</strong>
+          <span>Ukimaliza, rudi kwenye ripoti uitume tena</span>
+        </Link>
+      )}
+
+      {state?.ready && !state.sealed && !correcting && (
         <Link to="/ripoti?aina=chakula" className="ready-banner">
           <strong>Ripoti yako iko tayari</strong>
           <span>Kagua bei {state.entries.length} kisha uitume</span>
@@ -145,7 +158,9 @@ export function FoodPrices() {
             <p className={`added${notice.undo ? " is-removed" : ""}`} role="status">
               {notice.text}
               {notice.undo && (
-                <button type="button" className="link" onClick={() => void undo(notice.undo!)}>Rudisha</button>
+                <button type="button" className="undo-btn" onClick={() => void undo(notice.undo!)}>
+                  <IconUndo size={18} /> Rudisha
+                </button>
               )}
             </p>
           )}
@@ -169,8 +184,8 @@ export function FoodPrices() {
                 <small>/{labelOf(PRICE_UNITS, r.payload.unit).toLowerCase()}</small>
               </span>
               {!state.sealed && (
-                <button type="button" className="pe-remove" onClick={() => void remove(r)} aria-label={`Futa ${commodityLabel(r.payload.commodity)}`}>
-                  Futa
+                <button type="button" className="icon-btn is-danger" onClick={() => void remove(r)} aria-label={`Futa ${commodityLabel(r.payload.commodity)}`}>
+                  <IconTrash />
                 </button>
               )}
             </li>

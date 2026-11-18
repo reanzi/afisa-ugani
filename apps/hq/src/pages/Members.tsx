@@ -14,15 +14,19 @@ import {
   SECTIONS,
   type Role,
 } from "@afisa/shared";
-import { errorMessage, Select } from "@afisa/ui";
+import { errorMessage, Select, useConfirm, useLabel, useT, type T } from "@afisa/ui";
 import { hqClient, useHq } from "../context";
 import { AreaPicker, areaNames, SectionTags, toTarget, useAreas, type MemberRow } from "./common";
 
-const STATUS_LABELS = { active: "Hai", pending: "Linasubiri", suspended: "Limesitishwa", rejected: "Limekataliwa" } as const;
+const statusLabel = (t: T, s: MemberRow["status"]) =>
+  ({ active: t("Hai", "Active"), pending: t("Linasubiri", "Waiting"), suspended: t("Limesitishwa", "Suspended"), rejected: t("Limekataliwa", "Declined") })[s];
 const statusFilter = ["active", "suspended", "rejected", "zote"] as const;
 const sectionFilter = [...SECTIONS, "zote"] as const;
 
 function Manage({ row }: { row: MemberRow }) {
+  const t = useT();
+  const label = useLabel();
+  const confirm = useConfirm();
   const { councilId, actor } = useHq();
   const assignRole = useMutation(api.memberships.assignRole);
   const grant = useMutation(api.memberships.grantSection);
@@ -55,24 +59,24 @@ function Manage({ row }: { row: MemberRow }) {
     <div className="manage">
       {roles.length > 0 && (
         <div className="field">
-          <span className="field-label" id={`role-${row._id}`}>Cheo</span>
+          <span className="field-label" id={`role-${row._id}`}>{t("Cheo", "Position")}</span>
           <Select
             labelledBy={`role-${row._id}`}
-            label="Badili cheo"
+            label={t("Badili cheo", "Change position")}
             value=""
             disabled={busy}
-            placeholder={`${ROLE_LABELS[row.role].sw} (sasa). Badili kuwa…`}
+            placeholder={t(`${label(ROLE_LABELS[row.role])} (sasa). Badili kuwa…`, `${label(ROLE_LABELS[row.role])} (now). Change to…`)}
             onChange={(v) => v && void run(() => assignRole({ ...base, role: v as Role }))}
             options={roles.map((r) => ({
               value: r,
-              label: `${ROLE_LABELS[r].sw}${r === "section_head" || r === "section_vice" ? ` wa ${SECTION_LABELS[row.primarySection].sw}` : ""}`,
+              label: `${label(ROLE_LABELS[r])}${r === "section_head" || r === "section_vice" ? t(` wa ${label(SECTION_LABELS[row.primarySection])}`, `, ${label(SECTION_LABELS[row.primarySection])}`) : ""}`,
             }))}
           />
         </div>
       )}
 
       <div className="field">
-        <span>Sehemu</span>
+        <span>{t("Sehemu", "Sections")}</span>
         <div className="chips">
           {SECTIONS.map((s) => {
             const has = row.sections.includes(s);
@@ -84,25 +88,25 @@ function Manage({ row }: { row: MemberRow }) {
                 className={`chip sec sec-${s}`}
                 aria-pressed={has}
                 disabled={busy || !can}
-                title={s === row.primarySection ? "Sehemu kuu haiwezi kuondolewa" : undefined}
+                title={s === row.primarySection ? t("Sehemu kuu haiwezi kuondolewa", "The main section cannot be removed") : undefined}
                 onClick={() => void run(() => (has ? revoke({ ...base, section: s }) : grant({ ...base, section: s })))}
               >
                 <span className="sec-tag" aria-hidden />
-                {SECTION_LABELS[s].sw}
+                {label(SECTION_LABELS[s])}
               </button>
             );
           })}
         </div>
-        <small>Sehemu ya ziada huongezwa na mkuu wa sehemu hiyo pekee.</small>
+        <small>{t("Sehemu ya ziada huongezwa na mkuu wa sehemu hiyo pekee.", "An extra section is added only by that section's head.")}</small>
       </div>
 
       {manage && (
         <div className="field">
-          <span>Maeneo ya kazi</span>
+          <span>{t("Maeneo ya kazi", "Work areas")}</span>
           <AreaPicker value={areas} onChange={setAreas} />
           {areasChanged && (
             <button className="btn btn-primary btn-small" disabled={busy} onClick={() => void run(() => assignAreas({ ...base, areaIds: areas }))}>
-              Hifadhi maeneo
+              {t("Hifadhi maeneo", "Save areas")}
             </button>
           )}
         </div>
@@ -111,12 +115,27 @@ function Manage({ row }: { row: MemberRow }) {
       {manage && (row.status === "active" || row.status === "suspended") && (
         <div className="row-actions">
           {row.status === "active" ? (
-            <button className="btn btn-danger btn-small" disabled={busy} onClick={() => void run(() => setActive({ ...base, active: false }))}>
-              Sitisha akaunti
+            <button
+              className="btn btn-danger btn-small"
+              disabled={busy}
+              onClick={async () => {
+                const ok = await confirm({
+                  title: t(`Sitisha akaunti ya ${row.name}?`, `Suspend ${row.name}'s account?`),
+                  body: t(
+                    "Hataweza kuingia wala kutuma kumbukumbu hadi akaunti irejeshwe. Kumbukumbu zake hazifutwi.",
+                    "They cannot sign in or send records until the account is restored. Their records are not deleted.",
+                  ),
+                  confirmLabel: t("Sitisha", "Suspend"),
+                  tone: "danger",
+                });
+                if (ok) void run(() => setActive({ ...base, active: false }));
+              }}
+            >
+              {t("Sitisha akaunti", "Suspend account")}
             </button>
           ) : (
             <button className="btn btn-quiet btn-small" disabled={busy} onClick={() => void run(() => setActive({ ...base, active: true }))}>
-              Rejesha akaunti
+              {t("Rejesha akaunti", "Restore account")}
             </button>
           )}
         </div>
@@ -127,6 +146,8 @@ function Manage({ row }: { row: MemberRow }) {
 }
 
 export function Members() {
+  const t = useT();
+  const label = useLabel();
   const { councilId } = useHq();
   const [filters, setFilters] = useQueryStates({
     hali: parseAsStringLiteral(statusFilter).withDefault("active"),
@@ -143,49 +164,49 @@ export function Members() {
   return (
     <section className="hq-page">
       <header className="hq-page-head">
-        <h1>Wanachama</h1>
+        <h1>{t("Wanachama", "Members")}</h1>
         <div className="filters">
           <div className="field inline">
-            <span id="f-hali">Hali</span>
+            <span id="f-hali">{t("Hali", "Status")}</span>
             <Select
               size="sm"
               labelledBy="f-hali"
-              label="Hali"
+              label={t("Hali", "Status")}
               value={filters.hali}
               onChange={(v) => void setFilters({ hali: v as (typeof statusFilter)[number] })}
               options={[
-                { value: "active", label: "Hai" },
-                { value: "suspended", label: "Waliositishwa" },
-                { value: "rejected", label: "Waliokataliwa" },
-                { value: "zote", label: "Wote" },
+                { value: "active", label: t("Hai", "Active") },
+                { value: "suspended", label: t("Waliositishwa", "Suspended") },
+                { value: "rejected", label: t("Waliokataliwa", "Declined") },
+                { value: "zote", label: t("Wote", "Everyone") },
               ]}
             />
           </div>
           <div className="field inline">
-            <span id="f-sehemu">Sehemu</span>
+            <span id="f-sehemu">{t("Sehemu", "Section")}</span>
             <Select
               size="sm"
               labelledBy="f-sehemu"
-              label="Sehemu"
+              label={t("Sehemu", "Section")}
               value={filters.sehemu}
               onChange={(v) => void setFilters({ sehemu: v as (typeof sectionFilter)[number] })}
-              options={[{ value: "zote", label: "Zote" }, ...SECTIONS.map((s) => ({ value: s, label: SECTION_LABELS[s].sw }))]}
+              options={[{ value: "zote", label: t("Zote", "All") }, ...SECTIONS.map((s) => ({ value: s, label: label(SECTION_LABELS[s]) }))]}
             />
           </div>
         </div>
       </header>
 
-      {shown?.length === 0 && <p className="empty">Hakuna mwanachama kwa vichujio hivi.</p>}
+      {shown?.length === 0 && <p className="empty">{t("Hakuna mwanachama kwa vichujio hivi.", "No members match these filters.")}</p>}
       {shown && shown.length > 0 && (
         <table className="table">
           <thead>
             <tr>
-              <th>Jina</th>
-              <th>Cheo</th>
-              <th>Sehemu</th>
-              <th>Maeneo</th>
-              <th>Hali</th>
-              <th><span className="visually-hidden">Hatua</span></th>
+              <th>{t("Jina", "Name")}</th>
+              <th>{t("Cheo", "Position")}</th>
+              <th>{t("Sehemu", "Sections")}</th>
+              <th>{t("Maeneo", "Areas")}</th>
+              <th>{t("Hali", "Status")}</th>
+              <th><span className="visually-hidden">{t("Hatua", "Actions")}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -196,17 +217,17 @@ export function Members() {
                   <tr className={expanded ? "is-open" : undefined}>
                     <td>
                       <strong>{r.name}</strong>
-                      {r.isSelf && <span className="muted"> (wewe)</span>}
-                      {r.phone && <div className="muted small">{r.phone}</div>}
+                      {r.isSelf && <span className="muted">{t(" (wewe)", " (you)")}</span>}
+                      <div className="muted small">{[r.checkNumber && t(`Namba ${r.checkNumber}`, `Check no. ${r.checkNumber}`), r.phone].filter(Boolean).join(", ")}</div>
                     </td>
-                    <td>{ROLE_LABELS[r.role].sw}{r.level ? ` (${r.level.toUpperCase()})` : ""}</td>
+                    <td>{label(ROLE_LABELS[r.role])}{r.level ? ` (${r.level.toUpperCase()})` : ""}</td>
                     <td><SectionTags sections={r.sections} primary={r.primarySection} /></td>
-                    <td className="small">{areaNames(r.areaIds, areas) || <span className="muted">Hajapangiwa</span>}</td>
-                    <td><span className={`status status-${r.status}`}>{STATUS_LABELS[r.status]}</span></td>
+                    <td className="small">{areaNames(r.areaIds, areas) || <span className="muted">{t("Hajapangiwa", "Not assigned")}</span>}</td>
+                    <td><span className={`status status-${r.status}`}>{statusLabel(t, r.status)}</span></td>
                     <td>
                       {!r.isSelf && (
                         <button className="btn btn-quiet btn-small" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : r._id)}>
-                          {expanded ? "Funga" : "Simamia"}
+                          {expanded ? t("Funga", "Close") : t("Simamia", "Manage")}
                         </button>
                       )}
                     </td>

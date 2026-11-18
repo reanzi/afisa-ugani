@@ -2,13 +2,13 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useLiveQuery } from "dexie-react-hooks";
-import { actionsFor, monthStats, SECTION_LABELS, SECTIONS, specFor, type Reminder, type Section } from "@afisa/shared";
+import { actionsFor, monthLabel, monthStats, SECTION_LABELS, SECTIONS, specFor, type Reminder, type Section } from "@afisa/shared";
 import { dayTitle, relativeWhen } from "@afisa/ui";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
 import { useMyAreas } from "../lib/areas";
 import { useHomeData } from "../lib/home";
-import { useFoodState, useOpenFoodPeriod } from "../lib/food";
+import { useFoodState, useOpenFoodPeriod, useReopened } from "../lib/food";
 import { EntryRow } from "./EntryRow";
 import { RecordIcon, SectionIcon } from "./recordIcons";
 
@@ -81,13 +81,42 @@ function ActionGrid({ section }: { section: Section }) {
   );
 }
 
+/** Reports a section lead sent back: they come first, with the note. */
+function Corrections() {
+  const reopened = useReopened();
+  if (!reopened || reopened.length === 0) return null;
+  return (
+    <section className="reminders" aria-label="Ripoti za kurekebisha">
+      {reopened.map((s) => (
+        <div key={s.clientId} className="reminder tone-danger">
+          <p>
+            <strong>
+              {s.kind === "food_prices" ? "Ripoti ya chakula" : "Ripoti ya mwezi"} ya {monthLabel(s.period)} imerudishwa kwa marekebisho.
+            </strong>{" "}
+            {s.reopened?.byName ? `${s.reopened.byName}: ` : ""}“{s.reopened?.note}”
+          </p>
+          <div className="reminder-actions">
+            <Link
+              to={s.kind === "food_prices" ? `/ripoti?aina=chakula&kipindi=${s.period}` : `/ripoti?mwezi=${s.period}`}
+              className="btn btn-small btn-primary"
+            >
+              Rekebisha
+            </Link>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 /** Food prices: always one tap away; from the 20th it turns into the ready report. */
 function FoodCard() {
   const period = useOpenFoodPeriod();
   const state = useFoodState(period);
   if (!state) return <div className="food-card is-loading" aria-hidden />;
   const n = state.entries.length;
-  const ready = state.ready && !state.sealed && n > 0;
+  // A report sent back for correction has its own notice above; keep this card plain.
+  const ready = state.ready && !state.sealed && !state.reopened && n > 0;
   return (
     <Link to={ready ? "/ripoti?aina=chakula" : "/bei"} className={`food-card${ready ? " is-ready" : ""}`}>
       <span className="food-card-icon"><RecordIcon type="price" size={24} /></span>
@@ -146,6 +175,7 @@ export function Today() {
         </p>
       </header>
 
+      <Corrections />
       {home && <Reminders items={home.reminders} />}
 
       <FoodCard />

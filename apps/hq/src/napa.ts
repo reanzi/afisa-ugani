@@ -7,24 +7,26 @@ import { useMutation } from "convex/react";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
 import { NapaFormatError, parseNapaRows, type NapaImport } from "@afisa/shared";
-import { errorMessage } from "@afisa/ui";
+import { errorMessage, getLang } from "@afisa/ui";
+
+const tr = (sw: string, en: string) => (getLang() === "en" ? en : sw);
 import { hqClient } from "./context";
 
 const MAX_BYTES = 15 * 1024 * 1024;
 
 export async function readNapaFile(file: File): Promise<NapaImport> {
-  if (file.size > MAX_BYTES) throw new NapaFormatError("Faili ni kubwa mno (zaidi ya MB 15).");
+  if (file.size > MAX_BYTES) throw new NapaFormatError(tr("Faili ni kubwa mno (zaidi ya MB 15).", "The file is too large (over 15 MB)."));
   const XLSX = await import("xlsx");
   const book = XLSX.read(await file.arrayBuffer(), { type: "array", cellFormula: false, cellHTML: false });
   const first = book.SheetNames[0];
-  if (!first) throw new NapaFormatError("Faili halina karatasi yoyote.");
+  if (!first) throw new NapaFormatError(tr("Faili halina karatasi yoyote.", "The file has no sheets."));
   const rows = XLSX.utils.sheet_to_json<unknown[]>(book.Sheets[first]!, { header: 1, defval: "", blankrows: false, raw: true });
   return parseNapaRows(rows);
 }
 
 export function napaErrorText(e: unknown): string {
   if (e instanceof NapaFormatError) return e.message;
-  if (e instanceof Error && /zip|cfb|unsupported|corrupt/i.test(e.message)) return "Faili hili halisomeki. Tumia .xls au .xlsx kutoka mfumo wa NaPA.";
+  if (e instanceof Error && /zip|cfb|unsupported|corrupt/i.test(e.message)) return tr("Faili hili halisomeki. Tumia .xls au .xlsx kutoka mfumo wa NaPA.", "This file cannot be read. Use the .xls or .xlsx from the NaPA system.");
   return errorMessage(e);
 }
 
@@ -54,7 +56,7 @@ export function useNapaImport() {
         added.streets += res.streetsAdded;
         updated += res.streetsUpdated;
       } catch (e) {
-        setProgress({ state: "error", message: `Kata ya ${ward.name}: ${errorMessage(e)} Bonyeza "Pakia tena"; kata zilizokwisha ingia hazitarudiwa.`, done: i, total });
+        setProgress({ state: "error", message: tr(`Kata ya ${ward.name}: ${errorMessage(e)} Bonyeza "Pakia tena"; kata zilizokwisha ingia hazitarudiwa.`, `${ward.name} ward: ${errorMessage(e)} Press "Load again"; wards already loaded are not repeated.`), done: i, total });
         return false;
       }
     }

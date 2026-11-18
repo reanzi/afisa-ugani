@@ -16,13 +16,12 @@ import {
   shiftMonth,
   type FoodReportPayload,
 } from "@afisa/shared";
-import { shortDate } from "@afisa/ui";
+import { ConfirmDialog, shortDate } from "@afisa/ui";
 import { db, getMeta, setMeta, type LocalSubmission } from "../lib/db";
 import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
 import { useAreaLabel } from "../lib/report";
 import { useFoodState, useOpenFoodPeriod } from "../lib/food";
-import { ConfirmSheet } from "./ConfirmSheet";
 
 const tsh = (n: number) => n.toLocaleString("en-US");
 const DAY = 86_400_000;
@@ -143,15 +142,23 @@ export function FoodReport() {
   const [copied, setCopied] = useState(false);
 
   if (!state) return <div className="food" aria-busy="true" />;
-  const { cycle, rows, sealed, ready } = state;
+  const { cycle, rows, sealed, reopened } = state;
+  const ready = state.ready || Boolean(reopened);
+  const sentBefore = reopened ? (reopened.payload as unknown as FoodReportPayload).rows : [];
   const sealedPayload = sealed ? (sealed.payload as unknown as FoodReportPayload) : null;
   const shownRows: Row[] = sealedPayload
     ? sealedPayload.rows
     : rows.map(({ commodity, unit, average, min, max, count, availability }) => ({ commodity, unit, average, min, max, count, availability }));
   const keyOf = (i: number) => rows[i]!.key;
-  const availOf = (i: number) => avail[keyOf(i)] ?? rows[i]!.availability ?? null;
+  // Chosen now, else what was sent before (when correcting), else the most common one recorded.
+  const availOf = (i: number) =>
+    avail[keyOf(i)] ??
+    sentBefore.find((r) => r.commodity === rows[i]!.commodity && r.unit === rows[i]!.unit)?.availability ??
+    rows[i]!.availability ??
+    null;
   const missingAvail = sealed ? 0 : rows.filter((_, i) => !availOf(i)).length;
-  const isOpen = period === openPeriod;
+  const isOpen = period === openPeriod || Boolean(reopened);
+  const addLink = reopened ? `/bei?kipindi=${period}` : "/bei";
   const daysLeft = Math.ceil((cycle.due - Date.now()) / DAY);
   const autoOn = membership.autoSend?.food ?? false;
   const nextLabel = currentFoodReport(cycle.due + 2 * DAY).label;
@@ -207,6 +214,16 @@ export function FoodReport() {
 
       {sealed && <SentStatus s={sealed} />}
 
+      {reopened?.reopened && (
+        <div className="seal seal-reopened" role="status">
+          <strong>Imerudishwa kwa marekebisho</strong>
+          <span>
+            {reopened.reopened.byName || "Makao makuu"}: “{reopened.reopened.note}”
+          </span>
+          <span>Rekebisha bei au upatikanaji, kisha uitume tena.</span>
+        </div>
+      )}
+
       {!sealed && rejected && (
         <div className="notice notice-danger" role="alert">
           <p>Makao makuu hawakuipokea: {rejected.error ?? "jaribu tena"}.</p>
@@ -220,7 +237,7 @@ export function FoodReport() {
       {!sealed && shownRows.length === 0 && (
         <div className="empty">
           <p>Hakuna bei katika ripoti hii.</p>
-          {isOpen && <Link to="/bei" className="btn btn-primary">Andika bei</Link>}
+          {isOpen && <Link to={addLink} className="btn btn-primary">Andika bei</Link>}
           {isOpen && autoOn && <p className="muted">Usipoandika bei, hakuna ripoti itakayotumwa tarehe 22.</p>}
         </div>
       )}
@@ -239,7 +256,7 @@ export function FoodReport() {
           <RowsList rows={shownRows} edit={sealed ? undefined : { value: availOf, set: (i, v) => setAvail((a) => ({ ...a, [keyOf(i)]: v })) }} />
 
           {!sealed && isOpen && (
-            <Link to="/bei" className="btn btn-quiet btn-block add-more">Ongeza bei</Link>
+            <Link to={addLink} className="btn btn-quiet btn-block add-more">Ongeza bei</Link>
           )}
 
           {sealed ? (
@@ -262,22 +279,22 @@ export function FoodReport() {
 
           {!sealed && (
             <div className="submit-bar">
-              {autoOn && daysLeft >= 0 && (
+              {!reopened && autoOn && daysLeft >= 0 && (
                 <p>Usipoituma, itatumwa yenyewe tarehe 22 saa 5:30 usiku na bei zilizopo.</p>
               )}
-              {!autoOn && daysLeft >= 0 && ready && <p>Inatakiwa tarehe 22{daysLeft <= 2 ? `: ${daysLeft === 0 ? "leo" : `zimebaki siku ${daysLeft}`}` : ""}.</p>}
-              {daysLeft < 0 && <p>Tarehe 22 imepita. Ukiituma sasa itaonekana imechelewa.</p>}
+              {!reopened && !autoOn && daysLeft >= 0 && ready && <p>Inatakiwa tarehe 22{daysLeft <= 2 ? `: ${daysLeft === 0 ? "leo" : `zimebaki siku ${daysLeft}`}` : ""}.</p>}
+              {!reopened && daysLeft < 0 && <p>Tarehe 22 imepita. Ukiituma sasa itaonekana imechelewa.</p>}
               <button className="btn btn-primary btn-block" disabled={!ready} onClick={() => setConfirm(true)}>
-                Tuma ripoti
+                {reopened ? "Tuma tena" : "Tuma ripoti"}
               </button>
             </div>
           )}
         </>
       )}
 
-      <ConfirmSheet
+      <ConfirmDialog
         open={confirm}
-        title="Tuma ripoti ya chakula?"
+        title={reopened ? "Tuma ripoti iliyorekebishwa?" : "Tuma ripoti ya chakula?"}
         confirmLabel="Ndiyo, tuma"
         onConfirm={() => void send()}
         onCancel={() => setConfirm(false)}
@@ -285,8 +302,8 @@ export function FoodReport() {
         <p>
           Bidhaa {shownRows.length} za {cycle.label} zitatumwa makao makuu. Baada ya kutuma, ripoti hii itafungwa na huwezi kuibadilisha.
         </p>
-        <p>Bei utakazoandika baadaye zitaingia ripoti ya {nextLabel}.</p>
-      </ConfirmSheet>
+        {!reopened && <p>Bei utakazoandika baadaye zitaingia ripoti ya {nextLabel}.</p>}
+      </ConfirmDialog>
     </div>
   );
 }

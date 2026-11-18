@@ -15,7 +15,7 @@ import {
   type MonthlyReview,
   type TextBlock,
 } from "@afisa/shared";
-import { Select } from "@afisa/ui";
+import { Select, IconTrash } from "@afisa/ui";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
@@ -83,7 +83,9 @@ function CropTable({
           <div key={c.value} className="crop-row">
             <div className="crop-row-head">
               <strong>{c.label}</strong>
-              <button type="button" className="link" onClick={() => remove(c.value)}>Ondoa</button>
+              <button type="button" className="icon-btn is-danger" onClick={() => remove(c.value)} aria-label={`Ondoa ${c.label}`} title="Ondoa">
+                <IconTrash />
+              </button>
             </div>
             <div className="crop-cells">
               {columns.map((col) => (

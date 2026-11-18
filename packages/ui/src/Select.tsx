@@ -3,6 +3,7 @@
  * for long lists); wider screens get a list anchored under the field.
  * Keyboard: ↓/↑ to move, Enter to pick, Esc to close, typing filters.
  */
+import { useT } from "./i18n";
 import {
   useCallback,
   useEffect,
@@ -64,7 +65,7 @@ export function Select({
   value,
   onChange,
   options,
-  placeholder = "Chagua",
+  placeholder,
   label,
   labelledBy,
   id,
@@ -74,6 +75,8 @@ export function Select({
   size = "md",
   className,
 }: SelectProps) {
+  const t = useT();
+  placeholder ??= t("Chagua", "Choose");
   const autoId = useId();
   const triggerId = id ?? `${autoId}-trigger`;
   const listId = `${autoId}-list`;
@@ -218,7 +221,7 @@ export function Select({
             {phone && (
               <div className="sel-sheet-head">
                 <strong>{label ?? placeholder}</strong>
-                <button type="button" className="sel-close" onClick={() => close()} aria-label="Funga">
+                <button type="button" className="sel-close" onClick={() => close()} aria-label={t("Funga", "Close")}>
                   <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
                     <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
                   </svg>
@@ -229,7 +232,7 @@ export function Select({
               <input
                 className="sel-search"
                 type="search"
-                placeholder="Tafuta…"
+                placeholder={t("Tafuta…", "Search…")}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 aria-controls={listId}

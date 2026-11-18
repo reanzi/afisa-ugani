@@ -3,20 +3,22 @@ import { useMutation, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
-import { HQ_ROLES, ROLE_LABELS, SECTIONS, SECTION_LABELS, type OfficerLevel, type Role, type Section } from "@afisa/shared";
-import { CodeInput, errorMessage, Select } from "@afisa/ui";
+import { isFullName, HQ_ROLES, ROLE_LABELS, SECTIONS, SECTION_LABELS, type OfficerLevel, type Role, type Section } from "@afisa/shared";
+import { clearPendingProfile, CodeInput, errorMessage, Select, takePendingProfile } from "@afisa/ui";
 import { clientMeta } from "../lib/client";
 
 type Mode = "afisa" | "makao";
 
-export function Join({ rejectedNote, defaultName }: { rejectedNote: string | null; defaultName: string | null }) {
+export function Join({ rejectedNote, defaultName, defaultPhone }: { rejectedNote: string | null; defaultName: string | null; defaultPhone: string | null }) {
+  // Typed when the account was created, before the server knew who this is.
+  const pending = takePendingProfile();
   const councils = useQuery(api.councils.listOpen, {});
   const requestJoin = useMutation(api.memberships.requestJoin);
   const { signOut } = useAuthActions();
 
   const [mode, setMode] = useState<Mode>("afisa");
-  const [name, setName] = useState(defaultName ?? "");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(defaultName ?? pending?.name ?? "");
+  const [phone, setPhone] = useState(defaultPhone ?? pending?.phone ?? "");
   const [councilId, setCouncilId] = useState("");
   const [code, setCode] = useState("");
   const [role, setRole] = useState<Role | "">("");
@@ -29,7 +31,7 @@ export function Join({ rejectedNote, defaultName }: { rejectedNote: string | nul
   const codeCouncil = useQuery(api.councils.lookupByCode, mode === "makao" && code.length >= 6 ? { code } : "skip");
   const chosenCouncil = councilId || (councils?.length === 1 ? councils[0]!._id : "");
   const ready =
-    name.trim().length >= 3 &&
+    isFullName(name) &&
     section !== null &&
     (mode === "afisa" ? Boolean(chosenCouncil) && level !== null : Boolean(codeCouncil) && role !== "");
 
@@ -48,6 +50,7 @@ export function Join({ rejectedNote, defaultName }: { rejectedNote: string | nul
         primarySection: section,
         client: await clientMeta(),
       });
+      clearPendingProfile();
     } catch (err) {
       setError(errorMessage(err));
     } finally {

@@ -1,5 +1,5 @@
 import { Route, Routes } from "react-router";
-import { useTheme } from "@afisa/ui";
+import { ConfirmProvider, useTheme } from "@afisa/ui";
 import { useSessionState, WorkProvider } from "./lib/session";
 import { SignIn } from "./screens/SignIn";
 import { Join } from "./screens/Join";
@@ -16,10 +16,10 @@ import { FoodPrices } from "./screens/FoodPrices";
 
 export function App() {
   return (
-    <>
+    <ConfirmProvider>
       <UpdatePrompt />
       <Main />
-    </>
+    </ConfirmProvider>
   );
 }
 
@@ -42,7 +42,7 @@ function Main() {
     const waiting = me.memberships.find((m) => m.status === "pending" || m.status === "suspended");
     if (waiting) return <Waiting membership={waiting} name={me.name} />;
     const rejected = me.memberships.find((m) => m.status === "rejected");
-    return <Join rejectedNote={rejected?.decisionNote ?? null} defaultName={me.name} />;
+    return <Join rejectedNote={rejected?.decisionNote ?? null} defaultName={me.name} defaultPhone={me.phone} />;
   }
 
   return (

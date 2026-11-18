@@ -25,8 +25,9 @@ Still in `packages/backend`. Every command takes `--prod`:
 
 ```bash
 npx convex run --prod admin:bootstrapRoot '{"username":"900000009","password":"<a strong password>","name":"Msimamizi wa Mfumo"}'
-
 ```
+
+`username` is the sign-in name: use a check number (digits). Root signs in to HQ with it. If you already created root with another sign-in name (for example a phone number), it keeps working.
 
 Then sign in to the **HQ app** as root (after step 3) and open **Halmashauri**:
 - Enter the council's name and region and, optionally, choose its **NaPA address report** (.xls/.xlsx, "Idadi ya Anwani za Barabara"). The page shows how many wards, villages/mitaa, roads/hamlets and addresses it found before anything is saved.
@@ -71,7 +72,7 @@ All three serve HTTPS, which the Field app needs for offline use, the camera and
 
 ## 4. Seat the Head of Department
 
-1. The HoD opens the **HQ address**, chooses **Fungua akaunti** (create account), and signs up with their phone number as the username.
+1. The HoD opens the **HQ address**, chooses **Fungua akaunti** (create account), and signs up with their full name, check number (the sign-in name), phone number and a password.
 2. They type the 8-character council code (e.g. `K7QM-3XPA`, with or without the dash), pick **Mkuu wa Idara** and their section, and send the request.
 3. Root signs in to HQ, opens **Maombi**, and approves the request. The HoD's screen opens HQ on its own.
 

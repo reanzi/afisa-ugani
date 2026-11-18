@@ -6,6 +6,7 @@
  */
 import { v } from "convex/values";
 import {
+  canReopenReport,
   canViewMembership,
   foodCycle,
   monthlyWindow,
@@ -16,7 +17,7 @@ import {
 } from "@afisa/shared";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { fail, hiddenUserIds, hqQuery, memberMutation, memberQuery, type MemberViewer } from "./lib/guards";
+import { fail, hiddenUserIds, hqMutation, hqQuery, memberMutation, memberQuery, type MemberViewer } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
 
 export const vKind = v.union(v.literal("food_prices"), v.literal("monthly"));
@@ -73,7 +74,33 @@ export const submit = memberMutation({
     if (existing) {
       // A retry after a lost response gets the first result; anything else is refused.
       if (existing.clientId === args.clientId) return { revision: existing.revision, submittedAt: existing.submittedAt, late: existing.late ?? false };
-      fail("INVALID", "Ripoti ya kipindi hiki imeshatumwa na imefungwa.");
+      if (!existing.reopened) fail("INVALID", "Ripoti ya kipindi hiki imeshatumwa na imefungwa.");
+      // Reopened for correction: the corrected report replaces the old one and is sealed again.
+      const submittedAt = Date.now();
+      const revision = existing.revision + 1;
+      const corrections = (existing.corrections ?? []).map((c, i, all) => (i === all.length - 1 && !c.resubmittedAt ? { ...c, resubmittedAt: submittedAt } : c));
+      await ctx.db.patch(existing._id, {
+        clientId: args.clientId,
+        payload: args.payload,
+        payloadVersion: args.payloadVersion,
+        clientSubmittedAt: args.clientSubmittedAt,
+        submittedAt,
+        areaLabel: args.areaLabel.trim().slice(0, 200),
+        revision,
+        auto: undefined,
+        reopened: undefined,
+        corrections,
+      });
+      await writeAudit(ctx, viewer, {
+        action: "submission.resubmit",
+        entity: "submissions",
+        entityId: existing._id,
+        section: existing.primarySection,
+        before: { revision: existing.revision },
+        after: { kind: args.kind, period: args.period, revision },
+        occurredAt: args.clientSubmittedAt,
+      });
+      return { revision, submittedAt, late: existing.late ?? false };
     }
 
     const who = {
@@ -175,6 +202,8 @@ export const mine = memberQuery({
           submittedAt: s.submittedAt,
           auto: s.auto ?? false,
           late: s.late ?? false,
+          revision: s.revision,
+          reopened: s.reopened ? { at: s.reopened.at, byName: s.reopened.byName, note: s.reopened.note } : null,
         });
       }
     }
@@ -236,6 +265,10 @@ export const forHq = hqQuery({
         submittedAt: r.submittedAt,
         auto: r.auto ?? false,
         late: r.late ?? false,
+        revision: r.revision,
+        reopened: r.reopened ? { at: r.reopened.at, byName: r.reopened.byName, note: r.reopened.note } : null,
+        corrections: (r.corrections ?? []).length,
+        canReopen: canReopenReport(viewer.actor, r.primarySection),
         payload: r.payload as unknown,
       });
     }
@@ -269,5 +302,39 @@ export const missingForHq = hqQuery({
       out.push({ userId: m.userId, name: user?.name ?? "—", phone: user?.phone ?? null, areaLabel: await areaLabelOf(ctx, m, ""), primarySection: m.primarySection });
     }
     return out.sort((a, b) => a.areaLabel.localeCompare(b.areaLabel) || a.name.localeCompare(b.name));
+  },
+});
+
+/**
+ * Send a report back to its officer for correction, saying what to correct.
+ * The officer corrects it on the phone and sends it again; until then HQ
+ * keeps showing the last version, marked as being corrected.
+ */
+export const reopen = hqMutation({
+  args: { submissionId: v.id("submissions"), note: v.string() },
+  handler: async (ctx, { submissionId, note }) => {
+    const { viewer } = ctx;
+    const s = await ctx.db.get(submissionId);
+    if (!s || s.councilId !== viewer.councilId) fail("NOT_FOUND", "Ripoti haipo.");
+    if (!canReopenReport(viewer.actor, s.primarySection)) fail("FORBIDDEN", "Huna mamlaka ya kurudisha ripoti ya sehemu hii.");
+    const clean = note.trim();
+    if (clean.length < 5) fail("INVALID", "Eleza afisa anatakiwa kurekebisha nini.");
+    if (clean.length > 1000) fail("INVALID", "Maelezo ni marefu mno.");
+    if (s.reopened) fail("INVALID", "Ripoti hii tayari imerudishwa kwa marekebisho.");
+    const at = Date.now();
+    // Root stays hidden: the officer sees "Makao makuu", not root's name.
+    const byName = viewer.actor.isRoot ? "Makao makuu" : (viewer.user.name ?? "");
+    await ctx.db.patch(s._id, {
+      reopened: { at, byId: viewer.userId, byName, note: clean },
+      corrections: [...(s.corrections ?? []), { reopenedAt: at, byName, note: clean }],
+    });
+    await writeAudit(ctx, viewer, {
+      action: "submission.reopen",
+      entity: "submissions",
+      entityId: s._id,
+      section: s.primarySection,
+      after: { kind: s.kind, period: s.period, officer: s.officerName, note: clean },
+    });
+    return null;
   },
 });
