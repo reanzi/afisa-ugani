@@ -479,3 +479,16 @@ body.reader-open {
     margin: 12mm;
   }
 }
+.pdf-sheet {
+  position: relative;
+}
+.pdf-failed {
+  position: absolute;
+  inset: 24px 24px auto;
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--danger-ground);
+  color: var(--danger);
+  font-weight: 700;
+}

@@ -84,12 +84,44 @@ function setup(paper: [number, number, number], ink: [number, number, number]): 
 const PAPER: [number, number, number] = [0x1c / 255, 0x22 / 255, 0x1f / 255];
 const INK: [number, number, number] = [0xe2 / 255, 0xe8 / 255, 0xe4 / 255];
 
+/** Lightest and darkest luminance (0–1) of a canvas, from a small copy. */
+function lightRange(c: HTMLCanvasElement): { min: number; max: number } | null {
+  const probe = document.createElement("canvas");
+  probe.width = 48;
+  probe.height = Math.max(1, Math.round((48 * c.height) / Math.max(1, c.width)));
+  const g = probe.getContext("2d", { willReadFrequently: true });
+  if (!g) return null;
+  g.drawImage(c, 0, 0, probe.width, probe.height);
+  const d = g.getImageData(0, 0, probe.width, probe.height).data;
+  let min = 1;
+  let max = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const l = (0.2126 * d[i]! + 0.7152 * d[i + 1]! + 0.0722 * d[i + 2]!) / 255;
+    if (l < min) min = l;
+    if (l > max) max = l;
+  }
+  return { min, max };
+}
+
 /**
- * Draw `src` darkened onto `out`. Returns false when WebGL is not available,
- * so the caller can fall back to a CSS filter.
+ * Some graphics drivers draw nothing from a shared canvas texture. After the
+ * first page, compare: if the page had ink but the dark copy has no light
+ * ink, the GPU path is switched off for the session and the caller falls back.
+ */
+let verified = false;
+
+/**
+ * Draw `src` darkened onto `out`. Returns false when WebGL is not available
+ * or does not work on this computer, so the caller can fall back to a CSS filter.
  */
 export function drawDark(src: HTMLCanvasElement, out: HTMLCanvasElement): boolean {
-  if (shared === undefined) shared = setup(PAPER, INK);
+  if (shared === undefined) {
+    try {
+      shared = setup(PAPER, INK);
+    } catch {
+      shared = null;
+    }
+  }
   if (!shared) return false;
   const { canvas, gl, tex } = shared;
   const max = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
@@ -105,5 +137,17 @@ export function drawDark(src: HTMLCanvasElement, out: HTMLCanvasElement): boolea
   const ctx = out.getContext("2d");
   if (!ctx) return false;
   ctx.drawImage(canvas, 0, 0);
+  if (!verified) {
+    const before = lightRange(src);
+    const after = lightRange(out);
+    if (before && after && before.min < 0.5) {
+      if (after.max < 0.5) {
+        console.warn("Afisa Ugani: GPU dark mode drew an empty page on this computer; using the CSS filter instead.");
+        shared = null;
+        return false;
+      }
+      verified = true;
+    }
+  }
   return true;
 }

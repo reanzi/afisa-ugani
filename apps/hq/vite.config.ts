@@ -1,8 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { pdfjsAssets } from "./vite-pdfjs-assets";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), pdfjsAssets()],
   build: {
     rolldownOptions: {
       output: {

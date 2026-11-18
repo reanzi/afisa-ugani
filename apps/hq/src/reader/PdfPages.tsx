@@ -21,7 +21,10 @@ function PdfPage({ doc, index, size, width, dark }: { doc: PDFDocumentProxy; ind
   const raw = useRef<{ canvas: HTMLCanvasElement; width: number } | null>(null);
   const [near, setNear] = useState(false);
   const [cssDark, setCssDark] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const height = Math.round((width * size.height) / size.width);
+  // Render in steps of 160 px so small resizes (a scroll bar appearing) do not restart rendering.
+  const renderWidth = Math.ceil(width / 160) * 160;
 
   useEffect(() => {
     const el = holder.current;
@@ -37,24 +40,28 @@ function PdfPage({ doc, index, size, width, dark }: { doc: PDFDocumentProxy; ind
     let task: { cancel: () => void } | null = null;
     void (async () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-      const target = Math.round(width * dpr);
+      const target = Math.round(renderWidth * dpr);
       // Render again only when the size changes; a theme change reuses the render.
       if (!raw.current || raw.current.width !== target) {
-        const page = await doc.getPage(index + 1);
-        if (cancelled) return;
-        const viewport = page.getViewport({ scale: target / page.getViewport({ scale: 1 }).width });
         const canvas = document.createElement("canvas");
-        canvas.width = Math.round(viewport.width);
-        canvas.height = Math.round(viewport.height);
-        const render = page.render({ canvas, viewport, background: "rgb(255,255,255)" });
-        task = render;
         try {
+          const page = await doc.getPage(index + 1);
+          if (cancelled) return;
+          const viewport = page.getViewport({ scale: target / page.getViewport({ scale: 1 }).width });
+          canvas.width = Math.round(viewport.width);
+          canvas.height = Math.round(viewport.height);
+          const render = page.render({ canvas, viewport, background: "rgb(255,255,255)" });
+          task = render;
           await render.promise;
-        } catch {
-          return; // cancelled or failed: leave the placeholder
+        } catch (e) {
+          if (cancelled || (e instanceof Error && e.name === "RenderingCancelledException")) return;
+          console.error("Afisa Ugani: PDF page failed to render", e);
+          setFailed(e instanceof Error ? e.message : String(e));
+          return;
         }
         if (cancelled) return;
         raw.current = { canvas, width: target };
+        setFailed(null);
       }
       const out = shown.current;
       if (!out || !raw.current) return;
@@ -71,11 +78,16 @@ function PdfPage({ doc, index, size, width, dark }: { doc: PDFDocumentProxy; ind
       cancelled = true;
       task?.cancel();
     };
-  }, [near, width, dark, doc, index]);
+  }, [near, renderWidth, dark, doc, index]);
 
   return (
     <div ref={holder} className="sheet pdf-sheet" data-sheet={index} style={{ width, height }}>
       <canvas ref={shown} className={cssDark ? "css-dark" : undefined} style={{ width, height }} aria-label={`Ukurasa ${index + 1}`} />
+      {failed && (
+        <p className="pdf-failed" role="alert">
+          Ukurasa {index + 1} haukuweza kuonyeshwa / Page {index + 1} could not be shown: {failed}
+        </p>
+      )}
     </div>
   );
 }
@@ -89,7 +101,16 @@ export function PdfPages({ data, width, dark, onCount }: { data: ArrayBuffer; wi
   useEffect(() => {
     let alive = true;
     // pdf.js takes ownership of the buffer it is given: pass a copy.
-    const task = pdfjs.getDocument({ data: new Uint8Array(data.slice(0)) });
+    const base = `${import.meta.env.BASE_URL}pdfjs/`;
+    const task = pdfjs.getDocument({
+      data: new Uint8Array(data.slice(0)),
+      // Served by vite-pdfjs-assets.ts: fonts the PDF does not embed, CMaps, decoders, colour profiles.
+      standardFontDataUrl: `${base}standard_fonts/`,
+      cMapUrl: `${base}cmaps/`,
+      cMapPacked: true,
+      wasmUrl: `${base}wasm/`,
+      iccUrl: `${base}iccs/`,
+    });
     void task.promise
       .then(async (d) => {
         const all: PageSize[] = [];
