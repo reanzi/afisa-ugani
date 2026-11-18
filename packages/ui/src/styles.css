@@ -744,3 +744,38 @@ textarea {
     transition: none;
   }
 }
+
+/* Usage policy: long-form reading, comfortable line length. */
+.policy {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 68ch;
+}
+.policy-title {
+  margin: 0;
+  font-size: var(--t-title);
+  line-height: 1.2;
+}
+.policy-version {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+.policy-intro {
+  margin: 0;
+  font-size: var(--t-lead);
+}
+.policy section h2,
+.policy section h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--t-lead);
+}
+.policy ul {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: var(--space-2);
+}
+.policy li {
+  line-height: 1.55;
+}

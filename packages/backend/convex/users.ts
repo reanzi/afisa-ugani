@@ -5,7 +5,7 @@ import { components } from "./_generated/api";
 import { authedMutation, authedQuery } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
 import { vClientMeta } from "./lib/validators";
-import { cleanName, isFullName, isValidPhone, normalizePhone } from "@afisa/shared";
+import { cleanName, isFullName, isValidPhone, normalizePhone, POLICY_VERSION } from "@afisa/shared";
 
 /** The sign-in name, when it is a check number (accounts made before check numbers may use a phone or a word). */
 async function checkNumberOf(ctx: QueryCtx, userId: Id<"users">): Promise<string | null> {
@@ -92,6 +92,7 @@ export const me = authedQuery({
       name: user.name ?? null,
       phone: user.phone ?? null,
       checkNumber: user.checkNumber ?? (await checkNumberOf(ctx, user._id)),
+      policyVersion: user.policyVersion ?? null,
       ...(user.isRoot ? { isRoot: true as const } : {}),
       memberships: withCouncil,
     };
@@ -120,6 +121,26 @@ export const updateProfile = authedMutation({
       before,
       after: { name: clean, phone: tel },
       client,
+    });
+    return null;
+  },
+});
+
+/** Agree to the usage policy (once per version). Device time is kept for offline agreement. */
+export const acceptPolicy = authedMutation({
+  args: { version: v.string(), acceptedAt: v.number(), client: v.optional(vClientMeta) },
+  handler: async (ctx, { version, acceptedAt }) => {
+    const { user } = ctx.viewer;
+    if (version !== POLICY_VERSION) throw new Error("Toleo la sera si la sasa. Sasisha programu.");
+    if (user.policyVersion === version) return null;
+    const at = Math.min(acceptedAt, Date.now());
+    await ctx.db.patch(user._id, { policyVersion: version, policyAcceptedAt: at });
+    await writeAudit(ctx, ctx.viewer, {
+      action: "user.acceptPolicy",
+      entity: "users",
+      entityId: user._id,
+      after: { policyVersion: version },
+      occurredAt: at,
     });
     return null;
   },

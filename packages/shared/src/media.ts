@@ -82,3 +82,14 @@ export function fitWithin(width: number, height: number, max: number): { width: 
   const scale = Math.min(1, max / Math.max(width, height));
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
+
+/**
+ * Photos must be taken in the field, now: a file older than this (by the
+ * phone's own clock) came from the gallery, not the camera.
+ */
+export const PHOTO_MAX_AGE_MS = 10 * 60 * 1000;
+
+/** True when a picked file is fresh from the camera. */
+export function isFreshPhoto(lastModified: number, now = Date.now()): boolean {
+  return Number.isFinite(lastModified) && lastModified > 0 && now - lastModified <= PHOTO_MAX_AGE_MS && lastModified <= now + 60_000;
+}

@@ -4,7 +4,7 @@ import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
 import { isHqRole, ROLE_LABELS, type Actor } from "@afisa/shared";
-import { ConfirmProvider, IconLogout, Select, useLabel, useT, useTheme, type T } from "@afisa/ui";
+import { ConfirmProvider, PolicyView, Select, useLabel, useT, useTheme, type T } from "@afisa/ui";
 import { HqContext, useHq, type Me } from "./context";
 import { Requests } from "./pages/Requests";
 import { Members } from "./pages/Members";
@@ -14,10 +14,13 @@ import { Councils } from "./pages/Councils";
 import { Reports } from "./pages/Reports";
 import { Settings } from "./pages/Settings";
 import { JoinWithCode, NoAccess, SignIn, Waiting } from "./auth";
-import { LangSwitch } from "./LangSwitch";
+import { AccountMenu } from "./AccountMenu";
+import { AccountPage } from "./pages/Account";
 import { NAV_ICONS } from "./navIcons";
 
-const TABS = ["maombi", "ripoti", "wanachama", "maeneo", "kumbukumbu", "mipangilio", "halmashauri"] as const;
+const TABS = ["maombi", "ripoti", "wanachama", "maeneo", "kumbukumbu", "mipangilio", "halmashauri", "akaunti", "sera"] as const;
+/** Pages in the side menu; "akaunti" and "sera" open from the account menu. */
+const NAV = ["maombi", "ripoti", "wanachama", "maeneo", "kumbukumbu", "mipangilio", "halmashauri"] as const;
 type Tab = (typeof TABS)[number];
 const tabLabel = (t: T, tab: Tab): string =>
   ({
@@ -28,32 +31,9 @@ const tabLabel = (t: T, tab: Tab): string =>
     kumbukumbu: t("Kumbukumbu", "Activity log"),
     mipangilio: t("Mipangilio", "Settings"),
     halmashauri: t("Halmashauri", "Councils"),
+    akaunti: t("Akaunti yangu", "My account"),
+    sera: t("Sera ya matumizi", "Usage policy"),
   })[tab];
-
-function initials(name: string | null): string {
-  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1]![0] : "")).toUpperCase() || "?";
-}
-
-/** Who is signed in, with language and sign-out, at the foot of the side menu. */
-function Account({ name, roleText, onSignOut }: { name: string | null; roleText: string; onSignOut: () => void }) {
-  const t = useT();
-  return (
-    <div className="hq-account">
-      <LangSwitch />
-      <div className="hq-who">
-        <span className="avatar" aria-hidden>{initials(name)}</span>
-        <span className="hq-who-text">
-          <strong>{name ?? "—"}</strong>
-          <span>{roleText}</span>
-        </span>
-        <button type="button" className="icon-btn" onClick={onSignOut} aria-label={t("Toka", "Sign out")} title={t("Toka", "Sign out")}>
-          <IconLogout />
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function hqCouncils(me: Me, rootCouncils: { _id: Id<"councils">; name: string }[] | undefined) {
   const isRoot = "isRoot" in me;
@@ -105,11 +85,22 @@ function Main() {
             <div><strong>Afisa Ugani</strong><span className="muted">{t("Msimamizi wa mfumo", "System administrator")}</span></div>
           </div>
           <nav className="hq-nav" aria-label={t("Kuu", "Main")}>
-            <button aria-current="page">{NAV_ICONS.halmashauri}<span>{tabLabel(t, "halmashauri")}</span></button>
+            <button aria-current={tab !== "akaunti" && tab !== "sera" ? "page" : undefined} onClick={() => void setTab("halmashauri")}>
+              {NAV_ICONS.halmashauri}<span>{tabLabel(t, "halmashauri")}</span>
+            </button>
           </nav>
-          <Account name={me.name} roleText={t("Msimamizi wa mfumo", "System administrator")} onSignOut={() => void signOut()} />
+          <AccountMenu
+            name={me.name}
+            roleText={t("Msimamizi wa mfumo", "System administrator")}
+            checkNumber={me.checkNumber}
+            onAccount={() => void setTab("akaunti")}
+            onPolicy={() => void setTab("sera")}
+            onSignOut={() => void signOut()}
+          />
         </aside>
-        <main className="hq-main"><Councils /></main>
+        <main className="hq-main">
+          {tab === "akaunti" ? <AccountPage me={me} /> : tab === "sera" ? <section className="hq-page"><PolicyView /></section> : <Councils />}
+        </main>
       </div>
     );
   }
@@ -146,7 +137,7 @@ function Main() {
             </div>
           </div>
           <nav className="hq-nav" aria-label={t("Kuu", "Main")}>
-            {TABS.filter((x) => x !== "halmashauri" || isRoot).map((x) => (
+            {NAV.filter((x) => x !== "halmashauri" || isRoot).map((x) => (
               <button key={x} aria-current={tab === x ? "page" : undefined} onClick={() => void setTab(x)}>
                 {NAV_ICONS[x]}
                 <span>{tabLabel(t, x)}</span>
@@ -154,9 +145,12 @@ function Main() {
               </button>
             ))}
           </nav>
-          <Account
+          <AccountMenu
             name={me.name}
             roleText={actor.isRoot ? t("Msimamizi wa mfumo", "System administrator") : actor.role ? label(ROLE_LABELS[actor.role]) : ""}
+            checkNumber={me.checkNumber}
+            onAccount={() => void setTab("akaunti")}
+            onPolicy={() => void setTab("sera")}
             onSignOut={() => void signOut()}
           />
         </aside>
@@ -168,6 +162,8 @@ function Main() {
           {tab === "kumbukumbu" && <Audit />}
           {tab === "mipangilio" && <Settings />}
           {tab === "halmashauri" && isRoot && <Councils />}
+          {tab === "akaunti" && <AccountPage me={me} />}
+          {tab === "sera" && <section className="hq-page"><PolicyView /></section>}
         </main>
       </div>
     </HqContext.Provider>

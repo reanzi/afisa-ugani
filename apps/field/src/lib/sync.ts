@@ -80,6 +80,14 @@ async function pushPending(councilId: string): Promise<{ updateRequired: boolean
   return { updateRequired };
 }
 
+/** An agreement to the usage policy made offline reaches the server here. */
+async function pushPolicy(): Promise<void> {
+  const local = await getMeta<{ version: string; at: number; sent?: boolean }>("policyAccepted");
+  if (!local || local.sent) return;
+  await convex.mutation(api.users.acceptPolicy, { version: local.version, acceptedAt: local.at, client: await clientMeta() });
+  await setMeta("policyAccepted", { ...local, sent: true });
+}
+
 /** Send queued reports. A report the server refuses is marked, never retried blindly. */
 async function pushSubmissions(councilId: string): Promise<void> {
   const queued = await db.submissions.where("[councilId+syncState]").equals([councilId, "pending"]).sortBy("clientSubmittedAt");
@@ -197,6 +205,7 @@ export function useSyncEngine(councilId: string, enabled: boolean): SyncReport &
       busy.current = true;
       setRunning(true);
       try {
+        await pushPolicy();
         const { updateRequired } = await pushPending(councilId);
         await pushSubmissions(councilId);
         // Photos are big and slow; a failed upload must not hold up records and reports.

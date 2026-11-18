@@ -13,6 +13,11 @@ import { UpdatePrompt } from "./screens/UpdatePrompt";
 import { Report } from "./screens/Report";
 import { Review } from "./screens/Review";
 import { FoodPrices } from "./screens/FoodPrices";
+import { POLICY_META, PolicyGate } from "./screens/PolicyGate";
+import { Policy } from "./screens/Policy";
+import { useLiveQuery } from "dexie-react-hooks";
+import { POLICY_VERSION } from "@afisa/shared";
+import { db } from "./lib/db";
 
 export function App() {
   return (
@@ -26,6 +31,8 @@ export function App() {
 function Main() {
   useTheme();
   const session = useSessionState();
+  // Agreed on this phone (maybe offline) but not yet recorded on the server.
+  const localPolicy = useLiveQuery(async () => (await db.meta.get(POLICY_META))?.value as { version: string } | undefined, [], null);
 
   if (session.kind === "loading") {
     return (
@@ -45,6 +52,11 @@ function Main() {
     return <Join rejectedNote={rejected?.decisionNote ?? null} defaultName={me.name} defaultPhone={me.phone} />;
   }
 
+  if (localPolicy === null) return null;
+  if (me.policyVersion !== POLICY_VERSION && localPolicy?.version !== POLICY_VERSION) {
+    return <PolicyGate onAccepted={() => undefined} />;
+  }
+
   return (
     <WorkProvider value={{ me, membership: active, councilId: active.councilId, fromCache }}>
       <Routes>
@@ -57,6 +69,7 @@ function Main() {
           <Route path="ripoti/majibu" element={<Review />} />
           <Route path="bei" element={<FoodPrices />} />
           <Route path="mimi" element={<Me />} />
+          <Route path="sera" element={<Policy />} />
           <Route path="*" element={<Today />} />
         </Route>
       </Routes>

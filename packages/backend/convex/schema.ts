@@ -24,6 +24,9 @@ export default defineSchema({
     phone: v.optional(v.string()),
     /** Public-service check number; it is also the sign-in name (copied from it at sign-in). */
     checkNumber: v.optional(v.string()),
+    /** The usage policy version this person agreed to, and when. */
+    policyVersion: v.optional(v.string()),
+    policyAcceptedAt: v.optional(v.number()),
     /** Global, hidden super-user. Never exposed to anyone but root. */
     isRoot: v.optional(v.boolean()),
     createdAt: v.number(),

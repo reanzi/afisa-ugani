@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitWithin, validateMediaMeta } from "./media.ts";
+import { fitWithin, isFreshPhoto, validateMediaMeta } from "./media.ts";
 
 describe("media", () => {
   it("fits photos inside the limit without enlarging", () => {
@@ -13,5 +13,11 @@ describe("media", () => {
     expect(validateMediaMeta({ ...ok, width: 4000 })).toBe("BAD_SIZE:width");
     expect(validateMediaMeta({ ...ok, bytes: 5_000_000 })).toBe("TOO_LARGE");
     expect(validateMediaMeta({ ...ok, shot: "selfie" as never })).toBe("BAD_SHOT");
+  });
+  it("accepts only photos just taken", () => {
+    const now = 1_800_000_000_000;
+    expect(isFreshPhoto(now - 30_000, now)).toBe(true);
+    expect(isFreshPhoto(now - 3 * 3600_000, now)).toBe(false);
+    expect(isFreshPhoto(0, now)).toBe(false);
   });
 });

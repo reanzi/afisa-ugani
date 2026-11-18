@@ -1,13 +1,14 @@
 /**
- * Photos in a record form. New photos are shrunk right away and held here
+ * Photos in a record form, taken now with the camera (never from the gallery).
+ * New photos are shrunk right away and held here
  * until the record is saved; photos already saved can be viewed or removed.
  * Tapping a photo opens it large, with its kind (whole / close-up) and a
  * caption.
  */
 import { useRef, useState } from "react";
 import { v7 as uuidv7 } from "uuid";
-import { MEDIA_PER_RECORD, PHOTO_SHOTS, type PhotoShot } from "@afisa/shared";
-import { Dialog, IconCamera, IconCheck, IconImage, IconTrash } from "@afisa/ui";
+import { isFreshPhoto, MEDIA_PER_RECORD, PHOTO_SHOTS, type PhotoShot } from "@afisa/shared";
+import { Dialog, IconCamera, IconCheck, IconTrash } from "@afisa/ui";
 import type { LocalMedia } from "../lib/db";
 import { nextShot, shrinkPhoto, usePhotoSrc, type PhotoDraft } from "../lib/photos";
 
@@ -130,7 +131,6 @@ export function PhotoField({
   error?: string | null;
 }) {
   const camera = useRef<HTMLInputElement>(null);
-  const gallery = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
@@ -149,12 +149,19 @@ export function PhotoField({
     setBusy(true);
     const next = [...drafts];
     try {
+      let old = 0;
       for (const f of [...files].slice(0, Math.max(0, left))) {
         if (!f.type.startsWith("image/")) continue;
+        // Field photos only: a file that is not fresh from the camera came from the gallery.
+        if (!isFreshPhoto(f.lastModified)) {
+          old++;
+          continue;
+        }
         const shrunk = await shrinkPhoto(f);
-        next.push({ ...shrunk, clientId: uuidv7(), shot: nextShot(saved.length + next.length), takenAt: f.lastModified || Date.now() });
+        next.push({ ...shrunk, clientId: uuidv7(), shot: nextShot(saved.length + next.length), takenAt: f.lastModified });
       }
-      if (files.length > left) setProblem(`Picha ${MEDIA_PER_RECORD} tu kwa kumbukumbu moja.`);
+      if (old > 0) setProblem("Picha hii si mpya. Piga picha sasa hapa shambani kwa kamera; picha za zamani kwenye simu hazikubaliwi.");
+      else if (files.length > left) setProblem(`Picha ${MEDIA_PER_RECORD} tu kwa kumbukumbu moja.`);
       onDrafts(next);
     } catch {
       setProblem("Picha hii haikuweza kufunguliwa. Jaribu nyingine.");
@@ -162,7 +169,6 @@ export function PhotoField({
     } finally {
       setBusy(false);
       if (camera.current) camera.current.value = "";
-      if (gallery.current) gallery.current.value = "";
     }
   };
 
@@ -200,19 +206,17 @@ export function PhotoField({
 
       {left > 0 && (
         <div className="photo-actions">
-          <button type="button" className="btn btn-quiet btn-with-icon" disabled={busy} onClick={() => camera.current?.click()}>
-            <IconCamera /> {busy ? "Inaandaa…" : "Piga picha"}
-          </button>
-          <button type="button" className="btn btn-quiet btn-with-icon" disabled={busy} onClick={() => gallery.current?.click()}>
-            <IconImage /> Chagua picha
+          <button type="button" className="btn btn-quiet btn-block btn-with-icon" disabled={busy} onClick={() => camera.current?.click()}>
+            <IconCamera /> {busy ? "Inaandaa…" : items.length === 0 ? "Piga picha" : "Piga picha nyingine"}
           </button>
           <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void add(e.target.files)} />
-          <input ref={gallery} type="file" accept="image/*" multiple hidden onChange={(e) => void add(e.target.files)} />
         </div>
       )}
 
       {(problem || error) && <p className="field-error" role="alert">{problem ?? error}</p>}
-      {items.length === 0 && !required && <p className="muted small">Picha husaidia kutambua wadudu na magonjwa. Epuka nyuso za watu na vitambulisho.</p>}
+      {items.length === 0 && (
+        <p className="muted small">Picha za shambani tu, zinazopigwa sasa. Epuka nyuso za watu na vitambulisho.</p>
+      )}
 
       <Viewer
         item={openItem}

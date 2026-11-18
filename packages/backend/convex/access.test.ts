@@ -591,3 +591,15 @@ describe("photos", () => {
     expect(pulled.media.every((m) => m.deletedAt !== null)).toBe(true);
   });
 });
+
+describe("usage policy", () => {
+  it("an officer agrees once to the current version; old versions are refused", async () => {
+    const { t, councilId } = await world();
+    const { user } = await join(t, "afisa_sera", councilId, "kilimo");
+    expect((await user.query(api.users.me, {})).policyVersion).toBeNull();
+    await expect(user.mutation(api.users.acceptPolicy, { version: "2020-01", acceptedAt: Date.now(), client })).rejects.toThrow(/Toleo/);
+    const { POLICY_VERSION } = await import("@afisa/shared");
+    await user.mutation(api.users.acceptPolicy, { version: POLICY_VERSION, acceptedAt: Date.now() - 60_000, client });
+    expect((await user.query(api.users.me, {})).policyVersion).toBe(POLICY_VERSION);
+  });
+});

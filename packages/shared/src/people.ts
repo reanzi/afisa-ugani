@@ -46,3 +46,37 @@ export function registrationProblems(f: { name: string; phone: string; checkNumb
   if (f.password.length < 8) out.push("password");
   return out;
 }
+
+/** "ASHA juma MRISHO" → "Asha Juma Mrisho"; a capital after spaces and hyphens, not after the apostrophe in "Ng’wanakilala". */
+export function titleCaseName(raw: string): string {
+  return cleanName(raw)
+    .toLocaleLowerCase("sw")
+    .replace(/(^|[\s-])(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toLocaleUpperCase("sw"));
+}
+
+/**
+ * A name that fits on one line: title case, and when it is long, middle names
+ * become initials ("Asha Juma Mrisho Mohamed" → "Asha J. M. Mohamed"), then
+ * only the first and last names remain. Whatever is still too long is cut by
+ * the screen (ellipsis), with the full name in a tooltip.
+ */
+export function displayName(raw: string | null | undefined, max = 22): string {
+  if (!raw?.trim()) return "";
+  const full = titleCaseName(raw);
+  if (full.length <= max) return full;
+  const parts = full.split(" ");
+  if (parts.length <= 2) return full;
+  const first = parts[0]!;
+  const last = parts[parts.length - 1]!;
+  const initials = `${first} ${parts.slice(1, -1).map((p) => `${p[0]}.`).join(" ")} ${last}`;
+  return initials.length <= max ? initials : `${first} ${last}`;
+}
+
+/** Up to two letters for an avatar: first and last name. */
+export function initialsOf(raw: string | null | undefined): string {
+  const parts = (raw ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  const a = parts[0]![0] ?? "";
+  const b = parts.length > 1 ? (parts[parts.length - 1]![0] ?? "") : "";
+  return (a + b).toLocaleUpperCase("sw");
+}

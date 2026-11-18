@@ -52,7 +52,7 @@ fieldset.plain legend {
 .hq {
   min-height: 100dvh;
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 280px 1fr;
 }
 .hq-side {
   position: sticky;
@@ -126,42 +126,213 @@ fieldset.plain legend {
 .hq-account {
   position: sticky;
   bottom: 0;
-  display: grid;
-  gap: var(--space-3);
-  margin: 0 calc(-1 * var(--space-4));
-  padding: var(--space-3) var(--space-4) var(--space-4);
+  margin: auto calc(-1 * var(--space-4)) 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
   background: var(--surface);
   border-top: 1px solid var(--rule);
-}
-.hq-who {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: var(--space-3);
 }
 .avatar {
   display: grid;
   place-items: center;
   width: 40px;
   height: 40px;
+  flex: none;
   border-radius: 50%;
   background: var(--maize);
   color: var(--on-maize);
   font-weight: 700;
   letter-spacing: 0.02em;
 }
-.hq-who-text {
+
+/* The account button: avatar, then name and role, each on one line. */
+.acct-trigger {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 60px;
+  padding: var(--space-2);
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.acct-trigger:hover,
+.acct-trigger[aria-expanded="true"] {
+  background: var(--surface-sunk);
+}
+.acct-text {
   display: grid;
   min-width: 0;
-  line-height: 1.3;
+  line-height: 1.25;
 }
-.hq-who-text strong,
-.hq-who-text span {
+.acct-name,
+.acct-role {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acct-name {
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+.acct-role {
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.acct-chevron {
+  color: var(--ink-soft);
+  transition: transform 0.15s;
+}
+.acct-trigger[aria-expanded="false"] .acct-chevron {
+  transform: rotate(180deg);
+}
+
+/* The menu opens upwards from the button. */
+.acct-panel {
+  position: fixed;
+  z-index: 40;
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
+}
+.acct-head {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--space-1);
+}
+.acct-head strong {
   overflow-wrap: anywhere;
 }
-.hq-who-text span {
+.acct-head span {
   font-size: var(--t-small);
+}
+.acct-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.acct-item:hover {
+  background: var(--surface-sunk);
+}
+.acct-item.is-danger {
+  color: var(--danger);
+  border-top: 1px solid var(--rule);
+  border-radius: 0 0 8px 8px;
+  margin-top: var(--space-1);
+}
+.acct-group {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+}
+.acct-label {
+  font-size: var(--t-small);
+  font-weight: 700;
   color: var(--ink-soft);
+}
+.acct-seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-sunk);
+}
+.acct-seg button {
+  min-height: 36px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: 700;
+  cursor: pointer;
+}
+.acct-seg button[aria-pressed="true"] {
+  background: var(--surface);
+  box-shadow: var(--shadow-lift);
+}
+@media (prefers-reduced-motion: reduce) {
+  .acct-chevron {
+    transition: none;
+  }
+}
+
+/* My account page */
+.facts {
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.facts div {
+  display: grid;
+  grid-template-columns: minmax(10em, 14em) 1fr;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--rule);
+}
+.facts dt {
+  color: var(--ink-soft);
+}
+.facts dd {
+  margin: 0;
+  font-weight: 700;
+}
+.account-facts {
+  max-width: 760px;
+}
+.account-forms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-5);
+  max-width: 980px;
+  align-items: start;
+}
+.card-form {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.card-form h2 {
+  margin: 0;
+  font-size: var(--t-lead);
+}
+.card-form .btn {
+  justify-self: start;
+}
+.form-ok {
+  margin: 0;
+  color: var(--ok);
+  font-weight: 700;
 }
 .lang-switch {
   display: inline-flex;
@@ -208,7 +379,8 @@ fieldset.plain legend {
     border-bottom: 2px solid var(--rule);
   }
   .hq-account {
-    position: static;
+    position: relative;
+    margin-top: 0;
   }
 }
 .hq-main {

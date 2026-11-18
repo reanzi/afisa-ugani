@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ROLE_LABELS, SECTION_LABELS } from "@afisa/shared";
@@ -109,7 +110,8 @@ export function Me() {
       </fieldset>
 
       <p className="privacy-note">
-        Kumbukumbu unazoandika ni zako. Makao makuu huona ripoti unazoamua kutuma tu, si kumbukumbu zenyewe.
+        Kumbukumbu unazoandika ni zako. Makao makuu huona ripoti unazoamua kutuma tu, si kumbukumbu zenyewe.{" "}
+        <Link to="/sera" className="link">Soma sera ya matumizi</Link>
       </p>
 
       <section className="stack">

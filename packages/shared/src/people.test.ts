@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isFullName, isValidCheckNumber, isValidPhone, normalizeCheckNumber, normalizePhone, registrationProblems } from "./people.ts";
+import { displayName, initialsOf, isFullName, isValidCheckNumber, isValidPhone, normalizeCheckNumber, normalizePhone, registrationProblems, titleCaseName } from "./people.ts";
 
 describe("people", () => {
   it("normalises and checks phone numbers", () => {
@@ -21,5 +21,23 @@ describe("people", () => {
   it("lists every problem at once", () => {
     expect(registrationProblems({ name: "Neema", phone: "07", checkNumber: "x", password: "short" })).toEqual(["name", "phone", "checkNumber", "password"]);
     expect(registrationProblems({ name: "Neema Mwakalinga", phone: "0712345678", checkNumber: "111234567", password: "mvua-ya-vuli" })).toEqual([]);
+  });
+});
+
+describe("names on one line", () => {
+  it("title-cases names typed in capitals or small letters", () => {
+    expect(titleCaseName("ASHA juma  MRISHO")).toBe("Asha Juma Mrisho");
+    expect(titleCaseName("mary-anne ng’wanakilala")).toBe("Mary-Anne Ng’wanakilala");
+  });
+  it("shortens long names: initials for middle names, then first and last", () => {
+    expect(displayName("Asha Juma Mrisho")).toBe("Asha Juma Mrisho");
+    expect(displayName("Asha Juma Mrisho Mohamedali")).toBe("Asha J. M. Mohamedali");
+    expect(displayName("Bartholomew Emmanuel Josephat Mwakalinga", 22)).toBe("Bartholomew Mwakalinga");
+    expect(displayName(null)).toBe("");
+  });
+  it("makes avatar initials from the first and last names", () => {
+    expect(initialsOf("Asha Juma Mrisho")).toBe("AM");
+    expect(initialsOf("neema")).toBe("N");
+    expect(initialsOf("")).toBe("?");
   });
 });

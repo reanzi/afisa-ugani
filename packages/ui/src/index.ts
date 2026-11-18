@@ -9,3 +9,4 @@ export * from "./icons.tsx";
 export * from "./Dialog.tsx";
 export * from "./PasswordInput.tsx";
 export * from "./AuthForm.tsx";
+export * from "./PolicyView.tsx";
