@@ -68,6 +68,10 @@ export type MonthlyInput = {
   phone?: string | null;
   /** Village/ward name by area id, for visitor and outbreak details. */
   areaName?: (id: string) => string | undefined;
+  /** Approved crop yields (tani/ha) by crop: fill yields and compute harvests the officer left empty. */
+  yields?: Record<string, number>;
+  /** Approved kilimo plan for the month's financial year: the July targets (2.1a). */
+  plan?: { crops?: Record<string, { area: number }> } | null;
 };
 
 // ---------- helpers ----------
@@ -156,7 +160,7 @@ export function buildMonthlyReport(input: MonthlyInput): Report {
     },
     parts: [
       partIntroduction(month, records, review),
-      partCrops(month, records, review),
+      partCrops(month, records, review, input.yields ?? {}, input.plan ?? null),
       partPlantHealth(records),
       partSlaughter(records),
       partMeatInspection(records),
@@ -253,9 +257,23 @@ export function describeWork(records: readonly ReportRecord[]): string {
 }
 
 // 2. Malengo, utekelezaji na bei za mazao
-function partCrops(month: string, records: ReportRecord[], review: MonthlyReview | null): ReportPart {
+function partCrops(
+  month: string,
+  records: ReportRecord[],
+  review: MonthlyReview | null,
+  yields: Record<string, number>,
+  plan: { crops?: Record<string, { area: number }> } | null,
+): ReportPart {
   const isJuly = parseMonth(month).month === 7;
-  const targets = review?.targets ?? {};
+  // July targets: the officer's own answers first, else the approved plan with approved yields.
+  const targets: Record<string, CropTarget> = { ...(review?.targets ?? {}) };
+  for (const [crop, p] of Object.entries(plan?.crops ?? {})) {
+    const t = targets[crop] ?? {};
+    targets[crop] = { area: has(t.area) ? t.area : p.area, yield: has(t.yield) ? t.yield : (yields[crop] ?? null) };
+  }
+  for (const [crop, t] of Object.entries(targets)) {
+    if (!has(t.yield) && has(yields[crop])) targets[crop] = { ...t, yield: yields[crop] };
+  }
   const estimates = review?.crops ?? {};
   const forecast = review?.forecast ?? {};
 
@@ -277,14 +295,16 @@ function partCrops(month: string, records: ReportRecord[], review: MonthlyReview
   const implRows: Cell[][] = CROPS.map((c) => {
     const e = estimates[c.value] ?? {};
     const harvested = num(e.harvested);
-    const yld = num(e.yield);
+    // The officer's measured yield wins; otherwise the approved yield for the crop.
+    const yld = has(e.yield) ? num(e.yield) : num(yields[c.value]);
     const harvest = has(e.harvest) ? num(e.harvest) : round(harvested * yld);
     return [c.label, num(e.planted), harvested, yld, harvest, marketPrice(c.value) ?? 0, str(e.remarks)];
   });
 
   const forecastRows: Cell[][] = CROPS.map((c) => {
     const f = forecast[c.value] ?? {};
-    return [c.label, num(f.area), num(f.harvest)];
+    const harvest = has(f.harvest) ? num(f.harvest) : round(num(f.area) * num(yields[c.value]));
+    return [c.label, num(f.area), harvest];
   });
 
   return {

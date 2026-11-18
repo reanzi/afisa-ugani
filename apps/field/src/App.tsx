@@ -15,6 +15,7 @@ import { Review } from "./screens/Review";
 import { FoodPrices } from "./screens/FoodPrices";
 import { POLICY_META, PolicyGate } from "./screens/PolicyGate";
 import { Policy } from "./screens/Policy";
+import { Plan } from "./screens/Plan";
 import { useLiveQuery } from "dexie-react-hooks";
 import { POLICY_VERSION } from "@afisa/shared";
 import { db } from "./lib/db";
@@ -70,6 +71,7 @@ function Main() {
           <Route path="bei" element={<FoodPrices />} />
           <Route path="mimi" element={<Me />} />
           <Route path="sera" element={<Policy />} />
+          <Route path="malengo" element={<Plan />} />
           <Route path="*" element={<Today />} />
         </Route>
       </Routes>

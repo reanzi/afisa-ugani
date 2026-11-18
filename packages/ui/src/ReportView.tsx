@@ -72,7 +72,7 @@ export function ReportView({ report }: { report: Report }) {
         return (
           <details key={part.id} className="rv-part" open={filled}>
             <summary>
-              <span className="rv-part-title">{part.number}. {part.title}</span>
+              <span className="rv-part-title">{part.number ? `${part.number}. ` : ""}{part.title}</span>
               <span className={filled ? "rv-state tone-ok" : "rv-state"}>{filled ? "Ina taarifa" : "Hakuna taarifa"}</span>
             </summary>
             {part.blocks.map((b) => <BlockView key={b.id} block={b} />)}

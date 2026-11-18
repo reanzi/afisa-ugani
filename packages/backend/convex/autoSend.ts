@@ -14,6 +14,7 @@ import { v } from "convex/values";
 import {
   buildMonthlyReport,
   compileFoodPrices,
+  financialYear,
   COUNCIL_UTC_OFFSET_MINUTES,
   foodCycle,
   monthKey,
@@ -24,6 +25,7 @@ import {
   type MonthlyReview,
 } from "@afisa/shared";
 import { internal } from "./_generated/api";
+import { approvedPresetsOf } from "./presets";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { areaLabelOf, findSubmission, insertSubmission } from "./submissions";
@@ -147,8 +149,12 @@ export const monthlyForOfficer = internalMutation({
     }
     const { who, phone, areaLabel } = await owner(ctx, m);
     const council = await ctx.db.get(m.councilId);
+    // The officer's approved yields and plan fill the crop tables, as on the phone.
+    const approved = await approvedPresetsOf(ctx, m.userId, m.councilId, financialYear(period));
     const report = buildMonthlyReport({
       month: period,
+      yields: approved.yields,
+      plan: approved.plans.kilimo ?? null,
       records,
       review: (reviewRec?.payload as MonthlyReview | undefined) ?? null,
       areaLabel: areaLabel || council?.name || "",

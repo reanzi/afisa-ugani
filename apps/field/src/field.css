@@ -1620,3 +1620,186 @@ fieldset.plain legend {
   flex: none;
   accent-color: var(--ok);
 }
+
+/* ---------- Production plan, presets and performance ---------- */
+.report-kinds.segmented {
+  grid-template-columns: repeat(3, 1fr);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.preset-ask {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--maize-press);
+  border-left-width: 6px;
+  border-radius: 10px;
+  background: var(--surface);
+}
+.preset-ask.tone-ok {
+  border-color: var(--ok);
+}
+.preset-ask.tone-wait {
+  border-color: var(--wait);
+}
+.preset-ask.tone-danger {
+  border-color: var(--danger);
+}
+.preset-ask-head {
+  display: grid;
+  gap: 2px;
+}
+.preset-ask-head strong {
+  font-size: var(--t-lead);
+}
+.preset-ask-head span {
+  color: var(--ink-soft);
+}
+.preset-status {
+  margin: 0;
+  font-weight: 700;
+}
+.preset-ask.tone-ok .preset-status {
+  color: var(--ok);
+}
+.preset-ask.tone-wait .preset-status {
+  color: var(--wait);
+}
+.preset-ask.tone-danger .preset-status {
+  color: var(--danger);
+}
+.preset-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2);
+  align-items: end;
+}
+.preset-form .btn {
+  min-height: var(--tap);
+}
+.plan-status {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: 8px;
+  background: var(--surface-sunk);
+  font-weight: 700;
+}
+.plan-status.tone-ok {
+  background: var(--ok-ground);
+  color: var(--ok);
+}
+.plan-status.tone-wait {
+  background: var(--wait-ground);
+  color: var(--wait);
+}
+.plan-status.tone-danger {
+  background: var(--danger-ground, var(--wait-ground));
+  color: var(--danger);
+}
+.plan-crop {
+  display: grid;
+  gap: var(--space-3);
+}
+.plan-total {
+  margin: 0;
+  font-size: var(--t-lead);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.plan-banner {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: 10px;
+  background: var(--wait-ground);
+}
+.plan-banner p {
+  margin: 0;
+}
+.plan-banner .btn {
+  justify-self: start;
+}
+.plan-link {
+  justify-self: start;
+  font-weight: 700;
+}
+.period-pick {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface-sunk);
+}
+.period-pick button {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  font-size: var(--t-small);
+  cursor: pointer;
+}
+.period-pick button[aria-selected="true"] {
+  background: var(--surface);
+  box-shadow: var(--shadow-lift);
+}
+
+/* Performance at a glance: one bar per crop or target. */
+.progress-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.progress-list li {
+  display: grid;
+  gap: 6px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.progress-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.progress-pct {
+  font-size: var(--t-lead);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.progress-track {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-sunk);
+  overflow: hidden;
+}
+.progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: var(--maize-press);
+}
+.progress-fill.is-done {
+  background: var(--ok);
+}
+.progress-fill.is-low {
+  background: var(--wait);
+}
+.progress-detail {
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}

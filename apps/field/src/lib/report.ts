@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { v5 as uuidv5 } from "uuid";
-import { buildMonthlyReport, monthRange, type MonthlyReview, type Report } from "@afisa/shared";
+import { buildMonthlyReport, financialYear, monthRange, type MonthlyReview, type Report } from "@afisa/shared";
+import { useApproved } from "./presets";
 import { db, type LocalRecord } from "./db";
 import { useWork } from "./session";
 import { useMyAreas } from "./areas";
@@ -41,7 +42,8 @@ export function useAreaLabel(): string {
 }
 
 export function useMonthlyReport(month: string): { report: Report | undefined; review: MonthlyReview | null } {
-  const { me } = useWork();
+  const { me, councilId } = useWork();
+  const approved = useApproved(councilId);
   const { byId } = useMyAreas();
   const records = useMonthRecords(month);
   const reviewRec = useReviewRecord(month);
@@ -49,9 +51,11 @@ export function useMonthlyReport(month: string): { report: Report | undefined; r
   const review = (reviewRec && !reviewRec.deletedAt ? (reviewRec.payload as MonthlyReview) : null) ?? null;
 
   const report = useMemo(() => {
-    if (!records) return undefined;
+    if (!records || !approved) return undefined;
     return buildMonthlyReport({
       month,
+      yields: approved.yields,
+      plan: approved.plans[financialYear(month)]?.kilimo ?? null,
       records,
       review,
       areaLabel,
@@ -59,7 +63,7 @@ export function useMonthlyReport(month: string): { report: Report | undefined; r
       phone: me.phone,
       areaName: (id) => byId.get(id)?.name,
     });
-  }, [records, review, month, areaLabel, me.name, me.phone, byId]);
+  }, [records, review, month, areaLabel, me.name, me.phone, byId, approved]);
 
   return { report, review };
 }

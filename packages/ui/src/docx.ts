@@ -146,7 +146,7 @@ function headerFields(report: Report): Table {
     columnWidths: [third, third, third],
     rows: [
       new TableRow({ children: [f("Jina la Kijiji/ Mtaa/ Kata", h.areaLabel), f("Jina la Afisa Ugani", h.officerName), f("Namba ya simu", h.phone)] }),
-      new TableRow({ children: [f("Mwezi", h.monthLabel), f("Mwaka wa Fedha", h.financialYear), f("Tarehe ya kuwasilisha", "")] }),
+      new TableRow({ children: [f(h.periodName ?? "Mwezi", h.monthLabel), f("Mwaka wa Fedha", h.financialYear), f("Tarehe ya kuwasilisha", "")] }),
     ],
   });
 }
@@ -175,13 +175,13 @@ export async function reportToDocx(report: Report): Promise<Blob> {
   const children: (Paragraph | Table)[] = [
     para(h.ministry, { bold: true, align: AlignmentType.CENTER, size: 22, after: 40 }),
     para(h.title, { bold: true, align: AlignmentType.CENTER, size: 22, after: 40 }),
-    para(h.edition, { align: AlignmentType.RIGHT, size: SMALL, after: 120 }),
+    para(h.edition || " ", { align: AlignmentType.RIGHT, size: SMALL, after: 120 }),
     headerFields(report),
     para(`(${h.submitNote})`, { italics: true, size: SMALL, before: 120, after: 120 }),
-    instructions(report),
+    ...(h.instructions.length ? [instructions(report)] : []),
   ];
   for (const part of report.parts) {
-    children.push(para(`${part.number}. ${part.title}`, { bold: true, size: 22, before: 280, after: 80, keepNext: true }));
+    children.push(para(part.number ? `${part.number}. ${part.title}` : part.title, { bold: true, size: 22, before: 280, after: 80, keepNext: true }));
     for (const block of part.blocks) children.push(...renderBlock(block));
   }
 
@@ -215,5 +215,10 @@ export function reportFileName(report: Report): string {
     .replace(/[^A-Za-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 40);
+  if (report.kind === "performance") {
+    const period = report.header.monthLabel.match(/Robo ya (\d)/)?.[1];
+    const fy = report.header.financialYear.replace("/", "-");
+    return `Utekelezaji-${fy}${period ? `-Robo-${period}` : "-Mwaka"}${area ? `-${area}` : ""}.docx`;
+  }
   return `Ripoti-ya-mwezi-${report.month}${area ? `-${area}` : ""}.docx`;
 }

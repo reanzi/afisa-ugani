@@ -8,6 +8,12 @@ const Svg = ({ children }: { children: ReactNode }) => (
 );
 
 export const NAV_ICONS = {
+  viwango: (
+    <Svg>
+      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+      <path d="m14 8 2-2 2 2" />
+    </Svg>
+  ),
   maombi: (
     <Svg>
       <path d="M4 13.5 6.5 5h11l2.5 8.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" />

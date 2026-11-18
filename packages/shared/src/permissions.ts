@@ -202,3 +202,11 @@ export function canReopenReport(actor: Actor, reportSection: Section): boolean {
   if (!isActive(actor)) return false;
   return authoritySections(actor).includes(reportSection);
 }
+
+/**
+ * Approve or reject an officer's presets and production plan for a section:
+ * the same people who may send that section's reports back.
+ */
+export function canApprovePreset(actor: Actor, section: Section): boolean {
+  return canReopenReport(actor, section);
+}

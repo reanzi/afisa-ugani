@@ -59,13 +59,16 @@ export type ReportHeader = {
   officerName: string;
   phone: string;
   monthLabel: string;
+  /** What the period line is called: "Mwezi" on the monthly form, "Kipindi" elsewhere. */
+  periodName?: string;
   financialYear: string;
   submitNote: string;
   instructions: string[];
 };
 
 export type Report = {
-  kind: "monthly";
+  /** "monthly": the ARDS form; "performance": plan against results for a quarter or year. */
+  kind: "monthly" | "performance";
   formVersion: "2018-07";
   month: string;
   header: ReportHeader;

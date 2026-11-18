@@ -189,6 +189,34 @@ export default defineSchema({
     .index("by_record", ["recordClientId"])
     .index("by_owner_council_updated", ["ownerId", "councilId", "updatedAt"]),
 
+  /**
+   * An officer's presets (e.g. "tija:mahindi" = 2.5 tani/ha) and yearly plans
+   * ("mpango:2026/27:kilimo"). One row per officer, council and key. A change
+   * waits for approval; until then the last approved value stays in use.
+   */
+  presets: defineTable({
+    councilId: v.id("councils"),
+    ownerId: v.id("users"),
+    key: v.string(),
+    section: vSection,
+    /** The latest proposal (number or plan). */
+    value: v.any(),
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+    /** The value in use; absent until the first approval. */
+    approvedValue: v.optional(v.any()),
+    approvedAt: v.optional(v.number()),
+    approvedByName: v.optional(v.string()),
+    /** Reason given when the latest proposal was rejected. */
+    note: v.optional(v.string()),
+    /** Client id of the latest proposal: repeats of it are ignored. */
+    clientId: v.string(),
+    proposedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_owner_council_key", ["ownerId", "councilId", "key"])
+    .index("by_council_status", ["councilId", "status"])
+    .index("by_council_key", ["councilId", "key"]),
+
   /** Append-only. No function patches or deletes these rows. */
   auditLog: defineTable({
     councilId: v.optional(v.id("councils")),

@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   CROPS,
+  financialYear,
   PAYLOAD_VERSION,
+  presetDef,
+  yieldKey,
   RAIN_LEVELS,
   daysInMonth,
   describeWork,
@@ -20,6 +23,8 @@ import { db } from "../lib/db";
 import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
 import { reviewClientId, useMonthlyReport, useMonthRecords } from "../lib/report";
+import { approvedFrom, usePresetRows } from "../lib/presets";
+import { PresetAsk } from "./PresetAsk";
 import { useMonthParam } from "./Report";
 import { useSealed } from "../lib/food";
 
@@ -54,13 +59,19 @@ function CropTable({
   onChange,
   columns,
   computed,
+  placeholder,
+  after,
 }: {
   title: string;
   hint: string;
   value: Table;
   onChange: (t: Table) => void;
   columns: { key: string; label: string; unit?: string; text?: boolean }[];
-  computed?: (row: Row) => string | null;
+  computed?: (row: Row, crop: string) => string | null;
+  /** Shown in an empty cell, e.g. the approved yield that will be used. */
+  placeholder?: (crop: string, col: string) => string | undefined;
+  /** Extra content under a crop, e.g. asking for a missing yield. */
+  after?: (crop: string, row: Row) => ReactNode;
 }) {
   const crops = CROPS.filter((c) => value[c.value]);
   const remaining = CROPS.filter((c) => !value[c.value]);
@@ -78,7 +89,7 @@ function CropTable({
       </div>
       {crops.map((c) => {
         const row = value[c.value] ?? {};
-        const extra = computed?.(row);
+        const extra = computed?.(row, c.value);
         return (
           <div key={c.value} className="crop-row">
             <div className="crop-row-head">
@@ -97,6 +108,7 @@ function CropTable({
                       inputMode={col.text ? "text" : "decimal"}
                       maxLength={col.text ? 50 : undefined}
                       value={row[col.key] ?? ""}
+                      placeholder={placeholder?.(c.value, col.key)}
                       onChange={(e) => setCell(c.value, col.key, col.text ? e.target.value : e.target.value.replace(/[^0-9.,]/g, ""))}
                     />
                     {col.unit && <span className="unit">{col.unit}</span>}
@@ -105,6 +117,7 @@ function CropTable({
               ))}
             </div>
             {extra && <p className="computed">{extra}</p>}
+            {after?.(c.value, row)}
           </div>
         );
       })}
@@ -126,6 +139,8 @@ export function Review() {
   const { month } = useMonthParam();
   const { me, councilId, sections, membership } = useWork();
   const { report, review } = useMonthlyReport(month);
+  const presetRows = usePresetRows(councilId);
+  const approved = useMemo(() => (presetRows ? approvedFrom(presetRows) : undefined), [presetRows]);
   const sealed = useSealed("monthly")?.get(month);
   const records = useMonthRecords(month);
   const isJuly = parseMonth(month).month === 7;
@@ -244,20 +259,13 @@ export function Review() {
       </section>
 
       {crops && isJuly && (
-        <CropTable
-          title="Malengo ya mwaka (Julai tu)"
-          hint="Eneo litakalopandwa na tija inayotarajiwa kwa mwaka mzima."
-          value={targets}
-          onChange={setTargets}
-          columns={[
-            { key: "area", label: "Eneo", unit: "ha" },
-            { key: "yield", label: "Tija", unit: "t/ha" },
-          ]}
-          computed={(r) => {
-            const a = toNum(r.area), y = toNum(r.yield);
-            return a !== undefined && y !== undefined ? `Matarajio ya mavuno: tani ${Math.round(a * y * 100) / 100}` : null;
-          }}
-        />
+        <section className="stack review-block">
+          <h2 className="section-title">Malengo ya mwaka</h2>
+          <p className="muted">
+            Malengo ya mwaka {financialYear(month)} (jedwali 2.1a) yanatoka kwenye mpango wako wa uzalishaji ulioidhinishwa: eneo la kila zao × tija.
+          </p>
+          <Link to={`/malengo?mwaka=${financialYear(month)}`} className="btn btn-quiet btn-block">Fungua mpango wa uzalishaji</Link>
+        </section>
       )}
 
       {crops && (
@@ -272,10 +280,17 @@ export function Review() {
             { key: "yield", label: "Tija", unit: "t/ha" },
             { key: "remarks", label: "Maelezo", text: true },
           ]}
-          computed={(r) => {
-            const h = toNum(r.harvested), y = toNum(r.yield);
-            return h !== undefined && y !== undefined ? `Mavuno: tani ${Math.round(h * y * 100) / 100}` : null;
+          placeholder={(crop, col) => (col === "yield" && approved?.yields[crop] !== undefined ? String(approved.yields[crop]) : undefined)}
+          computed={(r, crop) => {
+            const h = toNum(r.harvested), y = toNum(r.yield) ?? approved?.yields[crop];
+            if (h === undefined || y === undefined) return null;
+            return `Mavuno: tani ${Math.round(h * y * 100) / 100}${toNum(r.yield) === undefined ? " (kwa tija iliyoidhinishwa)" : ""}`;
           }}
+          after={(crop, r) =>
+            toNum(r.harvested) !== undefined && toNum(r.yield) === undefined && approved?.yields[crop] === undefined && presetDef(yieldKey(crop)) ? (
+              <PresetAsk councilId={councilId} presetKey={yieldKey(crop)} row={presetRows?.find((p) => p.key === yieldKey(crop))} reason="Kukokotoa mavuno ya zao hili" />
+            ) : null
+          }
         />
       )}
 
@@ -289,6 +304,10 @@ export function Review() {
             { key: "area", label: "Eneo", unit: "ha" },
             { key: "harvest", label: "Mavuno", unit: "tani" },
           ]}
+          computed={(r, crop) => {
+            const a = toNum(r.area), y = approved?.yields[crop];
+            return toNum(r.harvest) === undefined && a !== undefined && y !== undefined ? `Mavuno yanayotarajiwa: tani ${Math.round(a * y * 100) / 100} (eneo × tija)` : null;
+          }}
         />
       )}
 

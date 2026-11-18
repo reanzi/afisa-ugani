@@ -82,11 +82,32 @@ export type LocalMedia = {
   rejectReason?: string;
 };
 
+/** A preset or plan, mirrored from the server; a pending proposal waits here to be sent. */
+export type LocalPreset = {
+  /** `${councilId}|${key}` */
+  id: string;
+  councilId: string;
+  key: string;
+  section: Section;
+  value: unknown;
+  status: "pending" | "approved" | "rejected";
+  approvedValue?: unknown;
+  approvedAt?: number;
+  approvedByName?: string;
+  note?: string;
+  clientId: string;
+  proposedAt: number;
+  /** "pending" = not yet sent to the server. */
+  syncState: SyncState;
+  error?: string;
+};
+
 class AfisaDB extends Dexie {
   records!: EntityTable<LocalRecord, "clientId">;
   meta!: EntityTable<Meta, "key">;
   submissions!: EntityTable<LocalSubmission, "clientId">;
   media!: EntityTable<LocalMedia, "clientId">;
+  presets!: EntityTable<LocalPreset, "id">;
 
   constructor() {
     super("afisa-ugani");
@@ -100,6 +121,9 @@ class AfisaDB extends Dexie {
     });
     this.version(3).stores({
       media: "&clientId, recordClientId, [councilId+syncState]",
+    });
+    this.version(4).stores({
+      presets: "&id, councilId, [councilId+syncState]",
     });
   }
 }

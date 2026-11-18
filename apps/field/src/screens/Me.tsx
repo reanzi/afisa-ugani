@@ -74,6 +74,7 @@ export function Me() {
     await db.records.clear();
     await db.submissions.clear();
     await db.media.clear();
+    await db.presets.clear();
     await db.meta.clear();
   };
 

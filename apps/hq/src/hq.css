@@ -1022,3 +1022,128 @@ fieldset.plain legend {
   flex-wrap: wrap;
   align-items: center;
 }
+
+/* ---------- Presets and plans ---------- */
+.preset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+  max-width: 1000px;
+}
+.preset-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr auto;
+  gap: var(--space-5);
+  align-items: start;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--rule);
+  border-left: 6px solid var(--rule);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.preset-card.status-pending {
+  border-left-color: var(--maize);
+}
+.preset-card.status-approved {
+  border-left-color: var(--ok);
+}
+.preset-card.status-rejected {
+  border-left-color: var(--danger);
+}
+.preset-main {
+  display: grid;
+  gap: var(--space-2);
+}
+.preset-who {
+  display: grid;
+  gap: 2px;
+}
+.preset-body {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.preset-body h2 {
+  margin: 0;
+  font-size: var(--t-lead);
+}
+.preset-value {
+  margin: 0;
+  font-size: var(--t-lead);
+  font-variant-numeric: tabular-nums;
+}
+.preset-compare {
+  margin: 0;
+  color: var(--ink-soft);
+}
+.preset-compare.is-far {
+  color: var(--wait);
+  font-weight: 700;
+}
+.preset-actions {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 140px;
+}
+.plan-details {
+  display: grid;
+  gap: var(--space-3);
+}
+.plan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.plan-table th,
+.plan-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+}
+.plan-table thead th {
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+.plan-table .num {
+  text-align: right;
+}
+.plan-table tr.total th,
+.plan-table tr.total td {
+  font-weight: 700;
+  border-bottom: 0;
+}
+.plan-targets {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-2);
+}
+.plan-targets div {
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+  background: var(--surface-sunk);
+}
+.plan-targets dt {
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+.plan-targets dd {
+  margin: 0;
+  font-weight: 700;
+}
+.plan-note {
+  margin: 0;
+  white-space: pre-wrap;
+}
+@media (max-width: 900px) {
+  .preset-card {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+  .preset-actions {
+    grid-auto-flow: column;
+    justify-content: start;
+  }
+}

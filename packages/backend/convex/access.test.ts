@@ -603,3 +603,56 @@ describe("usage policy", () => {
     expect((await user.query(api.users.me, {})).policyVersion).toBe(POLICY_VERSION);
   });
 });
+
+describe("presets and production plans", () => {
+  const id = (n: number) => `0192f3a0-7c1e-7d2a-9b3c-4d5e6f7084${String(n).padStart(2, "0")}`;
+
+  async function setup() {
+    const w = await world();
+    const officer = await join(w.t, "afisa_tija", w.councilId, "kilimo");
+    await w.hod.mutation(api.memberships.approve, { councilId: w.councilId, membershipId: officer.membershipId, areaIds: [w.village], client: hq });
+    const head = await join(w.t, "mkuu_mifugo", w.councilId, "mifugo");
+    await w.hod.mutation(api.memberships.approve, { councilId: w.councilId, membershipId: head.membershipId, areaIds: [w.village], client: hq });
+    await w.hod.mutation(api.memberships.assignRole, { councilId: w.councilId, membershipId: head.membershipId, role: "section_head", client: hq });
+    return { ...w, officer: officer.user, livestockHead: head.user };
+  }
+
+  it("a yield waits for approval by the section's lead; HQ sees it with the council average", async () => {
+    const { councilId, officer, hod, livestockHead } = await setup();
+    const res = await officer.mutation(api.presets.propose, { councilId, client, clientId: id(1), key: "tija:mahindi", value: 2.5, proposedAt: Date.now() });
+    expect(res.status).toBe("pending");
+    // Repeating the same proposal changes nothing.
+    await officer.mutation(api.presets.propose, { councilId, client, clientId: id(1), key: "tija:mahindi", value: 2.5, proposedAt: Date.now() });
+
+    const forHod = await hod.query(api.presets.forHq, { councilId, status: "pending" });
+    expect(forHod).toHaveLength(1);
+    expect(forHod[0]).toMatchObject({ key: "tija:mahindi", value: 2.5, canDecide: true, officerName: "Afisa afisa_tija" });
+
+    // The livestock head cannot see or approve a crop officer's settings.
+    expect(await livestockHead.query(api.presets.forHq, { councilId })).toHaveLength(0);
+
+    await expect(hod.mutation(api.presets.decide, { councilId, client: hq, presetId: forHod[0]!._id, approve: false })).rejects.toThrow(/sababu/);
+    await hod.mutation(api.presets.decide, { councilId, client: hq, presetId: forHod[0]!._id, approve: true });
+    const mine = await officer.query(api.presets.mine, { councilId });
+    expect(mine[0]).toMatchObject({ status: "approved", approvedValue: 2.5 });
+
+    // A change waits again while the approved value stays in use.
+    await officer.mutation(api.presets.propose, { councilId, client, clientId: id(2), key: "tija:mahindi", value: 3, proposedAt: Date.now() });
+    const after = await officer.query(api.presets.mine, { councilId });
+    expect(after[0]).toMatchObject({ status: "pending", value: 3, approvedValue: 2.5 });
+  });
+
+  it("refuses bad values and other sections' plans", async () => {
+    const { councilId, officer } = await setup();
+    await expect(
+      officer.mutation(api.presets.propose, { councilId, client, clientId: id(3), key: "tija:mahindi", value: 500, proposedAt: Date.now() }),
+    ).rejects.toThrow(/OUT_OF_RANGE/);
+    await expect(
+      officer.mutation(api.presets.propose, { councilId, client, clientId: id(4), key: "mpango:2026/27:mifugo", value: { targets: { maziwa: 100 } }, proposedAt: Date.now() }),
+    ).rejects.toThrow(/si yako/);
+    const ok = await officer.mutation(api.presets.propose, {
+      councilId, client, clientId: id(5), key: "mpango:2026/27:kilimo", value: { crops: { mahindi: { area: 500 } } }, proposedAt: Date.now(),
+    });
+    expect(ok.status).toBe("pending");
+  });
+});

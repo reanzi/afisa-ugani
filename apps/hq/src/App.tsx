@@ -12,20 +12,22 @@ import { Areas } from "./pages/Areas";
 import { Audit } from "./pages/Audit";
 import { Councils } from "./pages/Councils";
 import { Reports } from "./pages/Reports";
+import { Presets } from "./pages/Presets";
 import { Settings } from "./pages/Settings";
 import { JoinWithCode, NoAccess, SignIn, Waiting } from "./auth";
 import { AccountMenu } from "./AccountMenu";
 import { AccountPage } from "./pages/Account";
 import { NAV_ICONS } from "./navIcons";
 
-const TABS = ["maombi", "ripoti", "wanachama", "maeneo", "kumbukumbu", "mipangilio", "halmashauri", "akaunti", "sera"] as const;
+const TABS = ["maombi", "ripoti", "viwango", "wanachama", "maeneo", "kumbukumbu", "mipangilio", "halmashauri", "akaunti", "sera"] as const;
 /** Pages in the side menu; "akaunti" and "sera" open from the account menu. */
-const NAV = ["maombi", "ripoti", "wanachama", "maeneo", "kumbukumbu", "mipangilio", "halmashauri"] as const;
+const NAV = ["maombi", "ripoti", "viwango", "wanachama", "maeneo", "kumbukumbu", "mipangilio", "halmashauri"] as const;
 type Tab = (typeof TABS)[number];
 const tabLabel = (t: T, tab: Tab): string =>
   ({
     maombi: t("Maombi", "Requests"),
     ripoti: t("Ripoti", "Reports"),
+    viwango: t("Viwango", "Presets"),
     wanachama: t("Wanachama", "Members"),
     maeneo: t("Maeneo", "Areas"),
     kumbukumbu: t("Kumbukumbu", "Activity log"),
@@ -142,6 +144,7 @@ function Main() {
                 {NAV_ICONS[x]}
                 <span>{tabLabel(t, x)}</span>
                 {x === "maombi" && <PendingCount />}
+                {x === "viwango" && <PendingPresets />}
               </button>
             ))}
           </nav>
@@ -157,6 +160,7 @@ function Main() {
         <main className="hq-main" key={current.councilId}>
           {tab === "maombi" && <Requests />}
           {tab === "ripoti" && <Reports />}
+          {tab === "viwango" && <Presets />}
           {tab === "wanachama" && <Members />}
           {tab === "maeneo" && <Areas />}
           {tab === "kumbukumbu" && <Audit />}
@@ -176,4 +180,13 @@ function PendingCount() {
   const pending = useQuery(api.memberships.listForHq, { councilId, status: "pending" });
   if (!pending || pending.length === 0) return null;
   return <span className="badge" aria-label={t(`${pending.length} yanasubiri`, `${pending.length} waiting`)}>{pending.length}</span>;
+}
+
+function PendingPresets() {
+  const t = useT();
+  const { councilId } = useHq();
+  const pending = useQuery(api.presets.forHq, { councilId, status: "pending" });
+  const mine = pending?.filter((p) => p.canDecide).length ?? 0;
+  if (mine === 0) return null;
+  return <span className="badge" aria-label={t(`${mine} vinasubiri idhini yako`, `${mine} waiting for your approval`)}>{mine}</span>;
 }

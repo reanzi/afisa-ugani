@@ -11,6 +11,7 @@ import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
 import { useReopened, useSealed } from "../lib/food";
 import { FoodReport } from "./FoodReport";
+import { Performance } from "./Performance";
 
 export function useMonthParam() {
   const current = monthKey(new Date());
@@ -188,17 +189,18 @@ function MonthlyReport() {
   );
 }
 
-const KINDS = ["mwezi", "chakula"] as const;
+const KINDS = ["mwezi", "malengo", "chakula"] as const;
 
 export function Report() {
   const [kind, setKind] = useQueryState("aina", parseAsStringLiteral(KINDS).withDefault("mwezi"));
   return (
     <main className="page">
       <div className="segmented report-kinds" role="tablist" aria-label="Aina ya ripoti">
-        <button role="tab" aria-selected={kind === "mwezi"} onClick={() => void setKind("mwezi")}>Ripoti ya mwezi</button>
-        <button role="tab" aria-selected={kind === "chakula"} onClick={() => void setKind("chakula")}>Chakula na bei</button>
+        <button role="tab" aria-selected={kind === "mwezi"} onClick={() => void setKind("mwezi")}>Mwezi</button>
+        <button role="tab" aria-selected={kind === "malengo"} onClick={() => void setKind("malengo")}>Malengo</button>
+        <button role="tab" aria-selected={kind === "chakula"} onClick={() => void setKind("chakula")}>Chakula</button>
       </div>
-      {kind === "mwezi" ? <MonthlyReport /> : <FoodReport />}
+      {kind === "mwezi" ? <MonthlyReport /> : kind === "malengo" ? <Performance /> : <FoodReport />}
     </main>
   );
 }

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useLiveQuery } from "dexie-react-hooks";
-import { actionsFor, monthLabel, monthStats, SECTION_LABELS, SECTIONS, specFor, type Reminder, type Section } from "@afisa/shared";
+import { actionsFor, financialYear, monthKey, monthLabel, monthStats, parseMonth, parsePlanKey, planKey, presetLabel, SECTION_LABELS, SECTIONS, specFor, type Reminder, type Section } from "@afisa/shared";
 import { dayTitle, relativeWhen } from "@afisa/ui";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
@@ -11,6 +11,7 @@ import { useHomeData } from "../lib/home";
 import { useFoodState, useOpenFoodPeriod, useReopened } from "../lib/food";
 import { EntryRow } from "./EntryRow";
 import { usePhotoCounts } from "../lib/photos";
+import { usePresetRows } from "../lib/presets";
 import { RecordIcon, SectionIcon } from "./recordIcons";
 
 const DISMISS_KEY = "afisa.dismissed";
@@ -79,6 +80,49 @@ function ActionGrid({ section }: { section: Section }) {
         </p>
       )}
     </>
+  );
+}
+
+/**
+ * The year's production plan: asked for from July until it is sent, and any
+ * plan or preset a section lead refused, with the reason.
+ */
+function PlanNotices() {
+  const { councilId, sections, membership } = useWork();
+  const rows = usePresetRows(councilId);
+  if (!rows) return null;
+  const month = monthKey(new Date());
+  const fy = financialYear(month);
+  const refused = rows.filter((r) => r.status === "rejected" && r.syncState !== "pending");
+  const startOfYear = parseMonth(month).month >= 7 && parseMonth(month).month <= 9;
+  const section = sections.includes(membership.primarySection) ? membership.primarySection : sections[0]!;
+  const noPlan = startOfYear && !rows.some((r) => r.key === planKey(fy, section));
+  if (!noPlan && refused.length === 0) return null;
+  return (
+    <section className="reminders" aria-label="Mpango na viwango">
+      {noPlan && (
+        <div className="reminder">
+          <p>
+            <strong>Weka mpango wa uzalishaji wa {fy}.</strong> Eneo la kila zao na malengo ya mwaka; ukishaidhinishwa, ripoti zako zitaonyesha utekelezaji.
+          </p>
+          <div className="reminder-actions">
+            <Link to={`/malengo?mwaka=${fy}`} className="btn btn-small btn-primary">Weka mpango</Link>
+          </div>
+        </div>
+      )}
+      {refused.map((r) => (
+        <div key={r.id} className="reminder tone-danger">
+          <p>
+            <strong>{presetLabel(r.key)}: imekataliwa.</strong> {r.note ? `“${r.note}”` : ""}
+          </p>
+          <div className="reminder-actions">
+            <Link to={parsePlanKey(r.key) ? `/malengo?mwaka=${parsePlanKey(r.key)!.fy}&sehemu=${r.section}` : "/malengo"} className="btn btn-small btn-primary">
+              Rekebisha
+            </Link>
+          </div>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -178,6 +222,7 @@ export function Today() {
       </header>
 
       <Corrections />
+      <PlanNotices />
       {home && <Reminders items={home.reminders} />}
 
       <FoodCard />
