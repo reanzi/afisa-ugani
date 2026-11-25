@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 
-export type ThemeChoice = "auto" | "shambani" | "usiku";
+/** "system": follow the phone or computer setting (the default); "auto": by the clock. */
+export type ThemeChoice = "system" | "auto" | "shambani" | "usiku";
 export type Theme = "shambani" | "usiku";
 
 const KEY = "afisa.theme";
@@ -14,21 +15,25 @@ export function themeForTime(date = new Date()): Theme {
 function readChoice(): ThemeChoice {
   try {
     const v = localStorage.getItem(KEY);
-    return v === "shambani" || v === "usiku" ? v : "auto";
+    return v === "shambani" || v === "usiku" || v === "auto" ? v : "system";
   } catch {
-    return "auto";
+    return "system";
   }
 }
 
+const darkQuery = () => (typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia("(prefers-color-scheme: dark)") : null);
+const systemTheme = (): Theme => (darkQuery()?.matches ? "usiku" : "shambani");
+
 // One store for the whole app, so every component sees the same theme.
-let choice: ThemeChoice = typeof window === "undefined" ? "auto" : readChoice();
+let choice: ThemeChoice = typeof window === "undefined" ? "system" : readChoice();
 let clockTheme: Theme = themeForTime();
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
-let snapshot = { choice, theme: choice === "auto" ? clockTheme : choice };
+const resolve = (): Theme => (choice === "system" ? systemTheme() : choice === "auto" ? clockTheme : choice);
+let snapshot = { choice, theme: resolve() };
 
 function refresh() {
-  const theme = choice === "auto" ? clockTheme : choice;
+  const theme = resolve();
   if (snapshot.choice !== choice || snapshot.theme !== theme) {
     snapshot = { choice, theme };
     emit();
@@ -43,16 +48,20 @@ function subscribe(listener: () => void) {
       refresh();
     }, 60_000);
     (subscribe as { timer?: number }).timer = id;
+    darkQuery()?.addEventListener("change", refresh);
   }
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0) window.clearInterval((subscribe as { timer?: number }).timer);
+    if (listeners.size === 0) {
+      window.clearInterval((subscribe as { timer?: number }).timer);
+      darkQuery()?.removeEventListener("change", refresh);
+    }
   };
 }
 
 export function setThemeChoice(next: ThemeChoice) {
   try {
-    if (next === "auto") localStorage.removeItem(KEY);
+    if (next === "system") localStorage.removeItem(KEY);
     else localStorage.setItem(KEY, next);
   } catch {
     /* private mode: keep it in memory */

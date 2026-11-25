@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useLiveQuery } from "dexie-react-hooks";
 import { v7 as uuidv7 } from "uuid";
-import { fieldVisible, PAYLOAD_VERSION, SECTION_LABELS, specFor, validatePayload, type RecordSpec, type Section } from "@afisa/shared";
+import { fieldVisible, labelOf, PAYLOAD_VERSION, SECTION_LABELS, SLAUGHTERHOUSE_KINDS, specFor, UNREGISTERED_PLACE, validatePayload, type RecordSpec, type Section, isReviewType } from "@afisa/shared";
 import { db, getMeta, setMeta, type Geo, type LocalMedia, type LocalRecord } from "../lib/db";
 import { captureLocation, type GeoStatus } from "../lib/geo";
 import { useWork } from "../lib/session";
 import { useMyAreas } from "../lib/areas";
+import { useSlaughterhouses } from "../lib/slaughterhouses";
 import { requestSync } from "../lib/sync";
 import { useOpenFoodPeriod } from "../lib/food";
 import { draftToPayload, FieldInput, payloadToDraft, type Draft } from "./fields";
@@ -67,7 +68,7 @@ export function LogEntry() {
   const { type = "activity", clientId } = useParams();
   const spec = specFor(type);
   const t = useT();
-  if (!spec || !spec.ready || type === "monthly_review") return <ComingSoon label={spec?.label ?? t("Fomu", "Form")} />;
+  if (!spec || !spec.ready || isReviewType(type)) return <ComingSoon label={spec?.label ?? t("Fomu", "Form")} />;
   return <SpecForm key={`${type}:${clientId ?? "new"}`} spec={spec} clientId={clientId} />;
 }
 
@@ -85,7 +86,8 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
   // Back to where the officer came from (home section, history), or home if the form was opened directly.
   const goBack = () => ((window.history.state as { idx?: number } | null)?.idx ? navigate(-1) : navigate("/", { replace: true }));
   const { councilId, sections, membership } = useWork();
-  const { wards, villages } = useMyAreas();
+  const { wards, villages, byId: areasById } = useMyAreas();
+  const { offered: houses, byId: housesById } = useSlaughterhouses();
   const existing = useLiveQuery(() => (clientId ? db.records.get(clientId) : undefined), [clientId]);
   const editing = Boolean(clientId);
 
@@ -156,8 +158,39 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
     if (problem?.key === key) setProblem(null);
   };
 
+  // Slaughter: a registered slaughterhouse answers "where"; an unregistered place needs it.
+  const placeField = spec.fields.find((f) => f.kind === "place");
+  const placeId = draft[placeField?.key ?? ""] ?? "";
+  const house = placeField && placeId && placeId !== UNREGISTERED_PLACE ? housesById.get(placeId) : undefined;
+  const unregistered = placeField !== undefined && placeId === UNREGISTERED_PLACE;
+  useEffect(() => {
+    if (house) setAreaId(house.areaId);
+  }, [house]);
+  const placeOptions = useMemo<SelectOption[]>(() => {
+    const list = [...houses];
+    // An older record may point to one no longer offered (closed, or moved): keep it visible.
+    if (house && !list.some((h) => h._id === house._id)) list.push(house);
+    const areaName = (id: string) => {
+      const a = areasById.get(id);
+      return a ? (a.kind === "ward" ? t(`Kata ya ${a.name}`, `${a.name} ward`) : a.name) : "";
+    };
+    return [
+      ...list.map((h) => ({
+        value: h._id as string,
+        label: `${h.name}${areaName(h.areaId) ? `, ${areaName(h.areaId)}` : ""}`,
+        group: t("Zilizosajiliwa", "Registered"),
+      })),
+      { value: UNREGISTERED_PLACE, label: t("Mahali pasipo kusajiliwa…", "A place that is not registered…"), group: t("Nyingine", "Other") },
+    ];
+  }, [houses, house, areasById, t]);
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (unregistered && !areaId) {
+      setProblem({ key: "where", text: t("Chagua kijiji mahali hapa palipo.", "Choose the village where this place is.") });
+      document.getElementById("f-where")?.scrollIntoView({ block: "center", behavior: "smooth" });
+      return;
+    }
     const invalid = validatePayload(spec.type, payload);
     if (invalid) {
       const [code, key = ""] = invalid.split(":");
@@ -182,7 +215,13 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
       section,
       areaId: areaId || undefined,
       occurredAt,
-      payload: spec.type === "price" ? { ...payload, foodPeriod: existing?.payload.foodPeriod ?? foodPeriod } : payload,
+      payload:
+        spec.type === "price"
+          ? { ...payload, foodPeriod: existing?.payload.foodPeriod ?? foodPeriod }
+          : house && placeField
+            ? // The name goes with the record, so reports read the same on any phone.
+              { ...payload, slaughterhouse: house.name }
+            : payload,
       payloadVersion: PAYLOAD_VERSION,
       geo: existing?.geo ?? geoValue,
       clientUpdatedAt: now,
@@ -218,7 +257,7 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
     });
     if (areaId) await setMeta(`lastArea:${councilId}`, areaId);
     const remembered: Draft = {};
-    for (const f of spec.fields) if ((f.kind === "select" || f.kind === "choice") && draft[f.key]) remembered[f.key] = draft[f.key]!;
+    for (const f of spec.fields) if ((f.kind === "select" || f.kind === "choice" || f.kind === "place") && draft[f.key]) remembered[f.key] = draft[f.key]!;
     await setMeta(`last:${spec.type}`, remembered);
     requestSync();
     goBack();
@@ -244,7 +283,28 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
     goBack();
   };
 
-  const fieldBlock = (f: (typeof visible)[number]) => (
+  const fieldBlock = (f: (typeof visible)[number]) =>
+    f.kind === "place" ? (
+      <div key={f.key} id={`f-${f.key}`} className="field">
+        <span className="field-label" id={`l-${f.key}`}>{f.label}</span>
+        <Select
+          labelledBy={`l-${f.key}`}
+          label={f.label}
+          value={placeId}
+          onChange={(v) => set(f.key, v)}
+          options={placeOptions}
+          placeholder={t("Chagua machinjio", "Choose the slaughterhouse")}
+        />
+        {house && (
+          <small className="muted">
+            {labelOf(SLAUGHTERHOUSE_KINDS, house.kind)}
+            {house.status === "closed" ? t(" (yamefungwa)", " (closed)") : ""}
+          </small>
+        )}
+        {houses.length === 0 && <small className="muted">{t("Hakuna machinjio yaliyosajiliwa kwenye eneo lako. Chagua mahali pasipo kusajiliwa.", "No slaughterhouse is registered in your area. Choose a place that is not registered.")}</small>}
+        {problem?.key === f.key && <p className="field-error" role="alert">{problem.text}</p>}
+      </div>
+    ) : (
     <div key={f.key} id={`f-${f.key}`}>
       <FieldInput field={f} value={draft[f.key] ?? ""} onChange={(v) => set(f.key, v)} payload={payload} error={problem?.key === f.key} />
       {problem?.key === f.key && <p className="field-error" role="alert">{problem.text}</p>}
@@ -301,7 +361,21 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
 
         <div className="field">
           <span className="field-label" id="where-label">{t("Wapi?", "Where?")}</span>
-          <Select labelledBy="where-label" label={t("Wapi?", "Where?")} value={areaId} onChange={setAreaId} options={areaOptions} placeholder={t("Sijachagua", "Not chosen")} />
+          {house ? (
+            <p className="where-fixed">
+              {(() => {
+                const a = areasById.get(house.areaId);
+                return a ? (a.kind === "ward" ? t(`Kata ya ${a.name}`, `${a.name} ward`) : a.name) : "—";
+              })()}
+              <small className="muted">{t(" (mahali yalipo machinjio)", " (where the slaughterhouse is)")}</small>
+            </p>
+          ) : (
+            <div id="f-where">
+              <Select labelledBy="where-label" label={t("Wapi?", "Where?")} value={areaId} onChange={(v) => { setAreaId(v); if (problem?.key === "where") setProblem(null); }} options={areaOptions} placeholder={t("Sijachagua", "Not chosen")} />
+              {unregistered && <small className="muted">{t("Kijiji mahali hapa palipo. Hakikisha mahali (GPS) pamepatikana hapo chini.", "The village where this place is. Make sure the location (GPS) below is found.")}</small>}
+              {problem?.key === "where" && <p className="field-error" role="alert">{problem.text}</p>}
+            </div>
+          )}
         </div>
 
         {more.length > 0 && (

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useLiveQuery } from "dexie-react-hooks";
-import { actionsFor, financialYear, monthKey, monthLabel, monthStats, parseMonth, parsePlanKey, planKey, presetLabel, SECTION_LABELS, SECTIONS, specFor, type Reminder, type Section } from "@afisa/shared";
+import { actionsFor, financialYear, monthKey, monthLabel, monthStats, parseMonth, parsePlanKey, planKey, presetLabel, SECTION_LABELS, SECTIONS, specFor, type Reminder, type Section, isReviewType } from "@afisa/shared";
 import { dayTitle, relativeWhen, useLabel, useT } from "@afisa/ui";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
@@ -220,7 +220,7 @@ export function Today() {
       db.records
         .where("[councilId+occurredAt]")
         .between([councilId, start], [councilId, start + 86_400_000], true, false)
-        .filter((r) => !r.deletedAt && r.type !== "monthly_review")
+        .filter((r) => !r.deletedAt && !isReviewType(r.type))
         .reverse()
         .toArray(),
     [councilId, start],

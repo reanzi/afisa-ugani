@@ -11,6 +11,7 @@ import { registerUsername } from "@convex-dev/auth/components/username/test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { buildWeeklyReport, COUNCIL_UTC_OFFSET_MINUTES, shiftWeek, toCouncilWallClock, weekKey, weekRange } from "@afisa/shared";
 
 const modules = import.meta.glob("./**/*.ts");
 const client = { app: "field" as const, version: "0.1.0" };
@@ -487,6 +488,48 @@ describe("HQ sees sent reports only, and a sent report is sealed", () => {
     const achievements = rep.parts.flatMap((p) => p.blocks).find((b) => b.id === "1.3a");
     expect(achievements?.text).toContain("Wakulima 22");
   });
+
+  it("weekly reports: off until HQ switches the section on, only for that section, and auto-send", async () => {
+    const { t, councilId, hod, user, membershipId } = await officer("afisa_wiki");
+    const week = shiftWeek(weekKey(toCouncilWallClock(Date.now())), -1);
+    // Tuesday of last week, 10:00 in Tanzania.
+    const tuesday = weekRange(week).start + (24 + 10) * 3600_000 - COUNCIL_UTC_OFFSET_MINUTES * 60_000;
+    const report = (section: "kilimo" | "mifugo") =>
+      buildWeeklyReport({ week, section, records: [], areaLabel: "Kijiji cha Mfano", officerName: "Afisa" }) as unknown as Record<string, unknown>;
+    const send = (kind: "weekly_kilimo" | "weekly_mifugo", n: number) =>
+      user.mutation(api.submissions.submit, {
+        councilId, client, clientId: uuid(n), kind, period: week, areaLabel: "Kijiji cha Mfano",
+        payload: report(kind === "weekly_kilimo" ? "kilimo" : "mifugo"), payloadVersion: 1, clientSubmittedAt: Date.now(),
+      });
+
+    await expect(send("weekly_kilimo", 701)).rejects.toThrow(/hawajawasha/);
+    await hod.mutation(api.councils.setWeekly, { councilId, section: "kilimo", on: true, client: hq });
+    await expect(send("weekly_mifugo", 702)).rejects.toThrow(/sehemu hii tu/);
+    const settings = await hod.query(api.councils.settings, { councilId });
+    expect(settings.weekly).toEqual({ mifugo: { on: false, auto: false }, kilimo: { on: true, auto: true } });
+    expect((await user.query(api.users.me, {})).memberships[0]!.weekly.kilimo.on).toBe(true);
+
+    // Nothing sent: auto-send builds it from the fertilizer entry of that week.
+    await user.mutation(api.sync.pushRecords, {
+      councilId, client,
+      records: [
+        { clientId: uuid(703), type: "fertilizer", section: "kilimo", occurredAt: tuesday, payload: { fertilizer: "dap", quantity: 2, unit: "mfuko", crop: "mahindi", areaHa: 1, subsidised: "ndiyo" }, payloadVersion: 1, clientUpdatedAt: tuesday },
+      ],
+    });
+    const queued = await t.mutation(internal.autoSend.runWeekly, { week });
+    expect(queued.queued).toBe(1); // kilimo only: mifugo weekly reports are off
+    expect(await t.mutation(internal.autoSend.weeklyForOfficer, { membershipId, week, section: "kilimo" })).toBe("sent");
+    const seen = await hod.query(api.submissions.forHq, { councilId, kind: "weekly_kilimo", period: week });
+    expect(seen).toHaveLength(1);
+    const rep = seen[0]!.payload as { kind: string; parts: { id: string; blocks: { rows?: unknown[][] }[] }[] };
+    expect(rep.kind).toBe("weekly");
+    expect(rep.parts.find((p) => p.id === "mbolea")!.blocks[0]!.rows![0]).toEqual(["DAP", 100, "", 1, 1, 100, 100, 1]);
+    // Sealed: sending by hand is refused.
+    await expect(send("weekly_kilimo", 704)).rejects.toThrow(/imefungwa/);
+    // Livestock officers only are asked for the livestock weekly report.
+    const missing = await hod.query(api.submissions.missingForHq, { councilId, kind: "weekly_mifugo", period: week });
+    expect(missing.map((m) => m.name)).not.toContain("Afisa Afisa_wiki");
+  });
 });
 
 describe("root stays hidden", () => {
@@ -855,5 +898,60 @@ describe("wiping the system", () => {
     // Root still signs in and sees an empty system; an old check number can sign up again.
     expect(await root.query(api.councils.listAll, {})).toEqual([]);
     await signUp(t, "afisa_wipe");
+  });
+});
+
+describe("slaughterhouses", () => {
+  const uuid = (n: number) => `0192f3a0-7c1e-7d2a-9b3c-${String(n).padStart(12, "0")}`;
+  it("officers record at registered or unregistered places; HQ registers a place and its records link", async () => {
+    const { t, councilId, hod, village, ward } = await world();
+    const other = await t.run((ctx) => ctx.db.insert("areas", { councilId, kind: "ward", name: "Kingolwira" }));
+    const { user, membershipId } = await join(t, "afisa_nyama", councilId, "mifugo");
+    await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId, areaIds: [village], client: hq });
+
+    // A slaughterhouse in another ward that also serves Mzumbe ward.
+    const houseId = await hod.mutation(api.slaughterhouses.create, {
+      councilId, client: hq, name: "Machinjio ya Kingolwira", kind: "machinjio", areaId: other, servesAreaIds: [ward], servesAll: false, licence: "MC-12",
+    });
+    const at = Date.now() - 60_000;
+    const rec = (n: number, payload: Record<string, unknown>, areaId: Id<"areas">) => ({
+      clientId: uuid(n), type: "slaughter", section: "mifugo" as const, areaId, occurredAt: at, payload, payloadVersion: 1, clientUpdatedAt: at,
+      geo: { lat: -6.8, lng: 37.6, accuracy: 12, capturedAt: at },
+    });
+    const pushed = await user.mutation(api.sync.pushRecords, {
+      councilId, client,
+      records: [
+        // Registered and serving the officer's ward: its area is allowed although it lies outside.
+        rec(801, { animal: "ngombe", count: 3, slaughterhouseId: houseId, slaughterhouse: "Machinjio Ya Kingolwira" }, other),
+        // Not registered: name, village and GPS go to HQ's list.
+        rec(802, { animal: "mbuzi", count: 5, slaughterhouseId: "nje", slaughterhouse: "Kwa Mzee Juma" }, village),
+        rec(803, { animal: "mbuzi", count: 2, slaughterhouseId: "nje", slaughterhouse: "kwa mzee  juma" }, village),
+        // Missing the place: refused.
+        rec(804, { animal: "mbuzi", count: 2 }, village),
+      ],
+    });
+    expect(pushed.results.map((r: { status: string }) => r.status)).toEqual(["accepted", "accepted", "accepted", "rejected"]);
+
+    const places = await hod.query(api.slaughterhouses.places, { councilId });
+    expect(places).toHaveLength(1);
+    expect(places[0]).toMatchObject({ name: "Kwa Mzee Juma", uses: 2, areaId: village, reportedBy: "Afisa Afisa_nyama" });
+
+    // An officer cannot register; the HoD can.
+    await expect(
+      user.mutation(api.slaughterhouses.create, { councilId, client, name: "Yangu", kind: "slab", areaId: village, servesAreaIds: [], servesAll: false }),
+    ).rejects.toThrow();
+    const res = await hod.mutation(api.slaughterhouses.registerPlace, {
+      councilId, client: hq, placeId: places[0]!._id, name: "Slab ya Changarawe", kind: "slab", areaId: village, servesAreaIds: [], servesAll: false,
+      geo: { lat: -6.8, lng: 37.6 },
+    });
+    expect(res.linked).toBe(2);
+    expect(await hod.query(api.slaughterhouses.places, { councilId })).toHaveLength(0);
+    const linked = await t.run((ctx) => ctx.db.query("records").withIndex("by_clientId", (q) => q.eq("clientId", uuid(802))).unique());
+    expect(linked!.payload).toMatchObject({ slaughterhouseId: res.slaughterhouseId, slaughterhouse: "Slab ya Changarawe" });
+
+    // A later entry typed as unregistered at the same place links straight away.
+    await user.mutation(api.sync.pushRecords, { councilId, client, records: [rec(805, { animal: "mbuzi", count: 1, slaughterhouseId: "nje", slaughterhouse: "Kwa Mzee Juma" }, village)] });
+    const late = await t.run((ctx) => ctx.db.query("records").withIndex("by_clientId", (q) => q.eq("clientId", uuid(805))).unique());
+    expect(late!.payload).toMatchObject({ slaughterhouseId: res.slaughterhouseId });
   });
 });

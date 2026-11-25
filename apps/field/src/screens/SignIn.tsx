@@ -6,7 +6,7 @@ import {
   useSignUpWithUsernamePassword,
 } from "@convex-dev/auth/methods/username-password/react";
 import { api } from "@afisa/backend/api";
-import { AuthForm, authErrorMessage, clearPendingJoin, JoinWizard, savePendingJoin, useT, type SignUpAnswers } from "@afisa/ui";
+import { AuthForm, authErrorMessage, clearPendingJoin, JoinWizard, savePendingJoin, useT, AuthPrefs, type SignUpAnswers } from "@afisa/ui";
 
 const modes = ["ingia", "jisajili"] as const;
 
@@ -65,6 +65,7 @@ export function SignIn() {
 
   return (
     <main className="auth">
+      <AuthPrefs className="auth-prefs-bar" />
       <header className="auth-head">
         <img src="/favicon.svg" alt="" width={56} height={56} />
         <h1>Afisa Ugani</h1>

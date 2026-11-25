@@ -266,7 +266,7 @@ export function ReopenReport({ id, officer, canReopen, reopened }: { id: Id<"sub
 }
 
 /** Officers who have not sent this report: for a phone call, not for blame. */
-export function MissingReports({ kind, period, due }: { kind: "food_prices" | "monthly"; period: string; due: number }) {
+export function MissingReports({ kind, period, due }: { kind: "food_prices" | "monthly" | "weekly_mifugo" | "weekly_kilimo"; period: string; due: number }) {
   const t = useT();
   const { councilId } = useHq();
   const missing = useQuery(api.submissions.missingForHq, { councilId, kind, period });

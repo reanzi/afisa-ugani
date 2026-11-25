@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import {
   canRenewSectionCode,
   DEPARTMENT_ROLES,
+  canReopenReport,
   generateCouncilCode,
   isValidCouncilCode,
   normalizeCouncilCode,
@@ -16,6 +17,7 @@ import {
 } from "@afisa/shared";
 import { authedQuery, fail, hqMutation, hqQuery, memberMutation, memberQuery, rootMutation, rootQuery } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
+import { weeklyOf } from "./submissions";
 import { vSection } from "./lib/validators";
 
 /** Crypto-backed random integer in [0, n). */
@@ -376,8 +378,37 @@ export const settings = hqQuery({
       name: presentName(c?.name),
       displayName: presentMaybe(c?.displayName),
       autoSend: { food: c?.autoSend?.food ?? false, monthly: c?.autoSend?.monthly ?? false },
+      weekly: weeklyOf(c),
+      /** Weekly reports: the department, or the section's own lead. */
+      canEditWeekly: { mifugo: canReopenReport(actor, "mifugo"), kilimo: canReopenReport(actor, "kilimo") },
       canEdit: actor.isRoot || (actor.role !== null && DEPARTMENT_ROLES.includes(actor.role)),
     };
+  },
+});
+
+/**
+ * Weekly reports for one section: asked of its officers for the Monday
+ * morning meeting; any report not sent by Monday 05:00 sends itself.
+ */
+export const setWeekly = hqMutation({
+  args: { section: v.union(v.literal("mifugo"), v.literal("kilimo")), on: v.boolean() },
+  handler: async (ctx, { section, on }) => {
+    const { viewer } = ctx;
+    if (!canReopenReport(viewer.actor, section)) fail("FORBIDDEN", "Ni Mkuu wa Idara au mkuu wa sehemu hii tu wanaoweza kubadili mpangilio huu.");
+    const c = await ctx.db.get(viewer.councilId);
+    const before = weeklyOf(c);
+    // When on, a report the officer has not sent always sends itself on Monday at 05:00.
+    const weekly = { ...before, [section]: { on, auto: on } };
+    await ctx.db.patch(viewer.councilId, { weekly });
+    await writeAudit(ctx, viewer, {
+      action: "council.weekly",
+      entity: "councils",
+      entityId: viewer.councilId,
+      section,
+      before: before[section],
+      after: weekly[section],
+    });
+    return null;
   },
 });
 

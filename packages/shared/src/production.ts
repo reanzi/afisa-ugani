@@ -13,6 +13,8 @@
 import { L, inEnglish, inSwahili } from "./lang.ts";
 import { ALL_CROPS, CROPS, LIVESTOCK_PRODUCTS, labelOf, rememberText } from "./catalogs.ts";
 import type { Section } from "./domain.ts";
+import { isReviewType } from "./actions.ts";
+import { fertilizerTable, fertilizerUse } from "./fertilizer.ts";
 import { financialYear, fyQuarter, monthLabel, monthRange, parseMonth, shiftMonth } from "./period.ts";
 import type { Cell, Report, ReportPart, TableBlock, TextBlock } from "./report/model.ts";
 import type { CropEstimate, MonthlyReview, ReportRecord } from "./report/monthly.ts";
@@ -273,7 +275,7 @@ function inMonths(records: readonly ReportRecord[], months: string[]): ReportRec
   if (months.length === 0) return [];
   const start = monthRange(months[0]!).start;
   const end = monthRange(months[months.length - 1]!).end;
-  return records.filter((r) => !r.deletedAt && r.type !== "monthly_review" && r.occurredAt >= start && r.occurredAt < end);
+  return records.filter((r) => !r.deletedAt && !isReviewType(r.type) && r.occurredAt >= start && r.occurredAt < end);
 }
 
 /**
@@ -404,6 +406,16 @@ function buildPerformanceSw(input: PerformanceInput): { report: Report; missing:
         let line = s.length ? `Kilimo: ${s.join("; ")}.` : "";
         if (behind.length) line += ` Mazao yaliyo nyuma ya lengo la eneo: ${behind.join(", ")}.`;
         if (line) summary.push(line);
+      }
+
+      // Fertilizer: one record per farmer, for the period's months.
+      const fert = fertilizerUse(inMonths(records, done));
+      blocks.push(fertilizerTable("k2", "Matumizi ya mbolea katika kipindi", fert));
+      if (fert.length) {
+        const kg = fert.reduce((a, r) => a + r.kg, 0);
+        const farmers = fert.reduce((a, r) => a + r.farmers, 0);
+        const sub = fert.reduce((a, r) => a + r.subsidisedKg, 0);
+        summary.push(`Mbolea: kg ${fmt(kg)} zimetumiwa na wakulima ${fmt(farmers)}${sub > 0 ? ` (kg ${fmt(sub)} za ruzuku)` : ""}.`);
       }
     }
 

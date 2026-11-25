@@ -18,11 +18,12 @@ import { JoinWithCode, NoAccess, SignIn, Waiting } from "./auth";
 import { AccountMenu } from "./AccountMenu";
 import { SectionCodes } from "./SectionCodes";
 import { AccountPage } from "./pages/Account";
+import { Slaughterhouses } from "./pages/Slaughterhouses";
 import { NAV_ICONS } from "./navIcons";
 
-const TABS = ["maombi", "ripoti", "viwango", "wanachama", "maeneo", "kumbukumbu", "mipangilio", "halmashauri", "akaunti", "sera"] as const;
+const TABS = ["maombi", "ripoti", "viwango", "wanachama", "maeneo", "machinjio", "kumbukumbu", "mipangilio", "halmashauri", "akaunti", "sera"] as const;
 /** Council pages in the side menu; "akaunti" and "sera" open from the account menu, "halmashauri" is root's system view. */
-const NAV = ["maombi", "ripoti", "viwango", "wanachama", "maeneo", "kumbukumbu", "mipangilio"] as const;
+const NAV = ["maombi", "ripoti", "viwango", "wanachama", "maeneo", "machinjio", "kumbukumbu", "mipangilio"] as const;
 type Tab = (typeof TABS)[number];
 const tabLabel = (t: T, tab: Tab): string =>
   ({
@@ -31,6 +32,7 @@ const tabLabel = (t: T, tab: Tab): string =>
     viwango: t("Viwango", "Presets"),
     wanachama: t("Wanachama", "Members"),
     maeneo: t("Maeneo", "Areas"),
+    machinjio: t("Machinjio", "Slaughterhouses"),
     kumbukumbu: t("Kumbukumbu", "Activity log"),
     mipangilio: t("Mipangilio", "Settings"),
     halmashauri: t("Halmashauri zote", "All councils"),
@@ -199,6 +201,7 @@ function Main() {
           {tab === "viwango" && <Presets />}
           {tab === "wanachama" && <Members />}
           {tab === "maeneo" && <Areas />}
+          {tab === "machinjio" && <Slaughterhouses />}
           {tab === "kumbukumbu" && <Audit />}
           {tab === "mipangilio" && <Settings />}
           {inSystem && (

@@ -221,5 +221,8 @@ export function reportFileName(report: Report): string {
     const fy = report.header.financialYear.replace("/", "-");
     return `Utekelezaji-${fy}${period ? `-Robo-${period}` : "-Mwaka"}${area ? `-${area}` : ""}.docx`;
   }
+  if (report.kind === "weekly") {
+    return `Ripoti-ya-wiki-${report.section === "mifugo" ? "Mifugo" : "Kilimo"}-${report.month}${area ? `-${area}` : ""}.docx`;
+  }
   return `Ripoti-ya-mwezi-${report.month}${area ? `-${area}` : ""}.docx`;
 }

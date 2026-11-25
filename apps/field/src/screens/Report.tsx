@@ -12,6 +12,8 @@ import { requestSync } from "../lib/sync";
 import { useReopened, useSealed } from "../lib/food";
 import { FoodReport } from "./FoodReport";
 import { Performance } from "./Performance";
+import { WeeklyReport } from "./WeeklyReport";
+import { useWeeklySections } from "../lib/weekly";
 
 export function useMonthParam() {
   const current = monthKey(new Date());
@@ -190,19 +192,22 @@ function MonthlyReport() {
   );
 }
 
-const KINDS = ["mwezi", "malengo", "chakula"] as const;
+const KINDS = ["mwezi", "wiki", "malengo", "chakula"] as const;
 
 export function Report() {
-  const [kind, setKind] = useQueryState("aina", parseAsStringLiteral(KINDS).withDefault("mwezi"));
+  const [chosen, setKind] = useQueryState("aina", parseAsStringLiteral(KINDS).withDefault("mwezi"));
   const t = useT();
+  const weekly = useWeeklySections().length > 0;
+  const kind = chosen === "wiki" && !weekly ? "mwezi" : chosen;
   return (
     <main className="page">
       <div className="segmented report-kinds" role="tablist" aria-label={t("Aina ya ripoti", "Report type")}>
         <button role="tab" aria-selected={kind === "mwezi"} onClick={() => void setKind("mwezi")}>{t("Mwezi", "Monthly")}</button>
+        {weekly && <button role="tab" aria-selected={kind === "wiki"} onClick={() => void setKind("wiki")}>{t("Wiki", "Weekly")}</button>}
         <button role="tab" aria-selected={kind === "malengo"} onClick={() => void setKind("malengo")}>{t("Malengo", "Targets")}</button>
         <button role="tab" aria-selected={kind === "chakula"} onClick={() => void setKind("chakula")}>{t("Chakula", "Food")}</button>
       </div>
-      {kind === "mwezi" ? <MonthlyReport /> : kind === "malengo" ? <Performance /> : <FoodReport />}
+      {kind === "mwezi" ? <MonthlyReport /> : kind === "wiki" ? <WeeklyReport /> : kind === "malengo" ? <Performance /> : <FoodReport />}
     </main>
   );
 }

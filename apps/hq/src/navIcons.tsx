@@ -38,6 +38,12 @@ export const NAV_ICONS = {
       <circle cx="12" cy="9.5" r="2.5" />
     </Svg>
   ),
+  machinjio: (
+    <Svg>
+      <path d="M3 21V10l9-6 9 6v11" />
+      <path d="M9 21v-6h6v6M3 21h18" />
+    </Svg>
+  ),
   kumbukumbu: (
     <Svg>
       <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5" />

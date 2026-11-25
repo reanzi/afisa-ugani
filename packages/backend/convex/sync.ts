@@ -16,10 +16,16 @@ import {
   SYNC_PULL_PAGE,
   SYNC_PUSH_BATCH,
   validatePayload,
+  slaughterhouseOffered,
+  UNREGISTERED_PLACE,
+  workAreaIds,
 } from "@afisa/shared";
+import type { QueryCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { fail, memberMutation, memberQuery } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
 import { deleteMediaOfRecord } from "./media";
+import { notePlace } from "./slaughterhouses";
 import { vGeo, vSection } from "./lib/validators";
 
 const vIncomingRecord = v.object({
@@ -76,7 +82,12 @@ export const pushRecords = memberMutation({
       if (r.areaId) {
         const area = await ctx.db.get(r.areaId);
         if (!area || area.councilId !== viewer.councilId) { reject("AREA_UNKNOWN"); continue; }
-        if (restrictAreas && !allowedAreas.has(r.areaId) && !(area.parentId && allowedAreas.has(area.parentId))) {
+        if (
+          restrictAreas &&
+          !allowedAreas.has(r.areaId) &&
+          !(area.parentId && allowedAreas.has(area.parentId)) &&
+          !(await atOfferedSlaughterhouse(ctx, viewer.councilId, allowedAreas, r))
+        ) {
           reject("AREA_NOT_ASSIGNED");
           continue;
         }
@@ -112,6 +123,9 @@ export const pushRecords = memberMutation({
           clientVersion: viewer.client.version,
         };
         await ctx.db.patch(existing._id, patch);
+        if (!r.deletedAt && r.type === "slaughter" && r.payload?.slaughterhouseId === UNREGISTERED_PLACE) {
+          await notePlace(ctx, viewer, { _id: existing._id, areaId: r.areaId, payload: r.payload, geo: r.geo }, false);
+        }
         // Deleting a record deletes its photos and their files.
         const photosDeleted = r.deletedAt && !existing.deletedAt ? await deleteMediaOfRecord(ctx, r.clientId) : 0;
         await writeAudit(ctx, viewer, {
@@ -140,6 +154,9 @@ export const pushRecords = memberMutation({
           serverUpdatedAt: now,
           clientVersion: viewer.client.version,
         });
+        if (!r.deletedAt && r.type === "slaughter" && r.payload?.slaughterhouseId === UNREGISTERED_PLACE) {
+          await notePlace(ctx, viewer, { _id: id, areaId: r.areaId, payload: r.payload, geo: r.geo }, true);
+        }
         await writeAudit(ctx, viewer, {
           action: "record.create",
           entity: "records",
@@ -196,3 +213,24 @@ export const pullChanges = memberQuery({
     };
   },
 });
+
+/**
+ * A slaughter record at a registered slaughterhouse takes the slaughterhouse's
+ * area, which may lie outside the officer's areas when it serves them.
+ */
+async function atOfferedSlaughterhouse(
+  ctx: QueryCtx,
+  councilId: Id<"councils">,
+  assigned: ReadonlySet<string>,
+  r: { type: string; areaId?: Id<"areas">; payload: Record<string, unknown> },
+): Promise<boolean> {
+  const id = r.payload?.slaughterhouseId;
+  if (r.type !== "slaughter" || typeof id !== "string" || id === UNREGISTERED_PLACE) return false;
+  const houseId = ctx.db.normalizeId("slaughterhouses", id);
+  if (!houseId) return false;
+  const house = await ctx.db.get(houseId);
+  if (!house || house.councilId !== councilId || house.areaId !== r.areaId) return false;
+  const areas = await ctx.db.query("areas").withIndex("by_council_kind", (q) => q.eq("councilId", councilId)).collect();
+  const work = workAreaIds([...assigned], areas.map((a) => ({ _id: a._id as string, parentId: (a.parentId as string | undefined) ?? null })));
+  return slaughterhouseOffered({ ...house, servesAreaIds: house.servesAreaIds }, work);
+}

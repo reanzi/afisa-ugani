@@ -4,6 +4,7 @@ import type { Id } from "./_generated/dataModel";
 import { components } from "./_generated/api";
 import { authedMutation, authedQuery } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
+import { weeklyOf } from "./submissions";
 import { vClientMeta } from "./lib/validators";
 import { cleanName, isFullName, isValidPhone, normalizePhone, POLICY_VERSION, presentMaybe, presentName, storeName } from "@afisa/shared";
 
@@ -77,6 +78,7 @@ export const me = authedQuery({
           councilName: presentName(council?.name),
           councilDisplayName: presentMaybe(council?.displayName),
           autoSend: { food: council?.autoSend?.food ?? false, monthly: council?.autoSend?.monthly ?? false },
+          weekly: weeklyOf(council),
           role: m.role,
           requestedRole: m.requestedRole ?? null,
           status: m.status,

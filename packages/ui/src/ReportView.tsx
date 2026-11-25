@@ -46,7 +46,7 @@ function TableView({ block }: { block: TableBlock }) {
   );
 }
 
-function BlockView({ block }: { block: Block }) {
+function BlockView({ block, weekly }: { block: Block; weekly: boolean }) {
   const t = useT();
   return (
     <div className="rv-block">
@@ -59,7 +59,9 @@ function BlockView({ block }: { block: Block }) {
         <p className="rv-text is-empty">{t("Haijajazwa.", "Not filled in.")}</p>
       )}
       {block.kind === "text" && block.source === "records" && (
-        <p className="rv-hint">{t("Imetungwa kutoka kumbukumbu zako. Unaweza kuibadili kwenye majibu ya mwisho wa mwezi.", "Drafted from your records. You can change it in the month-end answers.")}</p>
+        <p className="rv-hint">{weekly
+            ? t("Imetungwa kutoka kumbukumbu zako. Unaweza kuibadili kwenye maelezo ya wiki.", "Drafted from your records. You can change it in the week notes.")
+            : t("Imetungwa kutoka kumbukumbu zako. Unaweza kuibadili kwenye majibu ya mwisho wa mwezi.", "Drafted from your records. You can change it in the month-end answers.")}</p>
       )}
       {block.note && <p className="rv-note">{block.note}</p>}
     </div>
@@ -78,7 +80,7 @@ export function ReportView({ report }: { report: Report }) {
               <span className="rv-part-title">{part.number ? `${part.number}. ` : ""}{part.title}</span>
               <span className={filled ? "rv-state tone-ok" : "rv-state"}>{filled ? t("Ina taarifa", "Has data") : t("Hakuna taarifa", "No data")}</span>
             </summary>
-            {part.blocks.map((b) => <BlockView key={b.id} block={b} />)}
+            {part.blocks.map((b) => <BlockView key={b.id} block={b} weekly={report.kind === "weekly"} />)}
           </details>
         );
       })}

@@ -402,9 +402,6 @@ fieldset.plain legend {
   top: var(--space-4);
   right: var(--space-4);
 }
-.hq-auth-lang .lang-switch {
-  background: var(--surface);
-}
 
 @media (max-width: 760px) {
   .hq {
@@ -1058,6 +1055,20 @@ button.badge {
   font-size: var(--t-small);
   font-weight: 700;
   cursor: pointer;
+}
+.settings-group {
+  max-width: 760px;
+  margin-top: var(--space-6);
+  display: grid;
+  gap: var(--space-3);
+}
+.settings-group > p {
+  margin: 0;
+}
+@media (max-width: 560px) {
+  .settings-list li {
+    grid-template-columns: 1fr;
+  }
 }
 .switch:disabled {
   cursor: not-allowed;
@@ -2229,4 +2240,42 @@ button.badge.inline {
 .decide > .field,
 .decide > fieldset {
   max-width: 920px;
+}
+
+/* ---------- Slaughterhouses ---------- */
+.sh-places {
+  margin-bottom: var(--space-5);
+}
+.sh-place-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.sh-place-list li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--rule);
+}
+.sh-place-list li > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+.sh-geo {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: var(--space-2);
+}
+@media (max-width: 560px) {
+  .sh-geo {
+    grid-template-columns: 1fr;
+  }
+}
+.table tr.is-muted td {
+  color: var(--ink-soft);
 }
