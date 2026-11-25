@@ -5,8 +5,10 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@afisa/backend/api";
-import { errorMessage, useT, type T } from "@afisa/ui";
+import { formatCouncilCode, SECTION_LABELS, type Section } from "@afisa/shared";
+import { errorMessage, useConfirm, useLabel, useT, type T } from "@afisa/ui";
 import { hqClient, useHq } from "../context";
+import { CopyCode } from "../CopyCode";
 
 type Key = "food" | "monthly";
 
@@ -28,6 +30,59 @@ const items = (t: T): { key: Key; title: string; body: string }[] => [
     ),
   },
 ];
+
+/** Section sign-up codes, with a new code when one has leaked. */
+function SignUpCodes() {
+  const t = useT();
+  const label = useLabel();
+  const confirm = useConfirm();
+  const { councilId } = useHq();
+  const data = useQuery(api.councils.myCodes, { councilId });
+  const renew = useMutation(api.councils.renewSectionCode);
+  const [error, setError] = useState<string | null>(null);
+  if (!data || data.codes.length === 0) return null;
+  const doRenew = async (section: Section) => {
+    const ok = await confirm({
+      title: t(`Msimbo mpya wa ${label(SECTION_LABELS[section])}?`, `New code for ${label(SECTION_LABELS[section])}?`),
+      body: t("Msimbo wa sasa hautafanya kazi tena kwa usajili mpya. Waliokwisha jisajili hawaathiriki.", "The current code stops working for new sign-ups. People already signed up are not affected."),
+      confirmLabel: t("Toa msimbo mpya", "Issue new code"),
+      tone: "danger",
+    });
+    if (!ok) return;
+    setError(null);
+    try {
+      await renew({ councilId, section, client: hqClient });
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+  return (
+    <div className="card-form settings-codes">
+      <h2>{t("Misimbo ya usajili wa sehemu", "Section sign-up codes")}</h2>
+      <p className="muted">
+        {t(
+          "Mtumishi anayejisajili kwa msimbo wa sehemu anaingia moja kwa moja kwenye sehemu hiyo kama mgeni, akisubiri idhini.",
+          "Someone who signs up with a section code goes straight into that section as a guest, waiting for approval.",
+        )}
+      </p>
+      <ul className="code-list">
+        {data.codes.map((c) => (
+          <li key={c.section} className={`sec sec-${c.section}`}>
+            <span className="sec-tag">{label(SECTION_LABELS[c.section])}</span>
+            <span className="code-with-copy">
+              <span className="code-chip">{formatCouncilCode(c.code)}</span>
+              <CopyCode code={c.code} compact />
+            </span>
+            {data.canRenew.includes(c.section) && (
+              <button type="button" className="link small" onClick={() => void doRenew(c.section)}>{t("Badili", "Change")}</button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {error && <p className="field-error" role="alert">{error}</p>}
+    </div>
+  );
+}
 
 /** The council's short name, for screens. */
 function CouncilName({ name, displayName, canEdit }: { name: string; displayName: string | null; canEdit: boolean }) {
@@ -130,6 +185,7 @@ export function Settings() {
           })}
         </ul>
       )}
+      <SignUpCodes />
       {settings && <CouncilName key={settings.displayName ?? ""} name={settings.name} displayName={settings.displayName} canEdit={settings.canEdit} />}
       {settings && !settings.canEdit && <p className="muted">{t("Mkuu wa Idara au Naibu wake ndio wanaoweza kubadili mipangilio hii.", "Only the Head of Department or their vice can change these settings.")}</p>}
     </section>

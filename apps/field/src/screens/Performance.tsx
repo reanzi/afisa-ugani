@@ -9,6 +9,8 @@ import { parseAsString, useQueryState } from "nuqs";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   buildPerformance,
+  catalogText,
+  SECTION_LABELS,
   financialYear,
   fyQuarter,
   monthKey,
@@ -19,7 +21,7 @@ import {
   type TableBlock,
   type TextBlock,
 } from "@afisa/shared";
-import { errorMessage, ReportView } from "@afisa/ui";
+import { errorMessage, ReportView, useLabel, useT, type T } from "@afisa/ui";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
 import { useAreaLabel } from "../lib/report";
@@ -31,7 +33,7 @@ const PERIODS = ["1", "2", "3", "4", "mwaka"] as const;
 type Bar = { key: string; label: string; detail: string; pct: number | null };
 
 /** The tables read well on paper; on the phone, one bar per crop or target first. */
-function progressBars(report: { parts: { blocks: unknown[] }[] }): Bar[] {
+function progressBars(report: { parts: { blocks: unknown[] }[] }, t: T): Bar[] {
   const out: Bar[] = [];
   const num = (c: unknown) => (typeof c === "number" ? c : null);
   const f = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 1 });
@@ -43,8 +45,9 @@ function progressBars(report: { parts: { blocks: unknown[] }[] }): Bar[] {
         for (const r of b.rows) {
           const [name, area, , target, planted, , , prod] = r;
           if (name === "Jumla" || !num(area)) continue;
-          out.push({ key: `a:${name}`, label: `${name}: eneo`, detail: `ha ${f(num(planted) ?? 0)} kati ya ${f(num(area)!)}`, pct: num(r[5]) });
-          if (num(target) && num(prod) !== null) out.push({ key: `p:${name}`, label: `${name}: mavuno`, detail: `tani ${f(num(prod)!)} kati ya ${f(num(target)!)}`, pct: num(r[8]) });
+          const crop = catalogText(String(name));
+          out.push({ key: `a:${name}`, label: `${crop}: ${t("eneo", "area")}`, detail: t(`ha ${f(num(planted) ?? 0)} kati ya ${f(num(area)!)}`, `${f(num(planted) ?? 0)} of ${f(num(area)!)} ha`), pct: num(r[5]) });
+          if (num(target) && num(prod) !== null) out.push({ key: `p:${name}`, label: `${crop}: ${t("mavuno", "harvest")}`, detail: t(`tani ${f(num(prod)!)} kati ya ${f(num(target)!)}`, `${f(num(prod)!)} of ${f(num(target)!)} t`), pct: num(r[8]) });
         }
       } else if (b.id.endsWith("-m")) {
         const yearView = b.columns.length === 5;
@@ -52,7 +55,7 @@ function progressBars(report: { parts: { blocks: unknown[] }[] }): Bar[] {
           const target = num(r[2]);
           if (!target) continue;
           const done = num(yearView ? r[3] : r[5]) ?? 0;
-          out.push({ key: `m:${String(r[0])}`, label: String(r[0]), detail: `${f(done)} kati ya ${f(target)} ${String(r[1])}`, pct: num(r[r.length - 1]) });
+          out.push({ key: `m:${String(r[0])}`, label: catalogText(String(r[0])), detail: `${f(done)} ${t("kati ya", "of")} ${f(target)} ${catalogText(String(r[1]))}`, pct: num(r[r.length - 1]) });
         }
       }
     }
@@ -62,6 +65,8 @@ function progressBars(report: { parts: { blocks: unknown[] }[] }): Bar[] {
 
 export function Performance() {
   const { me, councilId, sections } = useWork();
+  const t = useT();
+  const label = useLabel();
   const areaLabel = useAreaLabel();
   const thisMonth = monthKey(new Date());
   const currentFy = financialYear(thisMonth);
@@ -147,25 +152,25 @@ export function Performance() {
   return (
     <div className="performance stack">
       <header className="month-head">
-        <button className="btn btn-quiet btn-small" onClick={() => void setFy(`${Number(fy.slice(0, 4)) - 1}/${fy.slice(2, 4)}`)} aria-label="Mwaka uliopita">‹</button>
+        <button className="btn btn-quiet btn-small" onClick={() => void setFy(`${Number(fy.slice(0, 4)) - 1}/${fy.slice(2, 4)}`)} aria-label={t("Mwaka uliopita", "Previous year")}>‹</button>
         <div className="food-title">
-          <h2 className="page-title">Utekelezaji {fy}</h2>
-          <p className="muted">Mpango dhidi ya matokeo, kwa vikao (si fomu ya ARDS)</p>
+          <h2 className="page-title">{t(`Utekelezaji ${fy}`, `Progress ${fy}`)}</h2>
+          <p className="muted">{t("Mpango dhidi ya matokeo, kwa vikao (si fomu ya ARDS)", "Plan against results, for meetings (not an ARDS form)")}</p>
         </div>
         <button
           className="btn btn-quiet btn-small"
           onClick={() => void setFy(`${Number(fy.slice(0, 4)) + 1}/${String((Number(fy.slice(0, 4)) + 2) % 100).padStart(2, "0")}`)}
           disabled={fy >= currentFy}
-          aria-label="Mwaka unaofuata"
+          aria-label={t("Mwaka unaofuata", "Next year")}
         >
           ›
         </button>
       </header>
 
-      <div className="period-pick" role="tablist" aria-label="Kipindi">
+      <div className="period-pick" role="tablist" aria-label={t("Kipindi", "Period")}>
         {PERIODS.map((p) => (
           <button key={p} role="tab" aria-selected={periodKey === p} onClick={() => void setPeriod(p)}>
-            {p === "mwaka" ? "Mwaka" : `Robo ${p}`}
+            {p === "mwaka" ? t("Mwaka", "Year") : t(`Robo ${p}`, `Q${p}`)}
           </button>
         ))}
       </div>
@@ -173,18 +178,24 @@ export function Performance() {
       {noPlan.length > 0 && (
         <div className="plan-banner">
           <p>
-            <strong>Mpango wa {fy} {noPlan.length < sections.length ? `(${noPlan.join(", ")}) ` : ""}haujaidhinishwa.</strong> Malengo yatabaki wazi hadi uweke mpango na mkuu wa sehemu auidhinishe.
+            <strong>
+              {(() => {
+                const which = noPlan.length < sections.length ? ` (${noPlan.map((s) => label(SECTION_LABELS[s])).join(", ")})` : "";
+                return t(`Mpango wa ${fy}${which} haujaidhinishwa.`, `The ${fy} plan${which} is not approved.`);
+              })()}
+            </strong>{" "}
+            {t("Malengo yatabaki wazi hadi uweke mpango na mkuu wa sehemu auidhinishe.", "Targets stay blank until you set a plan and the section head approves it.")}
           </p>
-          <Link to={`/malengo?mwaka=${fy}`} className="btn btn-primary">Weka mpango</Link>
+          <Link to={`/malengo?mwaka=${fy}`} className="btn btn-primary">{t("Weka mpango", "Set the plan")}</Link>
         </div>
       )}
       {noPlan.length === 0 && (
-        <Link to={`/malengo?mwaka=${fy}`} className="link plan-link">Angalia au badili mpango wa {fy}</Link>
+        <Link to={`/malengo?mwaka=${fy}`} className="link plan-link">{t(`Angalia au badili mpango wa ${fy}`, `View or change the ${fy} plan`)}</Link>
       )}
 
       {needed.length > 0 && (
         <section className="stack" aria-labelledby="needed">
-          <h3 id="needed" className="section-title">Viwango vinavyohitajika</h3>
+          <h3 id="needed" className="section-title">{t("Viwango vinavyohitajika", "Figures needed")}</h3>
           {needed.map((m) => (
             <PresetAsk key={m.key} councilId={councilId} presetKey={m.key} row={byKey.get(m.key)} reason={m.reason} />
           ))}
@@ -192,20 +203,20 @@ export function Performance() {
       )}
 
       {future ? (
-        <p className="empty">Robo hii bado haijaanza.</p>
+        <p className="empty">{t("Robo hii bado haijaanza.", "This quarter has not started yet.")}</p>
       ) : (
         built && (
           <>
             <div className="export-row">
-              <button className="btn btn-primary" disabled={busy} onClick={() => void download()}>{busy ? "Inaandaa…" : "Pakua Word (.docx)"}</button>
-              <button className="btn btn-quiet" onClick={() => void copySummary()}>{copied ? "Imenakiliwa" : "Nakili muhtasari"}</button>
+              <button className="btn btn-primary" disabled={busy} onClick={() => void download()}>{busy ? t("Inaandaa…", "Preparing…") : t("Pakua Word (.docx)", "Download Word (.docx)")}</button>
+              <button className="btn btn-quiet" onClick={() => void copySummary()}>{copied ? t("Imenakiliwa", "Copied") : t("Nakili muhtasari", "Copy summary")}</button>
             </div>
             {error && <div className="notice notice-danger" role="alert"><p>{error}</p></div>}
             {(() => {
-              const bars = progressBars(built.report);
+              const bars = progressBars(built.report, t);
               if (bars.length === 0) return null;
               return (
-                <ul className="progress-list" aria-label="Utekelezaji kwa ufupi">
+                <ul className="progress-list" aria-label={t("Utekelezaji kwa ufupi", "Progress at a glance")}>
                   {bars.map((b) => (
                     <li key={b.key}>
                       <div className="progress-line">

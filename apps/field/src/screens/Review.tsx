@@ -18,7 +18,7 @@ import {
   type MonthlyReview,
   type TextBlock,
 } from "@afisa/shared";
-import { Select, IconTrash } from "@afisa/ui";
+import { Select, IconTrash, useT } from "@afisa/ui";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
@@ -73,6 +73,7 @@ function CropTable({
   /** Extra content under a crop, e.g. asking for a missing yield. */
   after?: (crop: string, row: Row) => ReactNode;
 }) {
+  const t = useT();
   const crops = CROPS.filter((c) => value[c.value]);
   const remaining = CROPS.filter((c) => !value[c.value]);
   const setCell = (crop: string, key: string, v: string) => onChange({ ...value, [crop]: { ...value[crop], [key]: v } });
@@ -94,7 +95,7 @@ function CropTable({
           <div key={c.value} className="crop-row">
             <div className="crop-row-head">
               <strong>{c.label}</strong>
-              <button type="button" className="icon-btn is-danger" onClick={() => remove(c.value)} aria-label={`Ondoa ${c.label}`} title="Ondoa">
+              <button type="button" className="icon-btn is-danger" onClick={() => remove(c.value)} aria-label={t(`Ondoa ${c.label}`, `Remove ${c.label}`)} title={t("Ondoa", "Remove")}>
                 <IconTrash />
               </button>
             </div>
@@ -124,8 +125,8 @@ function CropTable({
       {remaining.length > 0 && (
         <Select
           value=""
-          label={`Ongeza zao: ${title}`}
-          placeholder="Ongeza zao…"
+          label={t(`Ongeza zao: ${title}`, `Add a crop: ${title}`)}
+          placeholder={t("Ongeza zao…", "Add a crop…")}
           onChange={(v) => v && onChange({ ...value, [v]: {} })}
           options={remaining.map((c) => ({ value: c.value, label: c.label }))}
         />
@@ -157,6 +158,7 @@ export function Review() {
   const [forecast, setForecast] = useState<Table>({});
   const [targets, setTargets] = useState<Table>({});
   const [saving, setSaving] = useState(false);
+  const t = useT();
 
   const live = useMemo(() => (records ?? []).filter((r) => !r.deletedAt && r.type !== "monthly_review"), [records]);
   const rainDays = useMemo(() => new Set(live.filter((r) => r.type === "rainfall").map((r) => new Date(r.occurredAt).toDateString())).size, [live]);
@@ -211,24 +213,24 @@ export function Review() {
     navigate(`/ripoti?mwezi=${month}`, { replace: true });
   };
 
-  if (!loaded) return <main className="page narrow"><p className="muted">Inafungua…</p></main>;
+  if (!loaded) return <main className="page narrow"><p className="muted">{t("Inafungua…", "Opening…")}</p></main>;
 
   return (
     <main className="page narrow">
-      <Link to={`/ripoti?mwezi=${month}`} className="back">Rudi kwenye ripoti</Link>
-      <h1 className="page-title">Mwisho wa {monthLabel(month)}</h1>
-      <p className="lead">Majibu haya yanajaza sehemu za ripoti ambazo kumbukumbu za kila siku haziwezi kujaza.</p>
+      <Link to={`/ripoti?mwezi=${month}`} className="back">{t("Rudi kwenye ripoti", "Back to the report")}</Link>
+      <h1 className="page-title">{t(`Mwisho wa ${monthLabel(month)}`, `End of ${monthLabel(month)}`)}</h1>
+      <p className="lead">{t("Majibu haya yanajaza sehemu za ripoti ambazo kumbukumbu za kila siku haziwezi kujaza.", "These answers fill the parts of the report that daily records cannot.")}</p>
       {sealed && (
         <div className="seal" role="status">
-          <strong>Ripoti ya {monthLabel(month)} imeshatumwa</strong>
-          <span>Majibu haya yamefungwa pamoja nayo. Unaweza kuyasoma tu.</span>
+          <strong>{t(`Ripoti ya ${monthLabel(month)} imeshatumwa`, `The ${monthLabel(month)} report has been sent`)}</strong>
+          <span>{t("Majibu haya yamefungwa pamoja nayo. Unaweza kuyasoma tu.", "These answers were locked with it. You can only read them.")}</span>
         </div>
       )}
       <fieldset className="plain review-lock" disabled={Boolean(sealed)}>
 
       <section className="stack review-block">
         <fieldset className="field plain">
-          <legend>Mvua ya mwezi huu ilikuwaje?</legend>
+          <legend>{t("Mvua ya mwezi huu ilikuwaje?", "How was the rainfall this month?")}</legend>
           <div className="chips">
             {RAIN_LEVELS.map((o) => (
               <button key={o.value} type="button" className="chip" aria-pressed={rainLevel === o.value} onClick={() => setRainLevel(rainLevel === o.value ? "" : o.value)}>
@@ -237,59 +239,66 @@ export function Review() {
             ))}
           </div>
           <small>
-            Umeandika siku {rainDays} za mvua. Pendekezo: {labelOf(RAIN_LEVELS, suggestion).toLowerCase()}. Usipochagua, pendekezo litatumika.
+            {t(
+              `Umeandika siku ${rainDays} za mvua. Pendekezo: ${labelOf(RAIN_LEVELS, suggestion).toLowerCase()}. Usipochagua, pendekezo litatumika.`,
+              `You recorded ${rainDays} rain days. Suggestion: ${labelOf(RAIN_LEVELS, suggestion).toLowerCase()}. If you don't choose, the suggestion is used.`,
+            )}
           </small>
         </fieldset>
         <label className="field">
-          <span>Matukio muhimu</span>
-          <textarea className="textarea" value={events} onChange={(e) => setEvents(e.target.value)} placeholder="Ukame, mafuriko, njaa, migogoro, milipuko ya magonjwa…" />
+          <span>{t("Matukio muhimu", "Key events")}</span>
+          <textarea className="textarea" value={events} onChange={(e) => setEvents(e.target.value)} placeholder={t("Ukame, mafuriko, njaa, migogoro, milipuko ya magonjwa…", "Drought, floods, hunger, conflicts, disease outbreaks…")} />
         </label>
         <label className="field">
-          <span>Kazi zilizofanyika</span>
+          <span>{t("Kazi zilizofanyika", "Work done")}</span>
           <textarea className="textarea tall" value={work} onChange={(e) => setWork(e.target.value)} />
-          <small>Imetungwa kutoka kumbukumbu zako za mwezi. Ongeza au rekebisha.</small>
+          <small>{t("Imetungwa kutoka kumbukumbu zako za mwezi. Ongeza au rekebisha.", "Drafted from your records this month. Add to it or correct it.")}</small>
         </label>
         <label className="field">
-          <span>Mafanikio</span>
+          <span>{t("Mafanikio", "Achievements")}</span>
           <textarea className="textarea" value={achievements} onChange={(e) => setAchievements(e.target.value)} />
         </label>
         <label className="field">
-          <span>Changamoto na matatizo</span>
+          <span>{t("Changamoto na matatizo", "Challenges and problems")}</span>
           <textarea className="textarea" value={challenges} onChange={(e) => setChallenges(e.target.value)} />
         </label>
       </section>
 
       {crops && isJuly && (
         <section className="stack review-block">
-          <h2 className="section-title">Malengo ya mwaka</h2>
+          <h2 className="section-title">{t("Malengo ya mwaka", "Yearly targets")}</h2>
           <p className="muted">
-            Malengo ya mwaka {financialYear(month)} (jedwali 2.1a) yanatoka kwenye mpango wako wa uzalishaji ulioidhinishwa: eneo la kila zao × tija.
+            {t(
+              `Malengo ya mwaka ${financialYear(month)} (jedwali 2.1a) yanatoka kwenye mpango wako wa uzalishaji ulioidhinishwa: eneo la kila zao × tija.`,
+              `The ${financialYear(month)} targets (table 2.1a) come from your approved production plan: area of each crop × yield.`,
+            )}
           </p>
-          <Link to={`/malengo?mwaka=${financialYear(month)}`} className="btn btn-quiet btn-block">Fungua mpango wa uzalishaji</Link>
+          <Link to={`/malengo?mwaka=${financialYear(month)}`} className="btn btn-quiet btn-block">{t("Fungua mpango wa uzalishaji", "Open the production plan")}</Link>
         </section>
       )}
 
       {crops && (
         <CropTable
-          title="Utekelezaji wa msimu"
-          hint="Makadirio yako ya mazao yaliyopandwa na kuvunwa. Bei ya soko inachukuliwa kutoka bei ulizoandika."
+          title={t("Utekelezaji wa msimu", "Season progress")}
+          hint={t("Makadirio yako ya mazao yaliyopandwa na kuvunwa. Bei ya soko inachukuliwa kutoka bei ulizoandika.", "Your estimates of crops planted and harvested. Market prices come from the prices you recorded.")}
           value={estimates}
           onChange={setEstimates}
           columns={[
-            { key: "planted", label: "Lililopandwa", unit: "ha" },
-            { key: "harvested", label: "Lililovunwa", unit: "ha" },
-            { key: "yield", label: "Tija", unit: "t/ha" },
-            { key: "remarks", label: "Maelezo", text: true },
+            { key: "planted", label: t("Lililopandwa", "Planted"), unit: "ha" },
+            { key: "harvested", label: t("Lililovunwa", "Harvested"), unit: "ha" },
+            { key: "yield", label: t("Tija", "Yield"), unit: "t/ha" },
+            { key: "remarks", label: t("Maelezo", "Remarks"), text: true },
           ]}
           placeholder={(crop, col) => (col === "yield" && approved?.yields[crop] !== undefined ? String(approved.yields[crop]) : undefined)}
           computed={(r, crop) => {
             const h = toNum(r.harvested), y = toNum(r.yield) ?? approved?.yields[crop];
             if (h === undefined || y === undefined) return null;
-            return `Mavuno: tani ${Math.round(h * y * 100) / 100}${toNum(r.yield) === undefined ? " (kwa tija iliyoidhinishwa)" : ""}`;
+            const tons = Math.round(h * y * 100) / 100;
+            return t(`Mavuno: tani ${tons}`, `Harvest: ${tons} t`) + (toNum(r.yield) === undefined ? t(" (kwa tija iliyoidhinishwa)", " (at the approved yield)") : "");
           }}
           after={(crop, r) =>
             toNum(r.harvested) !== undefined && toNum(r.yield) === undefined && approved?.yields[crop] === undefined && presetDef(yieldKey(crop)) ? (
-              <PresetAsk councilId={councilId} presetKey={yieldKey(crop)} row={presetRows?.find((p) => p.key === yieldKey(crop))} reason="Kukokotoa mavuno ya zao hili" />
+              <PresetAsk councilId={councilId} presetKey={yieldKey(crop)} row={presetRows?.find((p) => p.key === yieldKey(crop))} reason={t("Kukokotoa mavuno ya zao hili", "To work out this crop's harvest")} />
             ) : null
           }
         />
@@ -297,17 +306,17 @@ export function Review() {
 
       {crops && (
         <CropTable
-          title="Utabiri wa usalama wa chakula"
-          hint="Eneo na mavuno yanayotarajiwa msimu huu."
+          title={t("Utabiri wa usalama wa chakula", "Food security forecast")}
+          hint={t("Eneo na mavuno yanayotarajiwa msimu huu.", "Area and harvest expected this season.")}
           value={forecast}
           onChange={setForecast}
           columns={[
-            { key: "area", label: "Eneo", unit: "ha" },
-            { key: "harvest", label: "Mavuno", unit: "tani" },
+            { key: "area", label: t("Eneo", "Area"), unit: "ha" },
+            { key: "harvest", label: t("Mavuno", "Harvest"), unit: t("tani", "t") },
           ]}
           computed={(r, crop) => {
             const a = toNum(r.area), y = approved?.yields[crop];
-            return toNum(r.harvest) === undefined && a !== undefined && y !== undefined ? `Mavuno yanayotarajiwa: tani ${Math.round(a * y * 100) / 100} (eneo × tija)` : null;
+            return toNum(r.harvest) === undefined && a !== undefined && y !== undefined ? t(`Mavuno yanayotarajiwa: tani ${Math.round(a * y * 100) / 100} (eneo × tija)`, `Expected harvest: ${Math.round(a * y * 100) / 100} t (area × yield)`) : null;
           }}
         />
       )}
@@ -317,7 +326,7 @@ export function Review() {
       {!sealed && (
         <div className="form-actions">
           <button className="btn btn-primary btn-block" disabled={saving} onClick={() => void save()}>
-            {saving ? "Inahifadhi…" : "Hifadhi majibu"}
+            {saving ? t("Inahifadhi…", "Saving…") : t("Hifadhi majibu", "Save answers")}
           </button>
         </div>
       )}

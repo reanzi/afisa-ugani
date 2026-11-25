@@ -21,7 +21,8 @@ export const ROLES = [
   "moderator", // Vice HoD — all three sections
   "section_head",
   "section_vice", // same powers as section_head
-  "officer", // VAEO / WAEO
+  "officer", // village or ward extension officer of their section
+  "guest", // signed up, waiting for HQ to give a role and designation
 ] as const;
 export type Role = (typeof ROLES)[number];
 
@@ -31,7 +32,11 @@ export const ROLE_LABELS: Record<Role, { sw: string; en: string }> = {
   section_head: { sw: "Mkuu wa Sehemu", en: "Head of Section" },
   section_vice: { sw: "Naibu Mkuu wa Sehemu", en: "Vice Head of Section" },
   officer: { sw: "Afisa Ugani", en: "Extension Officer" },
+  guest: { sw: "Mgeni", en: "Guest" },
 };
+
+/** Every new membership starts with this role; HQ replaces it on approval. */
+export const DEFAULT_ROLE: Role = "guest";
 
 export const HQ_ROLES: readonly Role[] = [
   "admin",
@@ -49,8 +54,34 @@ export const SECTION_LEAD_ROLES: readonly Role[] = [
   "section_vice",
 ];
 
+/**
+ * Where an officer works: "vaeo" = village, "waeo" = ward. The stored values
+ * keep their old names (released phones send them). The server sets the level
+ * from the areas an officer is assigned: any ward makes it ward level.
+ */
 export const OFFICER_LEVELS = ["vaeo", "waeo"] as const;
 export type OfficerLevel = (typeof OFFICER_LEVELS)[number];
+
+export const LEVEL_LABELS: Record<OfficerLevel, { sw: string; en: string }> = {
+  vaeo: { sw: "Kijiji", en: "Village" },
+  waeo: { sw: "Kata", en: "Ward" },
+};
+
+const DESIGNATIONS: Record<Section, { sw: string; en: string }> = {
+  kilimo: { sw: "Afisa Kilimo", en: "Crop Officer" },
+  mifugo: { sw: "Afisa Mifugo", en: "Livestock Officer" },
+  uvuvi: { sw: "Afisa Uvuvi", en: "Fisheries Officer" },
+};
+
+/** An officer's designation comes from their primary section. */
+export function designationLabel(section: Section): { sw: string; en: string } {
+  return DESIGNATIONS[section];
+}
+
+/** Ward level if any assigned area is a ward, otherwise village level. */
+export function levelForAreas(kinds: readonly AreaKind[]): OfficerLevel {
+  return kinds.includes("ward") ? "waeo" : "vaeo";
+}
 
 export const MEMBERSHIP_STATUSES = [
   "pending",

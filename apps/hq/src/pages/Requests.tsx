@@ -2,19 +2,36 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
-import { canApproveRequest, canManageMember, ROLE_LABELS, type OfficerLevel } from "@afisa/shared";
-import { errorMessage, useLabel, useT } from "@afisa/ui";
+import {
+  approvableRoles,
+  canApproveRequest,
+  canManageMember,
+  designationLabel,
+  LEVEL_LABELS,
+  levelForAreas,
+  ROLE_LABELS,
+  SECTION_LABELS,
+  SECTIONS,
+  type Role,
+  type Section,
+} from "@afisa/shared";
+import { errorMessage, Select, useLabel, useT } from "@afisa/ui";
 import { hqClient, useHq } from "../context";
-import { AreaPicker, SectionTags, toTarget, when, type MemberRow } from "./common";
+import { AreaPicker, SectionTags, toTarget, useAreas, when, type MemberRow } from "./common";
 
-function Decide({ row, onDone, canApprove }: { row: MemberRow; onDone: () => void; canApprove: boolean }) {
+function Decide({ row, onDone }: { row: MemberRow; onDone: () => void }) {
   const t = useT();
   const label = useLabel();
-  const { councilId } = useHq();
+  const { councilId, actor } = useHq();
   const approve = useMutation(api.memberships.approve);
   const reject = useMutation(api.memberships.reject);
-  const [areaIds, setAreaIds] = useState<Id<"areas">[]>([]);
-  const [level, setLevel] = useState<OfficerLevel>(row.level ?? "vaeo");
+  const target = toTarget(row);
+  const areas = useAreas();
+  // Section leads only ever make officers, so the role list is the same in every section.
+  const roles = approvableRoles(actor, target);
+  const [role, setRole] = useState<Role | "">(roles.length === 1 ? roles[0]! : "");
+  const [section, setSection] = useState<Section>(row.primarySection);
+  const [areaIds, setAreaIds] = useState<Id<"areas">[]>(row.requestedAreaId ? [row.requestedAreaId] : []);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,50 +49,95 @@ function Decide({ row, onDone, canApprove }: { row: MemberRow; onDone: () => voi
     }
   };
 
-  const officer = !row.requestedRole;
+  const officer = role === "officer";
+  const sectionAllowed = role !== "" && canApproveRequest(actor, { ...target, primarySection: section }, role);
+  const ready = role !== "" && sectionAllowed && (!officer || areaIds.length > 0);
+  const sectionMatters = role === "officer" || role === "section_head" || role === "section_vice";
+
   return (
     <div className="decide">
-      {officer ? (
-        <>
-          <div className="field">
-            <span>{t("Maeneo ya kazi", "Work areas")}</span>
-            {row.areaHint && <small>{t("Ameandika:", "They wrote:")} “{row.areaHint}”</small>}
-            <AreaPicker value={areaIds} onChange={setAreaIds} />
-          </div>
-          <fieldset className="field plain">
-            <legend>{t("Ngazi", "Level")}</legend>
-            <div className="chips">
-              <button type="button" className="chip" aria-pressed={level === "vaeo"} onClick={() => setLevel("vaeo")}>{t("Kijiji (VAEO)", "Village (VAEO)")}</button>
-              <button type="button" className="chip" aria-pressed={level === "waeo"} onClick={() => setLevel("waeo")}>{t("Kata (WAEO)", "Ward (WAEO)")}</button>
-            </div>
-          </fieldset>
-        </>
-      ) : (
-        <p>
-          {t("Ukiidhinisha, atakuwa", "If you approve, they become")} <strong>{label(ROLE_LABELS[row.requestedRole!])}</strong>
-          {row.requestedRole === "section_head" || row.requestedRole === "section_vice" ? t(" wa sehemu aliyochagua", " of the section they chose") : ""}
-          {t(" na ataweza kutumia makao makuu.", " and can use head office.")}
+      {row.requestedRole && (
+        <p className="muted small">
+          {t("Kwenye programu ya zamani aliandika kuwa ni", "On an older app version they said they are")} {label(ROLE_LABELS[row.requestedRole])}.
         </p>
       )}
+      {roles.length === 0 ? (
+        <div className="notice notice-wait"><p>{t("Huna ruhusa ya kumpa mtu huyu cheo. Unaweza kukataa ombi.", "You cannot give this person a position. You can decline the request.")}</p></div>
+      ) : (
+        <div className="field">
+          <span className="field-label" id={`role-${row._id}`}>{t("Cheo", "Position")}</span>
+          <Select
+            labelledBy={`role-${row._id}`}
+            label={t("Cheo", "Position")}
+            value={role}
+            onChange={(v) => setRole(v as Role)}
+            placeholder={t("Chagua cheo", "Choose a position")}
+            options={roles.map((r) => ({ value: r, label: label(ROLE_LABELS[r]) }))}
+          />
+          {!actor.isRoot && <small>{t("Mkuu wa Idara huwekwa na msimamizi wa mfumo.", "The Head of Department is seated by the system administrator.")}</small>}
+        </div>
+      )}
+
+      {sectionMatters && (
+        <fieldset className="field plain">
+          <legend>{role === "officer" ? t("Sehemu kuu", "Main section") : t("Sehemu atakayoongoza", "Section they will lead")}</legend>
+          <div className="chips">
+            {SECTIONS.map((s) => (
+              <button
+                type="button"
+                key={s}
+                className={`chip sec sec-${s}`}
+                aria-pressed={section === s}
+                disabled={!canApproveRequest(actor, { ...target, primarySection: s }, role as Role)}
+                onClick={() => setSection(s)}
+              >
+                <span className="sec-tag" aria-hidden />
+                {label(SECTION_LABELS[s])}
+              </button>
+            ))}
+          </div>
+          {section !== row.primarySection && <small>{t(`Aliomba ${label(SECTION_LABELS[row.primarySection])}.`, `They asked for ${label(SECTION_LABELS[row.primarySection])}.`)}</small>}
+        </fieldset>
+      )}
+
+      {officer && (
+        <div className="field">
+          <span>{t("Maeneo ya kazi", "Work areas")}</span>
+          <small>
+            {row.areaHint ? <>{t("Aliomba:", "Asked for:")} “{row.areaHint}”. </> : null}
+            {t("Akipangiwa kata atakuwa wa ngazi ya kata; vijiji pekee ni ngazi ya kijiji.", "Any ward makes them ward level; villages only make them village level.")}
+          </small>
+          <AreaPicker value={areaIds} onChange={setAreaIds} />
+          <small className="tone-ok">
+            {label(designationLabel(section))}
+            {areaIds.length > 0 && `, ${label(LEVEL_LABELS[levelForAreas(areaIds.map((id) => areas?.find((a) => a._id === id)?.kind ?? "village"))]).toLowerCase()}`}
+          </small>
+        </div>
+      )}
+
       <label className="field">
         <span>{t("Maelezo", "Note")}</span>
         <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Lazima ukikataa ombi", "Required when you decline")} />
       </label>
-      {!canApprove && (
-        <div className="notice notice-wait">
-          <p>
-            {row.requestedRole === "admin"
-              ? t("Ombi la Mkuu wa Idara huidhinishwa na msimamizi wa mfumo.", "A Head of Department request is approved by the system administrator.")
-              : t("Huna ruhusa ya kutoa cheo hiki. Unaweza kukataa ombi.", "You cannot give this position. You can decline the request.")}
-          </p>
-        </div>
-      )}
       {error && <div className="notice notice-danger" role="alert"><p>{error}</p></div>}
       <div className="row-actions">
         <button
           className="btn btn-primary"
-          disabled={busy || !canApprove || (officer && areaIds.length === 0)}
-          onClick={() => void run(() => approve({ councilId, membershipId: row._id, areaIds, level, note: note || undefined, client: hqClient }))}
+          disabled={busy || !ready}
+          onClick={() =>
+            role !== "" &&
+            void run(() =>
+              approve({
+                councilId,
+                membershipId: row._id,
+                role,
+                primarySection: section,
+                areaIds: officer ? areaIds : [],
+                note: note || undefined,
+                client: hqClient,
+              }),
+            )
+          }
         >
           {t("Idhinisha", "Approve")}
         </button>
@@ -102,14 +164,17 @@ export function Requests() {
     <section className="hq-page">
       <header className="hq-page-head">
         <h1>{t("Maombi ya kujiunga", "Requests to join")}</h1>
-        <p className="muted">{t("Maafisa wapya husubiri hapa hadi uwaidhinishe na kuwapangia maeneo.", "New officers wait here until you approve them and assign their areas.")}</p>
+        <p className="muted">
+          {actor.isRoot
+            ? t("Wageni wapya wa halmashauri hii. Mpe Mkuu wa Idara cheo chake; yeye na wakuu wa sehemu watawaidhinisha wengine.", "New guests of this council. Seat the Head of Department; they and the section heads approve everyone else.")
+            : t("Wageni wapya husubiri hapa hadi uwape cheo, ngazi na maeneo ya kazi.", "New guests wait here until you give them a position, level and work areas.")}
+        </p>
       </header>
       {rows === undefined && <p className="muted">{t("Inapakia…", "Loading…")}</p>}
       {rows?.length === 0 && <p className="empty">{t("Hakuna ombi linalosubiri.", "No requests waiting.")}</p>}
       <ul className="request-list">
         {rows?.map((r) => {
           const allowed = canManageMember(actor, toTarget(r));
-          const canApprove = canApproveRequest(actor, toTarget(r), r.requestedRole);
           const expanded = open === r._id;
           return (
             <li key={r._id} className={`request sec sec-${r.primarySection}`}>
@@ -118,11 +183,8 @@ export function Requests() {
                   <strong className="request-name">{r.name}</strong>
                   <div className="request-meta">
                     <SectionTags sections={r.sections} />
-                    {r.requestedRole ? (
-                      <span className="requested-role">{t("Anaomba:", "Asks for:")} {label(ROLE_LABELS[r.requestedRole])}</span>
-                    ) : (
-                      <span>{r.level === "waeo" ? t("Kata (WAEO)", "Ward (WAEO)") : t("Kijiji (VAEO)", "Village (VAEO)")}</span>
-                    )}
+                    <span className="requested-role">{label(ROLE_LABELS.guest)}</span>
+                    {r.areaHint && <span>“{r.areaHint}”</span>}
                     {r.checkNumber && <span>{t("Namba ya utumishi", "Check no.")} {r.checkNumber}</span>}
                     {r.phone && <span>{r.phone}</span>}
                     <span>{t("Aliomba", "Asked")} {when(r.requestedAt)}</span>
@@ -136,7 +198,7 @@ export function Requests() {
                   <span className="muted small">{t("Kwa mkuu wa sehemu husika", "For the section's head")}</span>
                 )}
               </div>
-              {expanded && allowed && <Decide row={r} canApprove={canApprove} onDone={() => setOpen(null)} />}
+              {expanded && allowed && <Decide row={r} onDone={() => setOpen(null)} />}
             </li>
           );
         })}

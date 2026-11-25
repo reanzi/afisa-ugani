@@ -6,6 +6,8 @@ import type { Id } from "@afisa/backend/dataModel";
 import {
   assignableRoles,
   canAssignRole,
+  designationLabel,
+  LEVEL_LABELS,
   canGrantSection,
   canManageMember,
   canRevokeSection,
@@ -220,7 +222,7 @@ export function Members() {
                       {r.isSelf && <span className="muted">{t(" (wewe)", " (you)")}</span>}
                       <div className="muted small">{[r.checkNumber && t(`Namba ${r.checkNumber}`, `Check no. ${r.checkNumber}`), r.phone].filter(Boolean).join(", ")}</div>
                     </td>
-                    <td>{label(ROLE_LABELS[r.role])}{r.level ? ` (${r.level.toUpperCase()})` : ""}</td>
+                    <td>{r.role === "officer" && r.level ? `${label(designationLabel(r.primarySection))}, ${label(LEVEL_LABELS[r.level]).toLowerCase()}` : label(ROLE_LABELS[r.role])}</td>
                     <td><SectionTags sections={r.sections} primary={r.primarySection} /></td>
                     <td className="small">{areaNames(r.areaIds, areas) || <span className="muted">{t("Hajapangiwa", "Not assigned")}</span>}</td>
                     <td><span className={`status status-${r.status}`}>{statusLabel(t, r.status)}</span></td>

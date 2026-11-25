@@ -95,7 +95,7 @@ export function canViewMembership(actor: Actor, target: Target): boolean {
 /**
  * Approve / reject a pending registration, suspend or reactivate a member, or
  * assign their areas. Admin and moderator: anyone below them. Section head or
- * vice: officers whose primary section they lead.
+ * vice: officers and guests whose primary section they lead.
  */
 export function canManageMember(actor: Actor, target: Target): boolean {
   if (isSelf(actor, target) && !actor.isRoot) return false;
@@ -107,7 +107,7 @@ export function canManageMember(actor: Actor, target: Target): boolean {
   }
   if (isSectionLead(actor.role)) {
     return (
-      target.role === "officer" &&
+      (target.role === "officer" || target.role === "guest") &&
       authoritySections(actor).includes(target.primarySection)
     );
   }
@@ -115,15 +115,22 @@ export function canManageMember(actor: Actor, target: Target): boolean {
 }
 
 /**
- * Approve a pending request. Officers follow canManageMember; a request for an
- * HQ role (made with the council code) also needs the right to hand out that
- * role, so only root approves a Head of Department.
+ * Approve a pending guest and give them `role`. The approver chooses the role;
+ * the person signing up never does. Section leads approve officers of their
+ * section; giving an HQ role needs the right to hand it out, so only root
+ * seats a Head of Department.
  */
-export function canApproveRequest(actor: Actor, target: Target, requestedRole: Role | null | undefined): boolean {
+export function canApproveRequest(actor: Actor, target: Target, role: Role): boolean {
   if (target.status !== "pending") return false;
+  if (role === "guest") return false;
   if (!canManageMember(actor, target)) return false;
-  const role = requestedRole ?? "officer";
   return role === "officer" || assignableRoles(actor).includes(role);
+}
+
+/** Roles the actor may give when approving this pending guest. */
+export function approvableRoles(actor: Actor, target: Target): Role[] {
+  const roles: Role[] = ["admin", "moderator", "section_head", "section_vice", "officer"];
+  return roles.filter((r) => canApproveRequest(actor, target, r));
 }
 
 /** Roles the actor is allowed to hand out. */
@@ -141,7 +148,7 @@ export function assignableRoles(actor: Actor): Role[] {
  * admin.
  */
 export function canAssignRole(actor: Actor, target: Target, role: Role): boolean {
-  if (role === target.role) return false;
+  if (role === target.role || role === "guest") return false;
   if (!canManageMember(actor, target)) return false;
   if (target.status !== "active") return false;
   return assignableRoles(actor).includes(role);
@@ -163,6 +170,22 @@ export function canRevokeSection(actor: Actor, target: Target, section: Section)
   if (isSelf(actor, target) && !actor.isRoot) return false;
   if (section === target.primarySection) return false;
   if (!target.sections.includes(section)) return false;
+  return authoritySections(actor).includes(section);
+}
+
+/**
+ * Section sign-up codes the actor may see and share: every section for root
+ * and the Head of Department (and vice), their own section for anyone else
+ * active in it. Guests see none.
+ */
+export function visibleSectionCodes(actor: Actor): Section[] {
+  if (actor.isRoot || (isActive(actor) && isDepartment(actor.role))) return [...SECTIONS];
+  if (isActive(actor) && actor.primarySection && actor.role !== "guest") return [actor.primarySection];
+  return [];
+}
+
+/** Issue a new code for a section: root and department roles for any, section leads for their own. */
+export function canRenewSectionCode(actor: Actor, section: Section): boolean {
   return authoritySections(actor).includes(section);
 }
 

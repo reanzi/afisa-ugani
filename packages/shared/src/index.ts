@@ -12,3 +12,5 @@ export * from "./people.ts";
 export * from "./media.ts";
 export * from "./policy.ts";
 export * from "./production.ts";
+export * from "./names.ts";
+export * from "./lang.ts";

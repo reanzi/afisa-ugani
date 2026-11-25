@@ -17,13 +17,14 @@
   color: var(--ink);
   outline: none;
 }
+/* Dark paper: near-black with a hint of green, bright ink for contrast (>= 13:1). */
 .reader.is-dark {
-  --paper: #1c221f;
-  --paper-ink: #e2e8e4;
-  --paper-soft: #a9b4ad;
-  --paper-rule: #3b4640;
-  --paper-head: #252c28;
-  --desk: #0e1210;
+  --paper: #101311;
+  --paper-ink: #f0f4f1;
+  --paper-soft: #c3ccc6;
+  --paper-rule: #39433d;
+  --paper-head: #1b201d;
+  --desk: #070908;
 }
 body.reader-open {
   overflow: hidden;
@@ -181,7 +182,7 @@ body.reader-open {
   display: block;
 }
 .pdf-sheet canvas.css-dark {
-  filter: invert(0.92) hue-rotate(180deg);
+  filter: invert(0.94) hue-rotate(180deg) contrast(1.15);
 }
 .report-sheet {
   box-sizing: border-box;

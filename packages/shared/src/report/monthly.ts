@@ -6,6 +6,7 @@
  * table's values come from one small aggregation below. Fixed-row tables print
  * 0 where nothing was recorded, as the form instructs ("andika 0").
  */
+import { inSwahili } from "../lang.ts";
 import {
   CROPS,
   FISH_SYSTEMS,
@@ -130,7 +131,7 @@ function cols(...labels: (string | [string, string?, number?])[]): Column[] {
 
 // ---------- the form ----------
 
-export function buildMonthlyReport(input: MonthlyInput): Report {
+function buildMonthlyReportSw(input: MonthlyInput): Report {
   const { month } = input;
   const { start, end } = monthRange(month);
   const records = input.records.filter((r) => !r.deletedAt && r.occurredAt >= start && r.occurredAt < end && r.type !== "monthly_review");
@@ -231,7 +232,10 @@ function dateLabel(ms: number): string {
 }
 
 /** 1.2 drafted from the month's records: counts per kind of work, then free-text activities. */
-export function describeWork(records: readonly ReportRecord[]): string {
+/** Drafts the "work done" text for the report, always in Swahili. */
+export const describeWork = (records: readonly ReportRecord[]): string => inSwahili(() => describeWorkSw(records));
+
+function describeWorkSw(records: readonly ReportRecord[]): string {
   const lines: string[] = [];
   const count = (type: string) => ofType(records, type).length;
   const total = (type: string, f: string) => ofType(records, type).reduce((a, r) => a + num(r.payload[f]), 0);
@@ -681,3 +685,6 @@ export function reportCoverage(report: Report): { id: string; title: string; fil
   return report.parts.map((p) => ({ id: p.id, title: `${p.number}. ${p.title}`, filled: p.blocks.some((b) => b.hasData) }));
 }
 
+
+/** Official text is Swahili whatever the screen language: built inside inSwahili. */
+export const buildMonthlyReport: typeof buildMonthlyReportSw = ((...args: Parameters<typeof buildMonthlyReportSw>) => inSwahili(() => buildMonthlyReportSw(...args))) as typeof buildMonthlyReportSw;

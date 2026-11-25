@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useLiveQuery } from "dexie-react-hooks";
 import { actionsFor, financialYear, monthKey, monthLabel, monthStats, parseMonth, parsePlanKey, planKey, presetLabel, SECTION_LABELS, SECTIONS, specFor, type Reminder, type Section } from "@afisa/shared";
-import { dayTitle, relativeWhen } from "@afisa/ui";
+import { dayTitle, relativeWhen, useLabel, useT } from "@afisa/ui";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
 import { useMyAreas } from "../lib/areas";
@@ -25,6 +25,7 @@ function readDismissed(): string[] {
 }
 
 function Reminders({ items }: { items: Reminder[] }) {
+  const t = useT();
   const [dismissed, setDismissed] = useState(readDismissed);
   const shown = items.filter((r) => !dismissed.includes(r.id));
   if (shown.length === 0) return null;
@@ -38,14 +39,23 @@ function Reminders({ items }: { items: Reminder[] }) {
     }
   };
   return (
-    <section className="reminders" aria-label="Vikumbusho">
+    <section className="reminders" aria-label={t("Vikumbusho", "Reminders")}>
       {shown.map((r) => (
         <div key={r.id} className={`reminder tone-${r.tone}`}>
+          <span className="reminder-icon" aria-hidden>
+            <svg viewBox="0 0 20 20" width="18" height="18">
+              {r.tone === "ok" ? (
+                <path d="M5 10.5l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              ) : (
+                <path d="M10 5.5v5.5M10 14.2v.3" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+              )}
+            </svg>
+          </span>
           <p>{r.text}</p>
           <div className="reminder-actions">
             {r.action && <Link to={r.action.to} className="btn btn-small btn-primary">{r.action.label}</Link>}
             {r.id !== "rejected" && (
-              <button type="button" className="link" onClick={() => dismiss(r.id)}>Sawa</button>
+              <button type="button" className="link" onClick={() => dismiss(r.id)}>{t("Sawa", "OK")}</button>
             )}
           </div>
         </div>
@@ -90,6 +100,7 @@ function ActionGrid({ section }: { section: Section }) {
 function PlanNotices() {
   const { councilId, sections, membership } = useWork();
   const rows = usePresetRows(councilId);
+  const t = useT();
   if (!rows) return null;
   const month = monthKey(new Date());
   const fy = financialYear(month);
@@ -99,25 +110,26 @@ function PlanNotices() {
   const noPlan = startOfYear && !rows.some((r) => r.key === planKey(fy, section));
   if (!noPlan && refused.length === 0) return null;
   return (
-    <section className="reminders" aria-label="Mpango na viwango">
+    <section className="reminders" aria-label={t("Mpango na viwango", "Plan and figures")}>
       {noPlan && (
         <div className="reminder">
           <p>
-            <strong>Weka mpango wa uzalishaji wa {fy}.</strong> Eneo la kila zao na malengo ya mwaka; ukishaidhinishwa, ripoti zako zitaonyesha utekelezaji.
+            <strong>{t(`Weka mpango wa uzalishaji wa ${fy}.`, `Set the ${fy} production plan.`)}</strong>{" "}
+            {t("Eneo la kila zao na malengo ya mwaka; ukishaidhinishwa, ripoti zako zitaonyesha utekelezaji.", "Area for each crop and yearly targets; once approved, your reports show progress.")}
           </p>
           <div className="reminder-actions">
-            <Link to={`/malengo?mwaka=${fy}`} className="btn btn-small btn-primary">Weka mpango</Link>
+            <Link to={`/malengo?mwaka=${fy}`} className="btn btn-small btn-primary">{t("Weka mpango", "Set the plan")}</Link>
           </div>
         </div>
       )}
       {refused.map((r) => (
         <div key={r.id} className="reminder tone-danger">
           <p>
-            <strong>{presetLabel(r.key)}: imekataliwa.</strong> {r.note ? `“${r.note}”` : ""}
+            <strong>{presetLabel(r.key)}: {t("imekataliwa", "rejected")}.</strong> {r.note ? `“${r.note}”` : ""}
           </p>
           <div className="reminder-actions">
             <Link to={parsePlanKey(r.key) ? `/malengo?mwaka=${parsePlanKey(r.key)!.fy}&sehemu=${r.section}` : "/malengo"} className="btn btn-small btn-primary">
-              Rekebisha
+              {t("Rekebisha", "Fix")}
             </Link>
           </div>
         </div>
@@ -129,14 +141,17 @@ function PlanNotices() {
 /** Reports a section lead sent back: they come first, with the note. */
 function Corrections() {
   const reopened = useReopened();
+  const t = useT();
   if (!reopened || reopened.length === 0) return null;
   return (
-    <section className="reminders" aria-label="Ripoti za kurekebisha">
+    <section className="reminders" aria-label={t("Ripoti za kurekebisha", "Reports to correct")}>
       {reopened.map((s) => (
         <div key={s.clientId} className="reminder tone-danger">
           <p>
             <strong>
-              {s.kind === "food_prices" ? "Ripoti ya chakula" : "Ripoti ya mwezi"} ya {monthLabel(s.period)} imerudishwa kwa marekebisho.
+              {s.kind === "food_prices"
+                ? t(`Ripoti ya chakula ya ${monthLabel(s.period)} imerudishwa kwa marekebisho.`, `The ${monthLabel(s.period)} food report was returned for corrections.`)
+                : t(`Ripoti ya mwezi ya ${monthLabel(s.period)} imerudishwa kwa marekebisho.`, `The ${monthLabel(s.period)} monthly report was returned for corrections.`)}
             </strong>{" "}
             {s.reopened?.byName ? `${s.reopened.byName}: ` : ""}“{s.reopened?.note}”
           </p>
@@ -145,7 +160,7 @@ function Corrections() {
               to={s.kind === "food_prices" ? `/ripoti?aina=chakula&kipindi=${s.period}` : `/ripoti?mwezi=${s.period}`}
               className="btn btn-small btn-primary"
             >
-              Rekebisha
+              {t("Rekebisha", "Fix")}
             </Link>
           </div>
         </div>
@@ -156,6 +171,7 @@ function Corrections() {
 
 /** Food prices: always one tap away; from the 20th it turns into the ready report. */
 function FoodCard() {
+  const t = useT();
   const period = useOpenFoodPeriod();
   const state = useFoodState(period);
   if (!state) return <div className="food-card is-loading" aria-hidden />;
@@ -166,20 +182,20 @@ function FoodCard() {
     <Link to={ready ? "/ripoti?aina=chakula" : "/bei"} className={`food-card${ready ? " is-ready" : ""}`}>
       <span className="food-card-icon"><RecordIcon type="price" size={24} /></span>
       <span className="food-card-text">
-        <strong>{ready ? "Ripoti yako ya chakula iko tayari" : "Bei za vyakula"}</strong>
+        <strong>{ready ? t("Ripoti yako ya chakula iko tayari", "Your food report is ready") : t("Bei za vyakula", "Food prices")}</strong>
         <small>
           {ready
-            ? `Kagua bei ${n} kisha uitume kabla ya tarehe 22`
+            ? t(`Kagua bei ${n} kisha uitume kabla ya tarehe 22`, `Check ${n} prices, then send it before the 22nd`)
             : n > 0
-              ? `Bei ${n} kwa ripoti ya ${state.cycle.label}`
-              : "Andika bei za sokoni na dukani"}
+              ? t(`Bei ${n} kwa ripoti ya ${state.cycle.label}`, `${n} prices for the ${state.cycle.label} report`)
+              : t("Andika bei za sokoni na dukani", "Record market and shop prices")}
         </small>
       </span>
       <span className="food-card-go" aria-hidden>
         {ready ? (
           <svg viewBox="0 0 20 20" width="20" height="20"><path d="M7.5 5l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
         ) : (
-          "+"
+          <svg viewBox="0 0 20 20" width="20" height="20"><path d="M10 4.5v11M4.5 10h11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>
         )}
       </span>
     </Link>
@@ -187,6 +203,8 @@ function FoodCard() {
 }
 
 export function Today() {
+  const t = useT();
+  const label = useLabel();
   const { me, councilId, sections, membership } = useWork();
   const { byId } = useMyAreas();
   const photoCounts = usePhotoCounts();
@@ -216,7 +234,7 @@ export function Today() {
       <header className="today-head">
         <h1 className="day-title">{dayTitle(now)}</h1>
         <p className="muted">
-          {firstName ? `Karibu ${firstName}. ` : ""}
+          {firstName ? t(`Karibu ${firstName}. `, `Welcome, ${firstName}. `) : ""}
           {membership.councilName}
         </p>
       </header>
@@ -230,15 +248,15 @@ export function Today() {
       <section aria-labelledby="andika" className="andika">
         {active === null ? (
           <>
-            <h2 id="andika" className="section-title">Andika kazi ya sehemu gani?</h2>
+            <h2 id="andika" className="section-title">{t("Andika kazi ya sehemu gani?", "Record work for which section?")}</h2>
             <ul className="section-picker">
               {sections.map((s) => (
                 <li key={s}>
                   <button type="button" className={`section-card sec sec-${s}`} onClick={() => void setChosen(s)}>
                     <span className="section-card-icon"><SectionIcon section={s} size={28} /></span>
-                    <span className="section-card-name">{SECTION_LABELS[s].sw}</span>
+                    <span className="section-card-name">{label(SECTION_LABELS[s])}</span>
                     <span className="section-card-meta">
-                      {todayBySection(s) > 0 ? `Leo ${todayBySection(s)}` : `Vitendo ${actionsFor([s]).filter((a) => a.ready).length}`}
+                      {todayBySection(s) > 0 ? t(`Leo ${todayBySection(s)}`, `Today ${todayBySection(s)}`) : t(`Vitendo ${actionsFor([s]).filter((a) => a.ready).length}`, `${actionsFor([s]).filter((a) => a.ready).length} actions`)}
                     </span>
                     <svg className="section-card-go" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
                       <path d="M7.5 5l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -253,19 +271,19 @@ export function Today() {
             <div className="andika-head">
               {multi ? (
                 <>
-                  <button type="button" className="back-chip" onClick={() => void setChosen(null)} aria-label="Rudi kwenye sehemu zote">
+                  <button type="button" className="back-chip" onClick={() => void setChosen(null)} aria-label={t("Rudi kwenye sehemu zote", "Back to all sections")}>
                     <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
                       <path d="M12.5 5l-5 5 5 5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    Sehemu
+                    {t("Sehemu", "Sections")}
                   </button>
                   <h2 id="andika" className={`section-title sec sec-${active}`}>
                     <span className="sec-tag" aria-hidden />
-                    {SECTION_LABELS[active].sw}
+                    {label(SECTION_LABELS[active])}
                   </h2>
                 </>
               ) : (
-                <h2 id="andika" className="section-title">Andika</h2>
+                <h2 id="andika" className="section-title">{t("Andika", "Record")}</h2>
               )}
             </div>
             <ActionGrid section={active} />
@@ -275,7 +293,7 @@ export function Today() {
 
       {home && home.recent.length > 0 && (
         <section aria-labelledby="rudia">
-          <h2 id="rudia" className="section-title">Ulizoandika karibuni</h2>
+          <h2 id="rudia" className="section-title">{t("Ulizoandika karibuni", "Recently recorded")}</h2>
           <ul className="recent-list">
             {home.recent.map((k) => (
               <li key={`${k.type}:${k.section}`}>
@@ -283,9 +301,9 @@ export function Today() {
                   <span className="recent-icon"><RecordIcon type={k.type} size={20} /></span>
                   <span className="recent-text">
                     <strong>{specFor(k.type)?.label}</strong>
-                    <small>{multi ? `${SECTION_LABELS[k.section].sw}, ` : ""}mara ya mwisho {relativeWhen(k.at)}</small>
+                    <small>{multi ? `${label(SECTION_LABELS[k.section])}, ` : ""}{t("mara ya mwisho", "last")} {relativeWhen(k.at)}</small>
                   </span>
-                  <span className="recent-add" aria-hidden>+</span>
+                  <span className="recent-add" aria-hidden><svg viewBox="0 0 20 20" width="18" height="18"><path d="M10 4.5v11M4.5 10h11" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg></span>
                 </Link>
               </li>
             ))}
@@ -296,8 +314,8 @@ export function Today() {
       {stats.length > 1 && (
         <section aria-labelledby="mwezi" className="month-stats">
           <div className="month-stats-head">
-            <h2 id="mwezi" className="section-title">Mwezi huu</h2>
-            <Link to="/ripoti" className="link">Ona ripoti</Link>
+            <h2 id="mwezi" className="section-title">{t("Mwezi huu", "This month")}</h2>
+            <Link to="/ripoti" className="link">{t("Ona ripoti", "See report")}</Link>
           </div>
           <dl className="stats">
             {stats.map((s) => (
@@ -312,10 +330,10 @@ export function Today() {
 
       <section aria-labelledby="leo">
         <h2 id="leo" className="section-title">
-          Kazi za leo {entries && entries.length > 0 ? <span className="count">{entries.length}</span> : null}
+          {t("Kazi za leo", "Today's work")} {entries && entries.length > 0 ? <span className="count">{entries.length}</span> : null}
         </h2>
         {entries && entries.length === 0 && (
-          <p className="empty">Bado hujaandika chochote leo. Ukimaliza kila shughuli, iandike hapa.</p>
+          <p className="empty">{t("Bado hujaandika chochote leo. Ukimaliza kila shughuli, iandike hapa.", "Nothing recorded today yet. After each task, record it here.")}</p>
         )}
         <ul className="entry-list">
           {entries?.map((r) => (

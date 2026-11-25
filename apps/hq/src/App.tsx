@@ -16,12 +16,13 @@ import { Presets } from "./pages/Presets";
 import { Settings } from "./pages/Settings";
 import { JoinWithCode, NoAccess, SignIn, Waiting } from "./auth";
 import { AccountMenu } from "./AccountMenu";
+import { SectionCodes } from "./SectionCodes";
 import { AccountPage } from "./pages/Account";
 import { NAV_ICONS } from "./navIcons";
 
 const TABS = ["maombi", "ripoti", "viwango", "wanachama", "maeneo", "kumbukumbu", "mipangilio", "halmashauri", "akaunti", "sera"] as const;
-/** Pages in the side menu; "akaunti" and "sera" open from the account menu. */
-const NAV = ["maombi", "ripoti", "viwango", "wanachama", "maeneo", "kumbukumbu", "mipangilio", "halmashauri"] as const;
+/** Council pages in the side menu; "akaunti" and "sera" open from the account menu, "halmashauri" is root's system view. */
+const NAV = ["maombi", "ripoti", "viwango", "wanachama", "maeneo", "kumbukumbu", "mipangilio"] as const;
 type Tab = (typeof TABS)[number];
 const tabLabel = (t: T, tab: Tab): string =>
   ({
@@ -32,7 +33,7 @@ const tabLabel = (t: T, tab: Tab): string =>
     maeneo: t("Maeneo", "Areas"),
     kumbukumbu: t("Kumbukumbu", "Activity log"),
     mipangilio: t("Mipangilio", "Settings"),
-    halmashauri: t("Halmashauri", "Councils"),
+    halmashauri: t("Halmashauri zote", "All councils"),
     akaunti: t("Akaunti yangu", "My account"),
     sera: t("Sera ya matumizi", "Usage policy"),
   })[tab];
@@ -62,6 +63,17 @@ function Main() {
   const rootCouncils = useQuery(api.councils.listMine, me && "isRoot" in me ? {} : "skip");
   const [councilParam, setCouncilParam] = useQueryState("c", parseAsString);
   const [tab, setTab] = useQueryState("tab", parseAsStringLiteral(TABS).withDefault("maombi"));
+  // The council open on root's "All councils" page (see Councils).
+  const [, setCouncilDetail] = useQueryState("halmashauri", parseAsString);
+  const showAllCouncils = () => {
+    void setCouncilDetail(null);
+    void setTab("halmashauri");
+  };
+  const openCouncil = (id: string) => {
+    void setCouncilDetail(null);
+    void setCouncilParam(id);
+    void setTab("maombi");
+  };
   const { signOut } = useAuthActions();
 
   if (isLoading || (isAuthenticated && me === undefined)) {
@@ -87,7 +99,7 @@ function Main() {
             <div><strong>Afisa Ugani</strong><span className="muted">{t("Msimamizi wa mfumo", "System administrator")}</span></div>
           </div>
           <nav className="hq-nav" aria-label={t("Kuu", "Main")}>
-            <button aria-current={tab !== "akaunti" && tab !== "sera" ? "page" : undefined} onClick={() => void setTab("halmashauri")}>
+            <button aria-current={tab !== "akaunti" && tab !== "sera" ? "page" : undefined} onClick={showAllCouncils}>
               {NAV_ICONS.halmashauri}<span>{tabLabel(t, "halmashauri")}</span>
             </button>
           </nav>
@@ -101,12 +113,14 @@ function Main() {
           />
         </aside>
         <main className="hq-main">
-          {tab === "akaunti" ? <AccountPage me={me} /> : tab === "sera" ? <section className="hq-page"><PolicyView /></section> : <Councils />}
+          {tab === "akaunti" ? <AccountPage me={me} /> : tab === "sera" ? <section className="hq-page"><PolicyView /></section> : <Councils onOpen={openCouncil} />}
         </main>
       </div>
     );
   }
   const current = councils.find((c) => c.councilId === councilParam) ?? councils[0]!;
+  /** Root's system view: every council, not one council's data. */
+  const inSystem = isRoot && tab === "halmashauri";
   const membership = me.memberships.find((m) => m.councilId === current.councilId) ?? null;
   const actor: Actor = {
     userId: me.userId,
@@ -125,21 +139,36 @@ function Main() {
             <img src="/favicon.svg" alt="" width={36} height={36} />
             <div>
               <strong>Afisa Ugani</strong>
-              {councils.length > 1 ? (
-                <Select
-                  size="sm"
-                  label={t("Halmashauri", "Council")}
-                  value={current.councilId}
-                  onChange={(v) => void setCouncilParam(v)}
-                  options={councils.map((c) => ({ value: c.councilId, label: c.councilName }))}
-                />
-              ) : (
-                <FitText text={current.councilName} className="muted" />
-              )}
+              {isRoot && <span className="muted">{t("Msimamizi wa mfumo", "System administrator")}</span>}
+              {!isRoot && councils.length === 1 && <FitText text={current.councilName} className="muted" />}
             </div>
           </div>
-          <nav className="hq-nav" aria-label={t("Kuu", "Main")}>
-            {NAV.filter((x) => x !== "halmashauri" || isRoot).map((x) => (
+          {isRoot && (
+            <nav className="hq-nav hq-nav-system" aria-label={t("Mfumo", "System")}>
+              <button aria-current={inSystem ? "page" : undefined} onClick={showAllCouncils}>
+                {NAV_ICONS.halmashauri}
+                <span>{tabLabel(t, "halmashauri")}</span>
+              </button>
+            </nav>
+          )}
+          {(isRoot || councils.length > 1) && (
+            <div className="hq-switcher">
+              <span className="field-label" id="council-switch">{t("Halmashauri unayoiangalia", "Council you are viewing")}</span>
+              <Select
+                size="sm"
+                labelledBy="council-switch"
+                label={t("Halmashauri", "Council")}
+                value={current.councilId}
+                onChange={(v) => {
+                  void setCouncilParam(v);
+                  if (inSystem) void setTab("maombi");
+                }}
+                options={councils.map((c) => ({ value: c.councilId, label: c.councilName, hint: c.councilName !== c.councilFullName ? c.councilFullName : undefined }))}
+              />
+            </div>
+          )}
+          <nav className="hq-nav" aria-label={t("Halmashauri", "Council")}>
+            {NAV.map((x) => (
               <button key={x} aria-current={tab === x ? "page" : undefined} onClick={() => void setTab(x)}>
                 {NAV_ICONS[x]}
                 <span>{tabLabel(t, x)}</span>
@@ -148,6 +177,7 @@ function Main() {
               </button>
             ))}
           </nav>
+          {!inSystem && <SectionCodes />}
           <AccountMenu
             name={me.name}
             roleText={actor.isRoot ? t("Msimamizi wa mfumo", "System administrator") : actor.role ? label(ROLE_LABELS[actor.role]) : ""}
@@ -157,7 +187,13 @@ function Main() {
             onSignOut={() => void signOut()}
           />
         </aside>
-        <main className="hq-main" key={current.councilId}>
+        <main className="hq-main" key={inSystem ? "system" : current.councilId}>
+          {isRoot && !inSystem && tab !== "akaunti" && tab !== "sera" && (
+            <div className="hq-viewing" role="status">
+              {t("Unaangalia:", "Viewing:")} <strong>{current.councilFullName}</strong>
+              <button type="button" className="link small" onClick={showAllCouncils}>{t("Halmashauri zote", "All councils")}</button>
+            </div>
+          )}
           {tab === "maombi" && <Requests />}
           {tab === "ripoti" && <Reports />}
           {tab === "viwango" && <Presets />}
@@ -165,7 +201,9 @@ function Main() {
           {tab === "maeneo" && <Areas />}
           {tab === "kumbukumbu" && <Audit />}
           {tab === "mipangilio" && <Settings />}
-          {tab === "halmashauri" && isRoot && <Councils />}
+          {inSystem && (
+            <Councils onOpen={openCouncil} />
+          )}
           {tab === "akaunti" && <AccountPage me={me} />}
           {tab === "sera" && <section className="hq-page"><PolicyView /></section>}
         </main>

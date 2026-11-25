@@ -7,6 +7,7 @@
  * (about 300 KB). Re-encoding also drops the camera's EXIF data (GPS, phone
  * model); the record's own location is kept separately.
  */
+import { L } from "./lang.ts";
 import { ANIMALS, ALL_CROPS, type Option } from "./catalogs.ts";
 
 export const MEDIA_MAX_EDGE = 1600;
@@ -20,35 +21,35 @@ export const MEDIA_KEEP_ON_PHONE_DAYS = 30;
 
 /** The shot, guiding a useful pair: the whole plant or animal, then a close-up of the problem. */
 export const PHOTO_SHOTS = [
-  { value: "nzima", label: "Mzima", hint: "Mmea, mnyama au shamba zima" },
-  { value: "karibu", label: "Karibu", hint: "Karibu kwenye tatizo: jani, mdudu, kidonda" },
-  { value: "nyingine", label: "Nyingine", hint: "Picha nyingine yoyote" },
+  { value: "nzima", get label() { return L("Mzima", "Whole"); }, get hint() { return L("Mmea, mnyama au shamba zima", "The whole plant, animal or field"); } },
+  { value: "karibu", get label() { return L("Karibu", "Close-up"); }, get hint() { return L("Karibu kwenye tatizo: jani, mdudu, kidonda", "Close to the problem: leaf, pest, wound"); } },
+  { value: "nyingine", get label() { return L("Nyingine", "Other"); }, get hint() { return L("Picha nyingine yoyote", "Any other photo"); } },
 ] as const;
 export type PhotoShot = (typeof PHOTO_SHOTS)[number]["value"];
 export const isPhotoShot = (v: unknown): v is PhotoShot => PHOTO_SHOTS.some((s) => s.value === v);
 
 /** What an observation photo shows: the dataset's top-level label. */
 export const PHOTO_CATEGORIES: Option[] = [
-  { value: "wadudu", label: "Wadudu waharibifu" },
-  { value: "ugonjwa_mimea", label: "Ugonjwa wa mimea" },
-  { value: "upungufu", label: "Upungufu wa virutubisho" },
-  { value: "hali_ya_zao", label: "Hali ya zao (ukuaji, ukame, mafuriko)" },
-  { value: "magugu", label: "Magugu" },
-  { value: "ugonjwa_mifugo", label: "Ugonjwa wa mifugo" },
-  { value: "hali_ya_mifugo", label: "Hali ya mifugo na malisho" },
-  { value: "samaki", label: "Samaki na mabwawa" },
-  { value: "mengine", label: "Mengine" },
+  { value: "wadudu", get label() { return L("Wadudu waharibifu", "Pests"); } },
+  { value: "ugonjwa_mimea", get label() { return L("Ugonjwa wa mimea", "Plant disease"); } },
+  { value: "upungufu", get label() { return L("Upungufu wa virutubisho", "Nutrient deficiency"); } },
+  { value: "hali_ya_zao", get label() { return L("Hali ya zao (ukuaji, ukame, mafuriko)", "Crop condition (growth, drought, floods)"); } },
+  { value: "magugu", get label() { return L("Magugu", "Weeds"); } },
+  { value: "ugonjwa_mifugo", get label() { return L("Ugonjwa wa mifugo", "Livestock disease"); } },
+  { value: "hali_ya_mifugo", get label() { return L("Hali ya mifugo na malisho", "Livestock and pasture condition"); } },
+  { value: "samaki", get label() { return L("Samaki na mabwawa", "Fish and ponds"); } },
+  { value: "mengine", get label() { return L("Mengine", "Other"); } },
 ];
 
 export const CROP_CATEGORIES = ["wadudu", "ugonjwa_mimea", "upungufu", "hali_ya_zao", "magugu"];
 
 export const GROWTH_STAGES: Option[] = [
-  { value: "mche", label: "Mche (kuota)" },
-  { value: "ukuaji", label: "Ukuaji wa majani" },
-  { value: "maua", label: "Maua" },
-  { value: "kujaza", label: "Kujaza punje / matunda" },
-  { value: "kukomaa", label: "Kukomaa" },
-  { value: "baada_ya_mavuno", label: "Baada ya mavuno (ghalani)" },
+  { value: "mche", get label() { return L("Mche (kuota)", "Seedling (emergence)"); } },
+  { value: "ukuaji", get label() { return L("Ukuaji wa majani", "Leaf growth"); } },
+  { value: "maua", get label() { return L("Maua", "Flowering"); } },
+  { value: "kujaza", get label() { return L("Kujaza punje / matunda", "Grain / fruit filling"); } },
+  { value: "kukomaa", get label() { return L("Kukomaa", "Maturity"); } },
+  { value: "baada_ya_mavuno", get label() { return L("Baada ya mavuno (ghalani)", "After harvest (storage)"); } },
 ];
 
 /** Typing suggestions for what the photo is of. */

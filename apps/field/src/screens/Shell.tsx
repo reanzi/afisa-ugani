@@ -1,14 +1,14 @@
 import { NavLink, Outlet, useLocation } from "react-router";
-import { clock } from "@afisa/ui";
+import { clock, useT } from "@afisa/ui";
 import { useOnline, useWork } from "../lib/session";
 import { requestSync, useSyncEngine } from "../lib/sync";
 import { IconLog, IconMe, IconReport, IconToday } from "./icons";
 
 const TABS = [
-  { to: "/", label: "Leo", Icon: IconToday },
-  { to: "/shughuli", label: "Shughuli", Icon: IconLog },
-  { to: "/ripoti", label: "Ripoti", Icon: IconReport },
-  { to: "/mimi", label: "Mimi", Icon: IconMe },
+  { to: "/", label: ["Leo", "Today"], Icon: IconToday },
+  { to: "/shughuli", label: ["Shughuli", "Activity"], Icon: IconLog },
+  { to: "/ripoti", label: ["Ripoti", "Reports"], Icon: IconReport },
+  { to: "/mimi", label: ["Mimi", "Me"], Icon: IconMe },
 ] as const;
 
 /** The bottom bar belongs to the four main screens only; nested pages have their own way back. */
@@ -18,6 +18,7 @@ function isTopLevel(path: string) {
 }
 
 function SyncStrip() {
+  const t = useT();
   const { councilId } = useWork();
   const online = useOnline();
   const sync = useSyncEngine(councilId, true);
@@ -25,16 +26,16 @@ function SyncStrip() {
   let text: string;
   let tone: "ok" | "wait" | "off";
   if (!online) {
-    text = sync.pending ? `Hakuna mtandao. ${sync.pending} zinasubiri` : "Hakuna mtandao. Endelea kuandika";
+    text = sync.pending ? t(`Hakuna mtandao. ${sync.pending} zinasubiri`, `Offline. ${sync.pending} waiting`) : t("Hakuna mtandao. Endelea kuandika", "Offline. Keep recording");
     tone = "off";
   } else if (sync.running) {
-    text = "Inatuma…";
+    text = t("Inatuma…", "Sending…");
     tone = "wait";
   } else if (sync.pending) {
-    text = `${sync.pending} zinasubiri kutumwa`;
+    text = t(`${sync.pending} zinasubiri kutumwa`, `${sync.pending} waiting to send`);
     tone = "wait";
   } else {
-    text = sync.lastSyncedAt ? `Zote zimetumwa ${clock(sync.lastSyncedAt)}` : "Zote zimetumwa";
+    text = sync.lastSyncedAt ? t(`Zote zimetumwa ${clock(sync.lastSyncedAt)}`, `All sent ${clock(sync.lastSyncedAt)}`) : t("Zote zimetumwa", "All sent");
     tone = "ok";
   }
 
@@ -42,10 +43,10 @@ function SyncStrip() {
     <>
       {sync.updateRequired && (
         <div className="notice notice-danger update-required" role="alert">
-          <p>Toleo hili ni la zamani. Fungua upya programu ukiwa na mtandao ili kupata toleo jipya.</p>
+          <p>{t("Toleo hili ni la zamani. Fungua upya programu ukiwa na mtandao ili kupata toleo jipya.", "This version is out of date. Reopen the app while online to get the new one.")}</p>
         </div>
       )}
-      <button className={`sync-strip sync-${tone}`} onClick={requestSync} aria-live="polite" title="Tuma sasa">
+      <button className={`sync-strip sync-${tone}`} onClick={requestSync} aria-live="polite" title={t("Tuma sasa", "Send now")}>
         <span className="dot" aria-hidden />
         {text}
       </button>
@@ -54,6 +55,7 @@ function SyncStrip() {
 }
 
 export function Shell() {
+  const t = useT();
   const { pathname } = useLocation();
   const top = isTopLevel(pathname);
   return (
@@ -64,7 +66,7 @@ export function Shell() {
       {/* Sync keeps running on nested pages; only the bar is hidden. */}
       <footer className="dock" hidden={!top}>
         <SyncStrip />
-        <nav className="tabs" aria-label="Kuu">
+        <nav className="tabs" aria-label={t("Kuu", "Main")}>
           {TABS.map(({ to, label, Icon }) => (
             <NavLink key={to} to={to} end={to === "/"}>
               {({ isActive }) => (
@@ -72,7 +74,7 @@ export function Shell() {
                   <span className="tab-icon">
                     <Icon active={isActive} />
                   </span>
-                  <span className="tab-label">{label}</span>
+                  <span className="tab-label">{t(label[0], label[1])}</span>
                 </>
               )}
             </NavLink>

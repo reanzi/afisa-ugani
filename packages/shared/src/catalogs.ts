@@ -3,185 +3,235 @@
  * (stored in records); labels are what officers and the printed form show.
  */
 
-export type Option = { value: string; label: string };
+import { textLang } from "./lang.ts";
 
-const opts = (pairs: [string, string][]): Option[] => pairs.map(([value, label]) => ({ value, label }));
+/**
+ * `label` is the name in the current screen language (Swahili on official
+ * forms, which are built in Swahili); `sw` and `en` are the fixed names.
+ */
+export type Option = { readonly value: string; readonly label: string; readonly sw?: string; readonly en?: string; readonly hint?: string };
+
+/** An option whose `label` follows the screen language. */
+/** Every Swahili catalog text with its English, for text already saved in Swahili. */
+const SW_TO_EN = new Map<string, string>();
+export const rememberText = (sw: string, en: string | undefined) => remember(sw, en);
+const remember = (sw: string, en: string | undefined) => {
+  if (en && !SW_TO_EN.has(sw.toLowerCase())) SW_TO_EN.set(sw.toLowerCase(), en);
+};
+
+/**
+ * Show a catalog text that was saved in Swahili (report rows, older records)
+ * in the language chosen now. Unknown text is returned as it is.
+ */
+export function catalogText(sw: string): string {
+  if (textLang() !== "en") return sw;
+  const en = SW_TO_EN.get(sw.trim().toLowerCase());
+  if (!en) return sw;
+  return sw[0] === sw[0]?.toUpperCase() ? en : en.toLowerCase();
+}
+
+export function opt(value: string, sw: string, en?: string): Option {
+  remember(sw, en);
+  return {
+    value,
+    sw,
+    en,
+    get label() {
+      return textLang() === "en" && en ? en : sw;
+    },
+  };
+}
+
+const opts = (pairs: [string, string, string?][]): Option[] => pairs.map(([value, sw, en]) => opt(value, sw, en));
 
 /** Crops listed in tables 2.1 and 2.2, in the form's order. */
 export const CROPS = opts([
-  ["mahindi", "Mahindi"],
-  ["mpunga", "Mpunga"],
-  ["mtama", "Mtama"],
-  ["uwele", "Uwele"],
-  ["ulezi", "Ulezi"],
-  ["ngano", "Ngano"],
-  ["mihogo", "Mihogo"],
-  ["viazi_vitamu", "Viazi vitamu"],
-  ["viazi_mviringo", "Viazi mviringo"],
-  ["kunde", "Kunde"],
-  ["maharage", "Maharage"],
-  ["ndizi_mbivu", "Ndizi mbivu"],
-  ["ndizi_mbichi", "Ndizi mbichi"],
+  ["mahindi", "Mahindi", "Maize"],
+  ["mpunga", "Mpunga", "Rice (paddy)"],
+  ["mtama", "Mtama", "Sorghum"],
+  ["uwele", "Uwele", "Bulrush millet"],
+  ["ulezi", "Ulezi", "Finger millet"],
+  ["ngano", "Ngano", "Wheat"],
+  ["mihogo", "Mihogo", "Cassava"],
+  ["viazi_vitamu", "Viazi vitamu", "Sweet potatoes"],
+  ["viazi_mviringo", "Viazi mviringo", "Irish potatoes"],
+  ["kunde", "Kunde", "Cowpeas"],
+  ["maharage", "Maharage", "Beans"],
+  ["ndizi_mbivu", "Ndizi mbivu", "Ripe bananas"],
+  ["ndizi_mbichi", "Ndizi mbichi", "Cooking bananas"],
 ]);
 
 /** Other crops officers commonly price or report pests on. */
 export const OTHER_CROPS = opts([
-  ["alizeti", "Alizeti"],
-  ["karanga", "Karanga"],
-  ["ufuta", "Ufuta"],
-  ["pamba", "Pamba"],
-  ["korosho", "Korosho"],
-  ["kahawa", "Kahawa"],
-  ["chai", "Chai"],
-  ["tumbaku", "Tumbaku"],
-  ["mbogamboga", "Mbogamboga"],
-  ["matunda", "Matunda"],
-  ["nyingine", "Nyingine"],
+  ["alizeti", "Alizeti", "Sunflower"],
+  ["karanga", "Karanga", "Groundnuts"],
+  ["ufuta", "Ufuta", "Sesame"],
+  ["pamba", "Pamba", "Cotton"],
+  ["korosho", "Korosho", "Cashew"],
+  ["kahawa", "Kahawa", "Coffee"],
+  ["chai", "Chai", "Tea"],
+  ["tumbaku", "Tumbaku", "Tobacco"],
+  ["mbogamboga", "Mbogamboga", "Vegetables"],
+  ["matunda", "Matunda", "Fruit"],
+  ["nyingine", "Nyingine", "Other"],
 ]);
 
 export const ALL_CROPS = [...CROPS, ...OTHER_CROPS];
 
 /** Table 4 rows (slaughter). */
 export const SLAUGHTER_ANIMALS = opts([
-  ["ngombe", "Ng’ombe"],
-  ["kondoo", "Kondoo"],
-  ["mbuzi", "Mbuzi"],
-  ["nguruwe", "Nguruwe"],
-  ["kuku_asili", "Kuku wa asili"],
-  ["kuku_kisasa", "Kuku wa kisasa"],
-  ["mengineyo", "Mengineyo"],
+  ["ngombe", "Ng’ombe", "Cattle"],
+  ["kondoo", "Kondoo", "Sheep"],
+  ["mbuzi", "Mbuzi", "Goats"],
+  ["nguruwe", "Nguruwe", "Pigs"],
+  ["kuku_asili", "Kuku wa asili", "Local chickens"],
+  ["kuku_kisasa", "Kuku wa kisasa", "Improved chickens"],
+  ["mengineyo", "Mengineyo", "Others"],
 ]);
 
 /** Animals for treatment, vaccination and services (tables 7.1–7.3). */
 export const ANIMALS = opts([
-  ["ngombe", "Ng’ombe"],
-  ["mbuzi", "Mbuzi"],
-  ["kondoo", "Kondoo"],
-  ["nguruwe", "Nguruwe"],
-  ["kuku", "Kuku"],
-  ["bata", "Bata"],
-  ["mbwa", "Mbwa"],
-  ["paka", "Paka"],
-  ["punda", "Punda"],
-  ["mengineyo", "Mengineyo"],
+  ["ngombe", "Ng’ombe", "Cattle"],
+  ["mbuzi", "Mbuzi", "Goats"],
+  ["kondoo", "Kondoo", "Sheep"],
+  ["nguruwe", "Nguruwe", "Pigs"],
+  ["kuku", "Kuku", "Chickens"],
+  ["bata", "Bata", "Ducks"],
+  ["mbwa", "Mbwa", "Dogs"],
+  ["paka", "Paka", "Cats"],
+  ["punda", "Punda", "Donkeys"],
+  ["mengineyo", "Mengineyo", "Others"],
 ]);
 
 /** Table 7.3 rows. */
 export const SERVICE_ANIMALS = opts([
-  ["ngombe", "Ng’ombe"],
-  ["mbuzi", "Mbuzi"],
-  ["kondoo", "Kondoo"],
-  ["nguruwe", "Nguruwe"],
-  ["kuku", "Kuku"],
-  ["bata", "Bata"],
+  ["ngombe", "Ng’ombe", "Cattle"],
+  ["mbuzi", "Mbuzi", "Goats"],
+  ["kondoo", "Kondoo", "Sheep"],
+  ["nguruwe", "Nguruwe", "Pigs"],
+  ["kuku", "Kuku", "Chickens"],
+  ["bata", "Bata", "Ducks"],
 ]);
 
 /** Table 7.3 columns. */
 export const LIVESTOCK_SERVICES = opts([
-  ["kwato", "Kukata kwato"],
-  ["kuhasi", "Kuhasi"],
-  ["ai", "Kuhamilisha (AI)"],
-  ["pembe", "Kukata pembe"],
-  ["alama", "Kuweka alama"],
-  ["midomo", "Kukata midomo"],
-  ["mikia", "Kukata mikia"],
-  ["meno", "Kukata meno"],
-  ["hereni", "Hereni ya puani (Bull ring)"],
-  ["mimba", "Upimaji wa mimba"],
-  ["joto", "Sindano ya kuchochea joto"],
-  ["chuma", "Sindano ya madini chuma"],
+  ["kwato", "Kukata kwato", "Hoof trimming"],
+  ["kuhasi", "Kuhasi", "Castration"],
+  ["ai", "Kuhamilisha (AI)", "Artificial insemination (AI)"],
+  ["pembe", "Kukata pembe", "Dehorning"],
+  ["alama", "Kuweka alama", "Marking"],
+  ["midomo", "Kukata midomo", "Beak trimming"],
+  ["mikia", "Kukata mikia", "Tail docking"],
+  ["meno", "Kukata meno", "Teeth clipping"],
+  ["hereni", "Hereni ya puani (Bull ring)", "Bull ring"],
+  ["mimba", "Upimaji wa mimba", "Pregnancy testing"],
+  ["joto", "Sindano ya kuchochea joto", "Heat induction injection"],
+  ["chuma", "Sindano ya madini chuma", "Iron injection"],
 ]);
 
 export type ProductKind = "milk" | "dairy" | "eggs" | "hide";
-export const LIVESTOCK_PRODUCTS: (Option & { unit: string; kind: ProductKind })[] = [
-  { value: "maziwa_asili", label: "Maziwa ya ng’ombe wa asili", unit: "lita", kind: "milk" },
-  { value: "maziwa_kisasa", label: "Maziwa ya ng’ombe wa kisasa", unit: "lita", kind: "milk" },
-  { value: "jibini", label: "Jibini (Cheese)", unit: "kg", kind: "dairy" },
-  { value: "siagi", label: "Siagi (Butter)", unit: "kg", kind: "dairy" },
-  { value: "samli", label: "Samli (Ghee)", unit: "kg", kind: "dairy" },
-  { value: "mayai_kienyeji", label: "Mayai ya kuku wa kienyeji", unit: "mayai", kind: "eggs" },
-  { value: "mayai_kisasa", label: "Mayai ya kuku wa kisasa", unit: "mayai", kind: "eggs" },
-  { value: "ngozi_ngombe", label: "Ngozi za ng’ombe", unit: "vipande", kind: "hide" },
-  { value: "ngozi_mbuzi", label: "Ngozi za mbuzi", unit: "vipande", kind: "hide" },
-  { value: "ngozi_kondoo", label: "Ngozi za kondoo", unit: "vipande", kind: "hide" },
+type Product = Option & { readonly unit: string; readonly each: string; readonly kind: ProductKind };
+/** `unit` is how quantities are counted ("lita", "mayai"); `each` one of them, for prices ("yai"). */
+function product(value: string, sw: string, en: string, kind: ProductKind, unit: [string, string], each: [string, string]): Product {
+  remember(unit[0], unit[1]);
+  remember(each[0], each[1]);
+  return Object.defineProperties(opt(value, sw, en), {
+    kind: { value: kind, enumerable: true },
+    unit: { get: () => (textLang() === "en" ? unit[1] : unit[0]), enumerable: true },
+    each: { get: () => (textLang() === "en" ? each[1] : each[0]), enumerable: true },
+  }) as Product;
+}
+const LITRE: [string, string] = ["lita", "litres"];
+const KG: [string, string] = ["kg", "kg"];
+export const LIVESTOCK_PRODUCTS: Product[] = [
+  product("maziwa_asili", "Maziwa ya ng’ombe wa asili", "Milk from local cattle", "milk", LITRE, ["lita", "litre"]),
+  product("maziwa_kisasa", "Maziwa ya ng’ombe wa kisasa", "Milk from improved cattle", "milk", LITRE, ["lita", "litre"]),
+  product("jibini", "Jibini (Cheese)", "Cheese", "dairy", KG, KG),
+  product("siagi", "Siagi (Butter)", "Butter", "dairy", KG, KG),
+  product("samli", "Samli (Ghee)", "Ghee", "dairy", KG, KG),
+  product("mayai_kienyeji", "Mayai ya kuku wa kienyeji", "Local chicken eggs", "eggs", ["mayai", "eggs"], ["yai", "egg"]),
+  product("mayai_kisasa", "Mayai ya kuku wa kisasa", "Improved chicken eggs", "eggs", ["mayai", "eggs"], ["yai", "egg"]),
+  product("ngozi_ngombe", "Ngozi za ng’ombe", "Cattle hides", "hide", ["vipande", "pieces"], ["kg", "kg"]),
+  product("ngozi_mbuzi", "Ngozi za mbuzi", "Goat skins", "hide", ["vipande", "pieces"], ["kipande", "piece"]),
+  product("ngozi_kondoo", "Ngozi za kondoo", "Sheep skins", "hide", ["vipande", "pieces"], ["kipande", "piece"]),
 ];
 
 export const HIDE_PROCESSING = opts([
-  ["jua", "Zilizokaushwa kwa jua"],
-  ["chumvi", "Zilizokaushwa kwa chumvi"],
-  ["wet_blue", "Wet Blue"],
+  ["jua", "Zilizokaushwa kwa jua", "Sun dried"],
+  ["chumvi", "Zilizokaushwa kwa chumvi", "Salt dried"],
+  ["wet_blue", "Wet Blue", "Wet blue"],
 ]);
 
 export const HIDE_PRICE_AT = opts([
-  ["machinjioni", "Machinjioni"],
-  ["kiwandani", "Kiwandani"],
+  ["machinjioni", "Machinjioni", "At the slaughterhouse"],
+  ["kiwandani", "Kiwandani", "At the factory"],
 ]);
 
 export const SEVERITY = opts([
-  ["kubwa", "Kubwa"],
-  ["wastani", "Wastani"],
-  ["kidogo", "Kidogo"],
+  ["kubwa", "Kubwa", "Severe"],
+  ["wastani", "Wastani", "Moderate"],
+  ["kidogo", "Kidogo", "Light"],
 ]);
 
 export const RAIN_LEVELS = opts([
-  ["nyingi", "Nyingi"],
-  ["wastani", "Wastani"],
-  ["kidogo", "Kidogo"],
-  ["hakuna", "Hakuna"],
+  ["nyingi", "Nyingi", "Heavy"],
+  ["wastani", "Wastani", "Moderate"],
+  ["kidogo", "Kidogo", "Light"],
+  ["hakuna", "Hakuna", "None"],
 ]);
 
 export const EVENT_KINDS = opts([
-  ["ukame", "Ukame"],
-  ["mafuriko", "Mafuriko"],
-  ["njaa", "Njaa"],
-  ["migogoro", "Migogoro"],
-  ["magonjwa_mimea", "Magonjwa ya mimea"],
-  ["magonjwa_mifugo", "Magonjwa ya mifugo"],
-  ["moto", "Moto"],
-  ["nyingine", "Jingine"],
+  ["ukame", "Ukame", "Drought"],
+  ["mafuriko", "Mafuriko", "Floods"],
+  ["njaa", "Njaa", "Hunger"],
+  ["migogoro", "Migogoro", "Conflicts"],
+  ["magonjwa_mimea", "Magonjwa ya mimea", "Crop diseases"],
+  ["magonjwa_mifugo", "Magonjwa ya mifugo", "Livestock diseases"],
+  ["moto", "Moto", "Fire"],
+  ["nyingine", "Jingine", "Other"],
 ]);
 
 export const TRAINING_METHODS = opts([
-  ["shamba_darasa", "Shamba darasa"],
-  ["mkutano", "Mkutano"],
-  ["nyumba_kwa_nyumba", "Nyumba kwa nyumba"],
-  ["onyesho", "Onyesho"],
-  ["ziara", "Ziara ya mafunzo"],
+  ["shamba_darasa", "Shamba darasa", "Farmer field school"],
+  ["mkutano", "Mkutano", "Meeting"],
+  ["nyumba_kwa_nyumba", "Nyumba kwa nyumba", "House to house"],
+  ["onyesho", "Onyesho", "Demonstration"],
+  ["ziara", "Ziara ya mafunzo", "Study tour"],
 ]);
 
 export const CONTROL_METHODS = opts([
-  ["kemikali", "Kemikali"],
-  ["kibaiolojia", "Kibaiolojia / asili"],
+  ["kemikali", "Kemikali", "Chemical"],
+  ["kibaiolojia", "Kibaiolojia / asili", "Biological / natural"],
 ]);
 
 export const AMOUNT_UNITS = opts([
-  ["kg", "kg"],
-  ["lita", "lita"],
+  ["kg", "kg", "kg"],
+  ["lita", "lita", "litre"],
 ]);
 
 export const PRICE_TYPES = opts([
-  ["sokoni", "Sokoni"],
-  ["rejareja", "Dukani (rejareja)"],
-  ["jumla", "Jumla"],
-  ["shambani", "Shambani"],
+  ["sokoni", "Sokoni", "Market"],
+  ["rejareja", "Dukani (rejareja)", "Shop (retail)"],
+  ["jumla", "Jumla", "Wholesale"],
+  ["shambani", "Shambani", "Farm gate"],
 ]);
 
 export const PRICE_UNITS = opts([
-  ["kg", "kg"],
-  ["lita", "Lita"],
-  ["kipande", "Kipande"],
-  ["mfuko", "Mfuko / pakiti"],
-  ["fungu", "Fungu"],
-  ["debe", "Debe"],
-  ["gunia", "Gunia"],
-  ["trei", "Trei"],
+  ["kg", "kg", "kg"],
+  ["lita", "Lita", "Litre"],
+  ["kipande", "Kipande", "Piece"],
+  ["mfuko", "Mfuko / pakiti", "Bag / packet"],
+  ["fungu", "Fungu", "Heap"],
+  ["debe", "Debe", "Tin (debe)"],
+  ["gunia", "Gunia", "Sack"],
+  ["trei", "Trei", "Tray"],
 ]);
 
 export const AVAILABILITY = opts([
-  ["wingi", "Inapatikana kwa wingi"],
-  ["wastani", "Wastani"],
-  ["haba", "Haba"],
-  ["haipatikani", "Haipatikani"],
+  ["wingi", "Inapatikana kwa wingi", "Plentiful"],
+  ["wastani", "Wastani", "Moderate"],
+  ["haba", "Haba", "Scarce"],
+  ["haipatikani", "Haipatikani", "Not available"],
 ]);
 
 /** Common foods and shop items; officers can type anything else. */
@@ -217,18 +267,18 @@ export const SUGGEST_FOODS = [
 
 export const PRICE_COMMODITIES = [
   ...ALL_CROPS.filter((c) => c.value !== "nyingine"),
-  ...LIVESTOCK_PRODUCTS.map((p) => ({ value: p.value, label: p.label })),
-  { value: "nyama_ngombe", label: "Nyama ya ng’ombe" },
-  { value: "nyama_mbuzi", label: "Nyama ya mbuzi" },
-  { value: "samaki", label: "Samaki" },
-  { value: "nyingine", label: "Nyingine" },
+  ...LIVESTOCK_PRODUCTS,
+  opt("nyama_ngombe", "Nyama ya ng’ombe", "Beef"),
+  opt("nyama_mbuzi", "Nyama ya mbuzi", "Goat meat"),
+  opt("samaki", "Samaki", "Fish"),
+  opt("nyingine", "Nyingine", "Other"),
 ];
 
 export const FISH_SYSTEMS = opts([
-  ["bwawa", "Mabwawa"],
-  ["kizimba", "Vizimba"],
-  ["tanki", "Matanki"],
-  ["chelezo", "Chelezo"],
+  ["bwawa", "Mabwawa", "Ponds"],
+  ["kizimba", "Vizimba", "Cages"],
+  ["tanki", "Matanki", "Tanks"],
+  ["chelezo", "Chelezo", "Rafts"],
 ]);
 
 /** Typing suggestions, not restrictions: officers can write what they see. */
@@ -274,7 +324,9 @@ export function commodityLabel(value: unknown): string {
 
 /** Key for grouping prices: "Unga wa Mahindi (Sembe)", "unga wa mahindi  (sembe)" and the id agree. */
 export function commodityKey(value: unknown): string {
-  return commodityLabel(value)
+  const v = typeof value === "string" ? value.trim() : "";
+  const id = PRICE_COMMODITIES.find((o) => o.value === v);
+  return (id?.sw ?? v)
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
     .toLowerCase()
@@ -283,6 +335,7 @@ export function commodityKey(value: unknown): string {
     .trim();
 }
 
+/** The Swahili label: for official forms and stored text. */
 export function labelOf(list: readonly Option[], value: unknown): string {
   return list.find((o) => o.value === value)?.label ?? (typeof value === "string" ? value : "");
 }

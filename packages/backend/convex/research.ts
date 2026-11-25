@@ -7,7 +7,7 @@
  * location rounded to about 10 km, time to the month.
  */
 import { v } from "convex/values";
-import { monthKey, photoLabels, toCouncilWallClock } from "@afisa/shared";
+import { monthKey, photoLabels, toCouncilWallClock, presentMaybe } from "@afisa/shared";
 import { rootQuery } from "./lib/guards";
 
 export const photoDataset = rootQuery({
@@ -41,7 +41,7 @@ export const photoDataset = rootQuery({
         caption: m.caption ?? null,
         month: monthKey(toCouncilWallClock(m.takenAt)),
         region: council?.region ?? null,
-        ward: ward?.name ?? null,
+        ward: presentMaybe(ward?.name),
         geo: record.geo ? { lat: Math.round(record.geo.lat * 10) / 10, lng: Math.round(record.geo.lng * 10) / 10 } : null,
         labels: photoLabels({ type: record.type, section: record.section, payload: record.payload as Record<string, unknown> }),
       });

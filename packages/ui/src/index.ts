@@ -11,3 +11,5 @@ export * from "./PasswordInput.tsx";
 export * from "./AuthForm.tsx";
 export * from "./PolicyView.tsx";
 export * from "./FitText.tsx";
+export * from "./JoinWizard.tsx";
+export * from "./DatePicker.tsx";

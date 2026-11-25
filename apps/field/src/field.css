@@ -147,7 +147,8 @@ fieldset.plain legend {
 .shell {
   min-height: 100dvh;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  /* Content takes the free space, the bar stays at the bottom even on short pages. */
+  grid-template-rows: 1fr auto;
 }
 .shell-body {
   min-width: 0;
@@ -288,10 +289,11 @@ fieldset.plain legend {
 /* A tile: pictogram in the section's colour, then the name, then what it is for. */
 .action-tile {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto 1fr;
+  align-content: start;
   gap: 2px;
   height: 100%;
-  min-height: 118px;
+  min-height: 112px;
   padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
   background: var(--surface);
   border: 2px solid var(--rule);
@@ -317,12 +319,15 @@ fieldset.plain legend {
   background: color-mix(in srgb, var(--sec) 13%, var(--surface));
 }
 .action-label {
-  align-self: end;
   font-size: 1.0625rem;
   font-weight: 700;
   line-height: 1.2;
 }
 .action-hint {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   font-size: var(--t-small);
   line-height: 1.3;
   color: var(--ink-soft);
@@ -475,27 +480,47 @@ fieldset.plain legend {
   gap: var(--space-2);
 }
 .reminder {
+  --tone: var(--wait);
+  --tone-ground: var(--wait-ground);
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-3);
   background: var(--surface);
-  border: 2px solid var(--rule);
-  border-left: 6px solid var(--wait);
-  border-radius: 10px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
 }
 .reminder.tone-danger {
-  border-left-color: var(--danger);
+  --tone: var(--danger);
+  --tone-ground: var(--danger-ground);
 }
 .reminder.tone-ok {
-  border-left-color: var(--ok);
+  --tone: var(--ok);
+  --tone-ground: var(--ok-ground);
+}
+.reminder-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--tone-ground);
+  color: var(--tone);
 }
 .reminder p {
+  margin: 0;
+  align-self: center;
   color: var(--ink);
+  line-height: 1.4;
 }
 .reminder-actions {
+  grid-column: 2;
   display: flex;
   align-items: center;
   gap: var(--space-4);
+}
+.reminder-actions:empty {
+  display: none;
 }
 
 /* Month figures */
@@ -1181,56 +1206,105 @@ fieldset.plain legend {
   gap: var(--space-4);
   padding: var(--space-4);
   background: var(--surface);
-  border: 2px solid var(--rule);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-tile);
+  box-shadow: 0 1px 2px rgb(16 35 26 / 0.05);
 }
+.quick-price .field {
+  gap: var(--space-2);
+}
+/* Price and place side by side, same label line, same height. */
 .qp-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-3);
-  align-items: end;
+  align-items: start;
 }
-.qp-price .input {
-  font-size: var(--t-title);
+.affix {
+  display: flex;
+  align-items: center;
+  height: var(--tap);
+  border: 2px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  overflow: hidden;
+}
+.affix:focus-within {
+  border-color: var(--ink);
+}
+.affix-text {
+  flex: none;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  font-size: var(--t-small);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.affix .input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  padding: 0 var(--space-3) 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: var(--t-lead);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+.affix .input:focus {
+  outline: none;
+}
 .toggle-2 {
-  display: flex;
-  border: 2px solid var(--ink);
-  border-radius: var(--radius-control);
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   height: var(--tap);
+  padding: 3px;
+  border: 2px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--surface-sunk);
 }
 .toggle-2 button {
-  min-width: 84px;
-  padding: 0 var(--space-3);
+  min-width: 0;
+  padding: 0 var(--space-2);
   border: 0;
-  background: var(--surface);
-  color: var(--ink);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-soft);
   font: inherit;
+  font-size: var(--t-small);
   font-weight: 700;
 }
-.toggle-2 button + button {
-  border-left: 2px solid var(--ink);
-}
 .toggle-2 button[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--surface);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgb(16 35 26 / 0.15);
 }
 .added.is-removed {
   background: var(--surface-sunk);
   color: var(--ink);
 }
-.qp-row .field > span,
-.qp-row legend {
-  display: block;
-  margin: 0 0 var(--space-2);
-  font-weight: 700;
+.unit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
 }
-.unit-chips .chip {
-  min-width: 64px;
-  justify-content: center;
+.unit-grid button {
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 2px solid var(--rule);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: 700;
+  line-height: 1.15;
+}
+.unit-grid button[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--surface);
 }
 .added {
   display: flex;
@@ -1246,17 +1320,40 @@ fieldset.plain legend {
 }
 .price-entries {
   list-style: none;
-  margin: 0;
+  margin: var(--space-2) 0 0;
   padding: 0;
-  border-top: 2px solid var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-tile);
+  background: var(--surface);
+  overflow: hidden;
 }
 .price-entries li {
   display: grid;
   grid-template-columns: 1fr auto auto;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) 0;
+  padding: var(--space-3) var(--space-2) var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--rule);
+}
+.price-entries li:last-child {
+  border-bottom: 0;
+}
+.pe-name small {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.pe-place {
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--ok-ground);
+  color: var(--ok);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.pe-place.is-shop {
+  background: var(--wait-ground);
+  color: var(--wait);
 }
 .pe-name {
   display: grid;
@@ -1794,4 +1891,97 @@ fieldset.plain legend {
 .progress-detail {
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
+}
+
+
+/* "+" and arrow on the food card, drawn so they sit in the exact centre */
+.food-card-go svg {
+  display: block;
+}
+
+/* Language choice on "Mimi" */
+.choice-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+.choice-pill {
+  min-height: 48px;
+  border: 2px solid var(--rule);
+  border-radius: 10px;
+  background: var(--surface);
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+}
+.choice-pill[aria-checked="true"] {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+/* Privacy and the usage policy on "Mimi" */
+.privacy-card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-tile);
+  background: var(--surface);
+  overflow: hidden;
+}
+.privacy-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.privacy-card-head h2 {
+  margin: 0;
+  font-size: var(--t-lead);
+}
+.privacy-card-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--ok-ground);
+  color: var(--ok);
+}
+.privacy-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+.privacy-card-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: var(--space-2) calc(-1 * var(--space-4)) 0;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--rule);
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+.privacy-card-link:active {
+  background: var(--surface-sunk);
+}
+
+/* "Lini?" on record forms: date, then time */
+.when-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.when-row .dp-time {
+  max-width: 260px;
+}
+@media (min-width: 520px) {
+  .when-row {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  }
+  .when-row .dp-time {
+    max-width: none;
+  }
 }

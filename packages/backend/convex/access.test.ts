@@ -4,7 +4,7 @@
  * real convex-auth components: sign-up → join → approval chain → sync → audit.
  */
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import core, { sessionIdentity } from "@convex-dev/auth/test";
 import { registerPassword } from "@convex-dev/auth/components/password/test";
 import { registerUsername } from "@convex-dev/auth/components/username/test";
@@ -58,8 +58,9 @@ async function world() {
 
 async function join(t: T, username: string, councilId: Id<"councils">, section: "kilimo" | "mifugo" | "uvuvi") {
   const user = await signUp(t, username);
+  const councilCode = (await t.run((ctx) => ctx.db.get(councilId)))!.code;
   const membershipId = await user.mutation(api.memberships.requestJoin, {
-    councilId, name: `Afisa ${username}`, primarySection: section, level: "vaeo", client,
+    councilCode, name: `Afisa ${username}`, primarySection: section, client,
   });
   return { user, membershipId };
 }
@@ -69,44 +70,58 @@ describe("registration and approval chain", () => {
     const { t, councilId } = await world();
     const { user } = await join(t, "afisa1", councilId, "kilimo");
     const me = await user.query(api.users.me, {});
-    expect(me.memberships[0]?.status).toBe("pending");
+    expect(me.memberships[0]).toMatchObject({ status: "pending", role: "guest" });
     await expect(user.query(api.areas.list, { councilId })).rejects.toThrow(/haijaidhinishwa/);
+  });
+
+  it("an officer is approved only with work areas; the level follows them and the section may be changed", async () => {
+    const { t, councilId, hod, village } = await world();
+    const { user, membershipId } = await join(t, "afisa_ngazi", councilId, "kilimo");
+    await expect(hod.mutation(api.memberships.approve, { role: "officer", councilId, membershipId, areaIds: [], client: hq })).rejects.toThrow(/eneo/);
+    await expect(hod.mutation(api.memberships.approve, { role: "guest", councilId, membershipId, areaIds: [], client: hq })).rejects.toThrow(/cheo/);
+    await hod.mutation(api.memberships.approve, { role: "officer", primarySection: "uvuvi", councilId, membershipId, areaIds: [village], client: hq });
+    const me = await user.query(api.users.me, {});
+    // A village makes it village level; adding a ward makes it ward level.
+    expect(me.memberships[0]).toMatchObject({ status: "active", role: "officer", level: "vaeo", primarySection: "uvuvi", sections: ["uvuvi"] });
+    const ward = (await hod.query(api.areas.list, { councilId })).find((a) => a.kind === "ward")!._id;
+    await hod.mutation(api.memberships.assignAreas, { councilId, membershipId, areaIds: [ward, village], client: hq });
+    expect((await user.query(api.users.me, {})).memberships[0]).toMatchObject({ level: "waeo" });
   });
 
   it("officers can never call HQ functions, even when active", async () => {
     const { t, councilId, hod, village } = await world();
     const { user, membershipId } = await join(t, "afisa2", councilId, "kilimo");
-    await hod.mutation(api.memberships.approve, { councilId, membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId, areaIds: [village], client: hq });
     await expect(user.query(api.memberships.listForHq, { councilId })).rejects.toThrow(/makao makuu/);
   });
 
   it("section heads approve only their own section; admin approves anyone", async () => {
     const { t, councilId, hod, village } = await world();
     const head = await join(t, "head_mifugo", councilId, "mifugo");
-    await hod.mutation(api.memberships.approve, { councilId, membershipId: head.membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId: head.membershipId, areaIds: [village], client: hq });
     await hod.mutation(api.memberships.assignRole, { councilId, membershipId: head.membershipId, role: "section_head", client: hq });
 
     const cropOfficer = await join(t, "afisa_kilimo", councilId, "kilimo");
     const livestockOfficer = await join(t, "afisa_mifugo", councilId, "mifugo");
 
     await expect(
-      head.user.mutation(api.memberships.approve, { councilId, membershipId: cropOfficer.membershipId, areaIds: [village], client: hq }),
+      head.user.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId: cropOfficer.membershipId, areaIds: [village], client: hq }),
     ).rejects.toThrow(/ruhusa/);
     await head.user.mutation(api.memberships.approve, {
-      councilId, membershipId: livestockOfficer.membershipId, areaIds: [village], client: hq,
+      role: "officer", level: "vaeo", councilId, membershipId: livestockOfficer.membershipId, areaIds: [village], client: hq,
     });
 
     const pendingSeenByHead = await head.user.query(api.memberships.listForHq, { councilId, status: "pending" });
-    expect(pendingSeenByHead.map((m) => m.name)).not.toContain("Afisa afisa_kilimo");
+    expect(pendingSeenByHead.map((m) => m.name)).not.toContain("Afisa Afisa_kilimo");
   });
 
   it("an extra section is granted only by that section's lead", async () => {
     const { t, councilId, hod, village } = await world();
     const head = await join(t, "head_uvuvi", councilId, "uvuvi");
-    await hod.mutation(api.memberships.approve, { councilId, membershipId: head.membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId: head.membershipId, areaIds: [village], client: hq });
     await hod.mutation(api.memberships.assignRole, { councilId, membershipId: head.membershipId, role: "section_vice", client: hq });
     const officer = await join(t, "afisa_mchanganyiko", councilId, "kilimo");
-    await hod.mutation(api.memberships.approve, { councilId, membershipId: officer.membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId: officer.membershipId, areaIds: [village], client: hq });
 
     await expect(
       head.user.mutation(api.memberships.grantSection, { councilId, membershipId: officer.membershipId, section: "mifugo", client: hq }),
@@ -128,7 +143,7 @@ describe("first deployment and council code sign-up", () => {
     expect(res.status).toBe("complete");
   });
 
-  it("a Head of Department joins with the council code and only root can approve", async () => {
+  it("sign-up waits for the council's addresses; everyone joins as a guest and only root seats the HoD", async () => {
     const t = setup();
     await t.action(internal.admin.bootstrapRoot, { username: "900000009", password: "Mzizi-Imara-2026" });
     const { councilId, code } = await t.mutation(internal.admin.createCouncil, { name: "Halmashauri ya Mji ya Bagamoyo", region: "Pwani" });
@@ -136,39 +151,58 @@ describe("first deployment and council code sign-up", () => {
     const rootRes = await t.mutation(api.auth.signInWithUsernamePassword, { username: "900000009", password: "Mzizi-Imara-2026" });
     if (rootRes.status !== "complete") throw new Error("root sign-in failed");
     const root = t.withIdentity(sessionIdentity(rootRes.tokens));
-    await root.mutation(api.councils.update, { councilId, registrationOpen: false });
 
     const hod = await signUp(t, "100000001");
-    // Typed in lower case, with or without the dash.
-    expect(await t.query(api.councils.lookupByCode, { code: code.toLowerCase() })).toMatchObject({ name: "Halmashauri ya Mji ya Bagamoyo" });
+    // Typed in lower case, with or without the dash. No addresses yet: blocked.
+    expect(await t.query(api.councils.lookupByCode, { code: code.toLowerCase() })).toMatchObject({ name: "Halmashauri ya Mji ya Bagamoyo", blocked: expect.stringMatching(/anwani/) });
     expect(await t.query(api.councils.lookupByCode, { code: code.replace("-", "") })).not.toBeNull();
-    const membershipId = await hod.mutation(api.memberships.requestJoin, {
-      councilCode: code.toLowerCase(), requestedRole: "admin", name: "Mkuu Idara Kilimo", primarySection: "kilimo", client: hq,
-    });
+    expect(await t.query(api.councils.joinAreas, { code })).toEqual([]);
+    const ask = { councilCode: code.toLowerCase(), requestedRole: "admin" as const, name: "Mkuu Idara Kilimo", primarySection: "kilimo" as const, client: hq };
+    await expect(hod.mutation(api.memberships.requestJoin, ask)).rejects.toThrow(/anwani/);
+    await expect(root.mutation(api.councils.update, { councilId, registrationOpen: true })).rejects.toThrow(/anwani/);
+
+    await root.mutation(api.areas.importNapaWard, { councilId, ward: { name: "Dunda", villages: [{ name: "Benki", streets: [] }] } });
+    expect(await t.query(api.councils.lookupByCode, { code })).toMatchObject({ blocked: null });
+    // The role someone asks for is ignored: they are a guest.
+    const areas = await t.query(api.councils.joinAreas, { code });
+    expect(areas.map((a) => a.name)).toEqual(["Benki", "Dunda"]);
+    const benki = areas.find((a) => a.name === "Benki")!._id;
+    const membershipId = await hod.mutation(api.memberships.requestJoin, { ...ask, requestedAreaId: benki });
+    expect((await root.query(api.memberships.listForHq, { councilId, status: "pending" }))[0]).toMatchObject({ requestedAreaId: benki });
     const me = await hod.query(api.users.me, {});
-    expect(me.memberships[0]).toMatchObject({ status: "pending", requestedRole: "admin", role: "officer" });
+    expect(me.memberships[0]).toMatchObject({ status: "pending", requestedRole: null, role: "guest" });
 
-    // A council closed to officers still rejects the officer list path.
-    const officer = await signUp(t, "afisa_closed");
-    await expect(officer.mutation(api.memberships.requestJoin, { councilId, name: "Afisa Mmoja", primarySection: "kilimo", level: "vaeo", client })).rejects.toThrow(/haipokei/);
+    // Closed to sign-ups: the code stops working too.
+    await root.mutation(api.councils.update, { councilId, registrationOpen: false });
+    const late = await signUp(t, "afisa_closed");
+    await expect(late.mutation(api.memberships.requestJoin, { councilCode: code, name: "Afisa Mmoja", primarySection: "kilimo", client })).rejects.toThrow(/haipokei/);
 
-    await root.mutation(api.memberships.approve, { councilId, membershipId, areaIds: [], client: hq });
+    await root.mutation(api.memberships.approve, { councilId, membershipId, role: "admin", areaIds: [], client: hq });
     const after = await hod.query(api.users.me, {});
     expect(after.memberships[0]).toMatchObject({ status: "active", role: "admin", requestedRole: null });
-    // The new HoD can now use HQ.
     expect(await hod.query(api.memberships.listForHq, { councilId })).toBeDefined();
   });
 
-  it("a HoD cannot approve another HoD request, but approves a section head request", async () => {
+  it("a HoD cannot seat another HoD, but makes a guest a section head", async () => {
     const { t, councilId, code, hod } = await world();
-    const asksAdmin = await signUp(t, "anaomba_hod");
-    const m1 = await asksAdmin.mutation(api.memberships.requestJoin, { councilCode: code, requestedRole: "admin", name: "Mtu Mwingine", primarySection: "mifugo", client: hq });
-    await expect(hod.mutation(api.memberships.approve, { councilId, membershipId: m1, areaIds: [], client: hq })).rejects.toThrow(/msimamizi wa mfumo/);
-    const asksHead = await signUp(t, "anaomba_head");
-    const m2 = await asksHead.mutation(api.memberships.requestJoin, { councilCode: code, requestedRole: "section_head", name: "Mkuu Mifugo", primarySection: "mifugo", client: hq });
-    await hod.mutation(api.memberships.approve, { councilId, membershipId: m2, areaIds: [], client: hq });
-    const me = await asksHead.query(api.users.me, {});
+    const g1 = await signUp(t, "mgeni_1");
+    const m1 = await g1.mutation(api.memberships.requestJoin, { councilCode: code, name: "Mtu Mwingine", primarySection: "mifugo", client: hq });
+    await expect(hod.mutation(api.memberships.approve, { councilId, membershipId: m1, role: "admin", areaIds: [], client: hq })).rejects.toThrow(/msimamizi wa mfumo/);
+    await hod.mutation(api.memberships.approve, { councilId, membershipId: m1, role: "section_head", areaIds: [], client: hq });
+    const me = await g1.query(api.users.me, {});
     expect(me.memberships[0]).toMatchObject({ role: "section_head", status: "active" });
+  });
+
+  it("a section head approves guests of their section as officers only", async () => {
+    const { t, councilId, hod, village } = await world();
+    const head = await join(t, "head_kilimo2", councilId, "kilimo");
+    await hod.mutation(api.memberships.approve, { councilId, membershipId: head.membershipId, role: "section_head", areaIds: [], client: hq });
+    const guest = await join(t, "mgeni_kilimo", councilId, "kilimo");
+    await expect(head.user.mutation(api.memberships.approve, { councilId, membershipId: guest.membershipId, role: "section_vice", areaIds: [], client: hq })).rejects.toThrow(/ruhusa/);
+    await expect(
+      head.user.mutation(api.memberships.approve, { councilId, membershipId: guest.membershipId, role: "officer", level: "vaeo", primarySection: "mifugo", areaIds: [village], client: hq }),
+    ).rejects.toThrow(/ruhusa/);
+    await head.user.mutation(api.memberships.approve, { councilId, membershipId: guest.membershipId, role: "officer", level: "vaeo", areaIds: [village], client: hq });
   });
 });
 
@@ -224,6 +258,54 @@ describe("council codes and NaPA addresses", () => {
     await root.mutation(api.areas.finishNapaImport, { councilId, reportDate: "01/07/2026", totals: { wards: 1, villages: 2, streets: 3, addresses: 39 } });
     const all = await root.query(api.councils.listAll, {});
     expect(all.find((c) => c._id === councilId)?.addressImport).toMatchObject({ reportDate: "01/07/2026", streets: 3 });
+    const detail = await root.query(api.councils.detail, { councilId });
+    expect(detail?.wards.find((w) => w.name === "Dunda")).toMatchObject({ villages: 2 });
+    expect(detail?.leads).toEqual([{ name: "Mkuu wa Idara", role: "admin", section: "kilimo" }]);
+    await expect(hod.query(api.councils.detail, { councilId })).rejects.toThrow(/ruhusa/);
+  });
+});
+
+describe("section codes", () => {
+  it("each section has a code; the HoD sees all three, others their own; a section code fixes the section", async () => {
+    const { t, councilId, hod, village } = await world();
+    const all = await hod.query(api.councils.myCodes, { councilId });
+    expect(all.codes.map((c) => c.section)).toEqual(["kilimo", "mifugo", "uvuvi"]);
+    expect(all.missing).toBe(false);
+    const mifugo = all.codes.find((c) => c.section === "mifugo")!.code;
+
+    // Signing up with the livestock code: the council and section come from the code.
+    expect(await t.query(api.councils.lookupByCode, { code: mifugo.toLowerCase() })).toMatchObject({ section: "mifugo", blocked: null });
+    const guest = await signUp(t, "mfugaji_code");
+    const membershipId = await guest.mutation(api.memberships.requestJoin, { councilCode: mifugo, name: "Afisa Mifugo Mpya", primarySection: "kilimo", client });
+    expect((await guest.query(api.users.me, {})).memberships[0]).toMatchObject({ primarySection: "mifugo", role: "guest" });
+
+    // Once an officer, they see only their section's code; they cannot renew it.
+    await hod.mutation(api.memberships.approve, { councilId, membershipId, role: "officer", areaIds: [village], client: hq });
+    const mine = await guest.query(api.councils.myCodes, { councilId });
+    expect(mine).toMatchObject({ codes: [{ section: "mifugo", code: mifugo }], canRenew: [] });
+
+    // The HoD renews it: the old code stops working.
+    const fresh = await hod.mutation(api.councils.renewSectionCode, { councilId, section: "mifugo", client: hq });
+    expect(fresh).not.toBe(mifugo);
+    expect(await t.query(api.councils.lookupByCode, { code: mifugo })).toBeNull();
+  });
+});
+
+describe("names are stored in lower case and shown capitalised", () => {
+  it("people, councils and areas", async () => {
+    const { t, councilId, hod, root } = await world();
+    await root.mutation(api.councils.update, { councilId, displayName: "BAGAMOYO tc", region: "pwani" });
+    await hod.mutation(api.users.updateProfile, { name: "  ASHA   juma mrisho " });
+    await hod.mutation(api.areas.create, { councilId, kind: "ward", name: "MJI MWEMA", client: hq });
+    const stored = await t.run(async (ctx) => ({
+      council: await ctx.db.get(councilId),
+      user: (await ctx.db.query("users").collect()).find((u) => u.name?.includes("asha")),
+      ward: (await ctx.db.query("areas").collect()).find((a) => a.name.startsWith("mji")),
+    }));
+    expect([stored.council?.displayName, stored.council?.region, stored.user?.name, stored.ward?.name]).toEqual(["bagamoyo tc", "pwani", "asha juma mrisho", "mji mwema"]);
+    const me = await hod.query(api.users.me, {});
+    expect(me).toMatchObject({ name: "Asha Juma Mrisho", memberships: [{ councilDisplayName: "Bagamoyo TC" }] });
+    expect((await hod.query(api.areas.list, { councilId })).map((a) => a.name)).toContain("Mji Mwema");
   });
 });
 
@@ -250,7 +332,7 @@ describe("HQ sees sent reports only, and a sent report is sealed", () => {
   async function officer(name: string) {
     const w = await world();
     const o = await join(w.t, name, w.councilId, "kilimo");
-    await w.hod.mutation(api.memberships.approve, { councilId: w.councilId, membershipId: o.membershipId, areaIds: [w.village], client: hq });
+    await w.hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId: w.councilId, membershipId: o.membershipId, areaIds: [w.village], client: hq });
     return { ...w, user: o.user, membershipId: o.membershipId };
   }
   const priceRecord = (n: number, occurredAt: number, payload: Record<string, unknown>) => ({
@@ -277,7 +359,7 @@ describe("HQ sees sent reports only, and a sent report is sealed", () => {
     const seen = await hod.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" });
     expect(seen).toHaveLength(1);
     expect((seen[0]!.payload as Rows).rows[0]!.average).toBe(3200);
-    expect(seen[0]).toMatchObject({ officerName: "Afisa afisa_bei", auto: false });
+    expect(seen[0]).toMatchObject({ officerName: "Afisa Afisa_bei", auto: false });
     const mine = await user.query(api.submissions.mine, { councilId, kind: "food_prices" });
     expect(mine[0]).toMatchObject({ period: "2026-11", auto: false });
   });
@@ -287,7 +369,7 @@ describe("HQ sees sent reports only, and a sent report is sealed", () => {
     const o = await join(t, "afisa_rek", councilId, "kilimo");
     const lead = await join(t, "mkuu_kilimo", councilId, "kilimo");
     const other = await join(t, "mkuu_mif", councilId, "mifugo");
-    for (const m of [o, lead, other]) await hod.mutation(api.memberships.approve, { councilId, membershipId: m.membershipId, areaIds: [village], client: hq });
+    for (const m of [o, lead, other]) await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId: m.membershipId, areaIds: [village], client: hq });
     await hod.mutation(api.memberships.assignRole, { councilId, membershipId: lead.membershipId, role: "section_head", client: hq });
     await hod.mutation(api.memberships.assignRole, { councilId, membershipId: other.membershipId, role: "section_head", client: hq });
     const send = (n: number, avg: number) =>
@@ -306,7 +388,7 @@ describe("HQ sees sent reports only, and a sent report is sealed", () => {
 
     await lead.user.mutation(api.submissions.reopen, { councilId, submissionId: sent!._id, note: "Bei ya sukari si sahihi; angalia tena.", client: hq });
     const mine = await o.user.query(api.submissions.mine, { councilId, kind: "food_prices" });
-    expect(mine[0]!.reopened).toMatchObject({ byName: "Afisa mkuu_kilimo", note: "Bei ya sukari si sahihi; angalia tena." });
+    expect(mine[0]!.reopened).toMatchObject({ byName: "Afisa Mkuu_kilimo", note: "Bei ya sukari si sahihi; angalia tena." });
 
     await send(2, 3000);
     const [fixed] = await hod.query(api.submissions.forHq, { councilId, kind: "food_prices", period: "2026-11" });
@@ -322,7 +404,7 @@ describe("HQ sees sent reports only, and a sent report is sealed", () => {
     const { t, councilId, hod, village } = await world();
     const o = await join(t, "afisa_k", councilId, "kilimo");
     const head = await join(t, "mkuu_mifugo", councilId, "mifugo");
-    for (const m of [o, head]) await hod.mutation(api.memberships.approve, { councilId, membershipId: m.membershipId, areaIds: [village], client: hq });
+    for (const m of [o, head]) await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId: m.membershipId, areaIds: [village], client: hq });
     await hod.mutation(api.memberships.assignRole, { councilId, membershipId: head.membershipId, role: "section_head", client: hq });
     await o.user.mutation(api.submissions.submit, {
       councilId, client, clientId: uuid(201), kind: "food_prices", period: "2026-11", areaLabel: "Changarawe",
@@ -348,7 +430,7 @@ describe("HQ sees sent reports only, and a sent report is sealed", () => {
   it("only the Head of Department or vice switches auto-send", async () => {
     const { t, councilId, hod, village } = await world();
     const head = await join(t, "mkuu_k", councilId, "kilimo");
-    await hod.mutation(api.memberships.approve, { councilId, membershipId: head.membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId: head.membershipId, areaIds: [village], client: hq });
     await hod.mutation(api.memberships.assignRole, { councilId, membershipId: head.membershipId, role: "section_head", client: hq });
     await expect(head.user.mutation(api.councils.setAutoSend, { councilId, food: true, monthly: true, client: hq })).rejects.toThrow(/Mkuu wa Idara/);
     await hod.mutation(api.councils.setAutoSend, { councilId, food: true, monthly: false, client: hq });
@@ -360,7 +442,7 @@ describe("HQ sees sent reports only, and a sent report is sealed", () => {
   it("auto-send sends what was entered on the due date, and nothing for an officer who entered nothing", async () => {
     const { t, councilId, hod, village, user, membershipId } = await officer("afisa_auto");
     const idle = await join(t, "afisa_kimya", councilId, "kilimo");
-    await hod.mutation(api.memberships.approve, { councilId, membershipId: idle.membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId: idle.membershipId, areaIds: [village], client: hq });
     await hod.mutation(api.councils.setAutoSend, { councilId, food: true, monthly: true, client: hq });
 
     await user.mutation(api.sync.pushRecords, {
@@ -381,8 +463,8 @@ describe("HQ sees sent reports only, and a sent report is sealed", () => {
     expect(seen[0]).toMatchObject({ auto: true });
     expect((seen[0]!.payload as Rows).rows[0]!.average).toBe(3200);
     const missing = await hod.query(api.submissions.missingForHq, { councilId, kind: "food_prices", period: "2026-11" });
-    expect(missing.map((x) => x.name)).toContain("Afisa afisa_kimya");
-    expect(missing.map((x) => x.name)).not.toContain("Afisa afisa_auto");
+    expect(missing.map((x) => x.name)).toContain("Afisa Afisa_kimya");
+    expect(missing.map((x) => x.name)).not.toContain("Afisa Afisa_auto");
     // The officer's phone learns the report is sealed.
     expect((await user.query(api.submissions.mine, { councilId, kind: "food_prices" }))[0]).toMatchObject({ auto: true, period: "2026-11" });
   });
@@ -411,7 +493,7 @@ describe("root stays hidden", () => {
   it("root's actions and identity never show to the HoD", async () => {
     const { t, councilId, root, village } = await world();
     const officer = await join(t, "afisa_root_test", councilId, "kilimo");
-    await root.mutation(api.memberships.approve, { councilId, membershipId: officer.membershipId, areaIds: [village], client: hq });
+    await root.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId: officer.membershipId, areaIds: [village], client: hq });
 
     const hod = await t.withIdentity(await (async () => {
       const res = await t.mutation(api.auth.signInWithUsernamePassword, { username: "hod_test", password: "Shamba-la-Mahindi-2026" });
@@ -450,7 +532,7 @@ describe("sync", () => {
   it("push is idempotent, enforces sections and is audited", async () => {
     const { t, councilId, hod, village } = await world();
     const { user, membershipId } = await join(t, "afisa_sync", councilId, "kilimo");
-    await hod.mutation(api.memberships.approve, { councilId, membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId, areaIds: [village], client: hq });
 
     const record = rec({ areaId: village });
     const first = await user.mutation(api.sync.pushRecords, { councilId, client, records: [record] });
@@ -476,7 +558,7 @@ describe("sync", () => {
   it("rejects payloads that do not match their form", async () => {
     const { t, councilId, hod, village } = await world();
     const { user, membershipId } = await join(t, "afisa_payload", councilId, "kilimo");
-    await hod.mutation(api.memberships.approve, { councilId, membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId, areaIds: [village], client: hq });
     const res = await user.mutation(api.sync.pushRecords, {
       councilId, client,
       records: [
@@ -493,7 +575,7 @@ describe("sync", () => {
     const a = await join(t, "afisa_a", councilId, "kilimo");
     const b = await join(t, "afisa_b", councilId, "kilimo");
     for (const m of [a, b]) {
-      await hod.mutation(api.memberships.approve, { councilId, membershipId: m.membershipId, areaIds: [village], client: hq });
+      await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId: m.membershipId, areaIds: [village], client: hq });
     }
     await a.user.mutation(api.sync.pushRecords, { councilId, client, records: [rec()] });
     const res = await b.user.mutation(api.sync.pushRecords, {
@@ -512,7 +594,7 @@ describe("photos", () => {
   async function officerWithRecord() {
     const w = await world();
     const { user, membershipId } = await join(w.t, "afisa_picha", w.councilId, "kilimo");
-    await w.hod.mutation(api.memberships.approve, { councilId: w.councilId, membershipId, areaIds: [w.village], client: hq });
+    await w.hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId: w.councilId, membershipId, areaIds: [w.village], client: hq });
     await user.mutation(api.sync.pushRecords, {
       councilId: w.councilId,
       client,
@@ -549,7 +631,7 @@ describe("photos", () => {
   it("refuses photos for someone else's record, wrong file types and too many photos", async () => {
     const { t, councilId, user, hod, village, store } = await officerWithRecord();
     const other = await join(t, "afisa_mwingine", councilId, "kilimo");
-    await hod.mutation(api.memberships.approve, { councilId, membershipId: other.membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId: other.membershipId, areaIds: [village], client: hq });
     const s1 = await store(jpeg());
     const notMine = await other.user.mutation(api.media.attach, { councilId, client, clientId: photoId(2), recordClientId: recordId, storageId: s1, ...meta });
     expect(notMine).toMatchObject({ status: "rejected", reason: expect.stringMatching(/haipo/) });
@@ -610,9 +692,9 @@ describe("presets and production plans", () => {
   async function setup() {
     const w = await world();
     const officer = await join(w.t, "afisa_tija", w.councilId, "kilimo");
-    await w.hod.mutation(api.memberships.approve, { councilId: w.councilId, membershipId: officer.membershipId, areaIds: [w.village], client: hq });
+    await w.hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId: w.councilId, membershipId: officer.membershipId, areaIds: [w.village], client: hq });
     const head = await join(w.t, "mkuu_mifugo", w.councilId, "mifugo");
-    await w.hod.mutation(api.memberships.approve, { councilId: w.councilId, membershipId: head.membershipId, areaIds: [w.village], client: hq });
+    await w.hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId: w.councilId, membershipId: head.membershipId, areaIds: [w.village], client: hq });
     await w.hod.mutation(api.memberships.assignRole, { councilId: w.councilId, membershipId: head.membershipId, role: "section_head", client: hq });
     return { ...w, officer: officer.user, livestockHead: head.user };
   }
@@ -626,7 +708,7 @@ describe("presets and production plans", () => {
 
     const forHod = await hod.query(api.presets.forHq, { councilId, status: "pending" });
     expect(forHod).toHaveLength(1);
-    expect(forHod[0]).toMatchObject({ key: "tija:mahindi", value: 2.5, canDecide: true, officerName: "Afisa afisa_tija" });
+    expect(forHod[0]).toMatchObject({ key: "tija:mahindi", value: 2.5, canDecide: true, officerName: "Afisa Afisa_tija" });
 
     // The livestock head cannot see or approve a crop officer's settings.
     expect(await livestockHead.query(api.presets.forHq, { councilId })).toHaveLength(0);
@@ -661,7 +743,7 @@ describe("council defaults and display name", () => {
   it("HQ sets a council-wide yield that officers see; officers cannot set it", async () => {
     const { t, councilId, hod, village } = await world();
     const o = await join(t, "afisa_default", councilId, "kilimo");
-    await hod.mutation(api.memberships.approve, { councilId, membershipId: o.membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId: o.membershipId, areaIds: [village], client: hq });
     await hod.mutation(api.presets.setCouncilDefault, { councilId, client: hq, key: "tija:mahindi", value: 2.2 });
     expect(await o.user.query(api.presets.councilDefaults, { councilId })).toMatchObject([{ key: "tija:mahindi", value: 2.2 }]);
     await expect(o.user.mutation(api.presets.setCouncilDefault, { councilId, client, key: "tija:mahindi", value: 3 })).rejects.toThrow();
@@ -685,7 +767,7 @@ describe("photos with sent reports", () => {
   it("HQ sees the photos of a sent report's period, never before it is sent; research data names nobody", async () => {
     const { t, councilId, hod, root, village } = await world();
     const { user, membershipId } = await join(t, "afisa_ripoti_picha", councilId, "kilimo");
-    await hod.mutation(api.memberships.approve, { councilId, membershipId, areaIds: [village], client: hq });
+    await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId, areaIds: [village], client: hq });
     // A record in October (council time), with a photo.
     const occurredAt = Date.UTC(2026, 9, 14, 7);
     await user.mutation(api.sync.pushRecords, {
@@ -715,5 +797,63 @@ describe("photos with sent reports", () => {
     expect(data.items[0]).toMatchObject({ month: "2026-10", ward: "Mzumbe", geo: { lat: -6.8, lng: 37.7 } });
     expect(JSON.stringify(data.items[0])).not.toMatch(/Afisa|afisa_ripoti_picha/);
     await expect(hod.query(api.research.photoDataset, {})).rejects.toThrow(/ruhusa/);
+  });
+});
+
+describe("wiping the system", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
+
+  async function rootSession(t: T) {
+    const res = await t.mutation(api.auth.signInWithUsernamePassword, { username: "root_test", password: "Shamba-la-Mahindi-2026" });
+    if (res.status !== "complete") throw new Error("root sign-in failed");
+    return t.withIdentity(sessionIdentity(res.tokens));
+  }
+
+  it("is refused unless ALLOW_WIPE=true, the phrase matches and the caller is root", async () => {
+    const { t, hod } = await world();
+    const root = await rootSession(t);
+    vi.stubEnv("ALLOW_WIPE", "false");
+    expect(await root.query(api.wipe.status, {})).toMatchObject({ allowed: false, job: null });
+    await expect(root.mutation(api.wipe.start, { confirm: "FUTA KILA KITU" })).rejects.toThrow(/ALLOW_WIPE/);
+    vi.stubEnv("ALLOW_WIPE", "true");
+    await expect(root.mutation(api.wipe.start, { confirm: "futa" })).rejects.toThrow(/thibitisha/);
+    await expect(hod.mutation(api.wipe.start, { confirm: "FUTA KILA KITU" })).rejects.toThrow(/ruhusa/);
+  });
+
+  it("removes every council, its data and every non-root account; root stays and check numbers are free again", async () => {
+    vi.useFakeTimers();
+    const { t, councilId, village, hod } = await world();
+    const officer = await join(t, "afisa_wipe", councilId, "mifugo");
+    await hod.mutation(api.memberships.approve, { role: "officer", councilId, membershipId: officer.membershipId, areaIds: [village], client: hq });
+    await officer.user.mutation(api.sync.pushRecords, {
+      councilId,
+      client,
+      records: [{ clientId: "0190c6b2-0000-7000-8000-000000000001", type: "vaccination", section: "mifugo", occurredAt: Date.now(), payload: { animal: "kuku", method: "chanjo", count: 40 }, payloadVersion: 1, clientUpdatedAt: Date.now() }],
+    });
+    expect(await t.run(async (ctx) => (await ctx.db.query("records").collect()).length)).toBe(1);
+
+    const root = await rootSession(t);
+    vi.stubEnv("ALLOW_WIPE", "true");
+    await root.mutation(api.wipe.start, { confirm: "FUTA KILA KITU" });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    const status = await root.query(api.wipe.status, {});
+    expect(status.job).toMatchObject({ status: "done" });
+    const left = await t.run(async (ctx) => ({
+      councils: (await ctx.db.query("councils").collect()).length,
+      areas: (await ctx.db.query("areas").collect()).length,
+      memberships: (await ctx.db.query("memberships").collect()).length,
+      records: (await ctx.db.query("records").collect()).length,
+      users: (await ctx.db.query("users").collect()).map((u) => u.isRoot === true),
+      audit: (await ctx.db.query("auditLog").collect()).map((a) => a.action),
+    }));
+    expect(left).toEqual({ councils: 0, areas: 0, memberships: 0, records: 0, users: [true], audit: ["system.wipe"] });
+
+    // Root still signs in and sees an empty system; an old check number can sign up again.
+    expect(await root.query(api.councils.listAll, {})).toEqual([]);
+    await signUp(t, "afisa_wipe");
   });
 });

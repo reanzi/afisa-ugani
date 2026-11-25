@@ -12,50 +12,52 @@ import { useOpenFoodPeriod } from "../lib/food";
 import { draftToPayload, FieldInput, payloadToDraft, type Draft } from "./fields";
 import { useRecordPhotos, type PhotoDraft } from "../lib/photos";
 import { PhotoField } from "./PhotoField";
-import { IconTrash, Select, useConfirm, type SelectOption } from "@afisa/ui";
+import { IconTrash, Select, useConfirm, useT, type SelectOption, DatePicker, TimeField } from "@afisa/ui";
 
-/** "2026-11-17T14:05" in local time, for <input type="datetime-local">. */
+/** "2026-11-17T14:05" in local time: the date and time fields of "Lini?". */
 export function toLocalInput(ms: number): string {
   const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60_000);
   return d.toISOString().slice(0, 16);
 }
 
 function GeoLine({ status, onRetry }: { status: GeoStatus; onRetry: () => void }) {
+  const t = useT();
   switch (status.state) {
     case "searching":
       return (
         <p className="geo geo-wait" aria-live="polite">
-          Inatafuta mahali ulipo{status.best ? ` (sasa ±${status.best.accuracy} m)` : ""}…
+          {t("Inatafuta mahali ulipo", "Finding your location")}{status.best ? t(` (sasa ±${status.best.accuracy} m)`, ` (now ±${status.best.accuracy} m)`) : ""}…
         </p>
       );
     case "found":
-      return <p className="geo geo-ok">Mahali pamepatikana, usahihi ±{status.geo.accuracy} m.</p>;
+      return <p className="geo geo-ok">{t(`Mahali pamepatikana, usahihi ±${status.geo.accuracy} m.`, `Location found, accuracy ±${status.geo.accuracy} m.`)}</p>;
     case "weak":
       return (
         <p className="geo geo-wait">
-          Mahali pamepatikana kwa usahihi mdogo (±{status.geo.accuracy} m).{" "}
-          <button type="button" className="link" onClick={onRetry}>Jaribu tena</button>
+          {t(`Mahali pamepatikana kwa usahihi mdogo (±${status.geo.accuracy} m).`, `Location found with low accuracy (±${status.geo.accuracy} m).`)}{" "}
+          <button type="button" className="link" onClick={onRetry}>{t("Jaribu tena", "Try again")}</button>
         </p>
       );
     case "denied":
-      return <p className="geo geo-off">Ruhusa ya mahali imezimwa. Iwashe kwenye mipangilio ya kivinjari ili kumbukumbu iwe na mahali.</p>;
+      return <p className="geo geo-off">{t("Ruhusa ya mahali imezimwa. Iwashe kwenye mipangilio ya kivinjari ili kumbukumbu iwe na mahali.", "Location permission is off. Turn it on in the browser settings so records include a location.")}</p>;
     case "unavailable":
       return (
         <p className="geo geo-off">
-          Mahali hapakupatikana. Kumbukumbu itahifadhiwa bila mahali.{" "}
-          <button type="button" className="link" onClick={onRetry}>Jaribu tena</button>
+          {t("Mahali hapakupatikana. Kumbukumbu itahifadhiwa bila mahali.", "No location found. The record will be saved without one.")}{" "}
+          <button type="button" className="link" onClick={onRetry}>{t("Jaribu tena", "Try again")}</button>
         </p>
       );
   }
 }
 
 function ComingSoon({ label }: { label: string }) {
+  const t = useT();
   return (
     <main className="page narrow">
-      <Link to="/" className="back">Rudi</Link>
+      <Link to="/" className="back">{t("Rudi", "Back")}</Link>
       <h1 className="page-title">{label}</h1>
       <p className="lead">
-        Fomu hii bado haijakamilika. Kwa sasa tumia <Link to="/andika/activity">Shughuli nyingine</Link> kuandika ulichofanya.
+        {t("Fomu hii bado haijakamilika. Kwa sasa tumia", "This form is not ready yet. For now use")} <Link to="/andika/activity">{t("Shughuli nyingine", "Other activity")}</Link> {t("kuandika ulichofanya.", "to record what you did.")}
       </p>
     </main>
   );
@@ -64,20 +66,22 @@ function ComingSoon({ label }: { label: string }) {
 export function LogEntry() {
   const { type = "activity", clientId } = useParams();
   const spec = specFor(type);
-  if (!spec || !spec.ready || type === "monthly_review") return <ComingSoon label={spec?.label ?? "Fomu"} />;
+  const t = useT();
+  if (!spec || !spec.ready || type === "monthly_review") return <ComingSoon label={spec?.label ?? t("Fomu", "Form")} />;
   return <SpecForm key={`${type}:${clientId ?? "new"}`} spec={spec} clientId={clientId} />;
 }
 
-const VALIDATION_TEXT: Record<string, string> = {
-  MISSING: "Jaza sehemu hii",
-  BAD_NUMBER: "Andika namba sahihi",
-  BAD_OPTION: "Chagua mojawapo",
-  BAD_TEXT: "Maandishi ni marefu mno",
+const VALIDATION_TEXT: Record<string, [string, string]> = {
+  MISSING: ["Jaza sehemu hii", "Fill in this field"],
+  BAD_NUMBER: ["Andika namba sahihi", "Enter a valid number"],
+  BAD_OPTION: ["Chagua mojawapo", "Choose one"],
+  BAD_TEXT: ["Maandishi ni marefu mno", "The text is too long"],
 };
 
 function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const t = useT();
   // Back to where the officer came from (home section, history), or home if the form was opened directly.
   const goBack = () => ((window.history.state as { idx?: number } | null)?.idx ? navigate(-1) : navigate("/", { replace: true }));
   const { councilId, sections, membership } = useWork();
@@ -94,6 +98,7 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
   const [draft, setDraft] = useState<Draft>({});
   const [areaId, setAreaId] = useState("");
   const [when, setWhen] = useState(() => toLocalInput(Date.now()));
+  const nowLocal = toLocalInput(Date.now());
   const [geo, setGeo] = useState<GeoStatus>({ state: "searching" });
   const [attempt, setAttempt] = useState(0);
   const [showMore, setShowMore] = useState(false);
@@ -130,15 +135,15 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
   // Prices go into the food report that is open now (the next one once this one is sent).
   const foodPeriod = useOpenFoodPeriod();
   const areaOptions = useMemo<SelectOption[]>(() => {
-    const out: SelectOption[] = [{ value: "", label: "Sijachagua" }];
+    const out: SelectOption[] = [{ value: "", label: t("Sijachagua", "Not chosen") }];
     for (const w of wards) {
-      const group = `Kata ya ${w.name}`;
-      out.push({ value: w._id, label: `Kata ya ${w.name} (yote)`, group });
+      const group = t(`Kata ya ${w.name}`, `${w.name} ward`);
+      out.push({ value: w._id, label: t(`Kata ya ${w.name} (yote)`, `${w.name} ward (all)`), group });
       for (const v of villages.filter((x) => x.parentId === w._id)) out.push({ value: v._id, label: v.name, group });
     }
-    for (const v of villages.filter((x) => !wards.some((w) => w._id === x.parentId))) out.push({ value: v._id, label: v.name, group: "Vijiji" });
+    for (const v of villages.filter((x) => !wards.some((w) => w._id === x.parentId))) out.push({ value: v._id, label: v.name, group: t("Vijiji", "Villages") });
     return out;
-  }, [wards, villages]);
+  }, [wards, villages, t]);
   const visible = spec.fields.filter((f) => fieldVisible(f, payload));
   const main = visible.filter((f) => !f.more);
   const more = visible.filter((f) => f.more);
@@ -156,13 +161,14 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
     const invalid = validatePayload(spec.type, payload);
     if (invalid) {
       const [code, key = ""] = invalid.split(":");
-      setProblem({ key, text: VALIDATION_TEXT[code ?? ""] ?? "Angalia taarifa ulizojaza" });
+      const msg = VALIDATION_TEXT[code ?? ""];
+      setProblem({ key, text: msg ? t(...msg) : t("Angalia taarifa ulizojaza", "Check what you filled in") });
       if (spec.fields.find((f) => f.key === key)?.more) setShowMore(true);
       document.getElementById(`f-${key}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
       return;
     }
     if (photosRequired && savedPhotos.length + photoDrafts.length === 0) {
-      setProblem({ key: "photos", text: "Piga angalau picha moja." });
+      setProblem({ key: "photos", text: t("Piga angalau picha moja.", "Take at least one photo.") });
       document.getElementById("f-photos")?.scrollIntoView({ block: "center", behavior: "smooth" });
       return;
     }
@@ -221,10 +227,10 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
   const remove = async () => {
     if (!existing) return;
     const ok = await confirm({
-      title: "Futa kumbukumbu hii?",
-      body: "Itaondolewa kwenye historia na kwenye ripoti, pamoja na picha zake.",
-      confirmLabel: "Futa",
-      cancelLabel: "Hapana",
+      title: t("Futa kumbukumbu hii?", "Delete this record?"),
+      body: t("Itaondolewa kwenye historia na kwenye ripoti, pamoja na picha zake.", "It will be removed from the history and the report, with its photos."),
+      confirmLabel: t("Futa", "Delete"),
+      cancelLabel: t("Hapana", "No"),
       tone: "danger",
     });
     if (!ok) return;
@@ -263,24 +269,24 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
   return (
     <main className="page narrow">
       <div className="page-bar">
-        <button type="button" className="back" onClick={goBack}>Rudi</button>
+        <button type="button" className="back" onClick={goBack}>{t("Rudi", "Back")}</button>
         {editing && existing && !existing.deletedAt && (
-          <button type="button" className="icon-btn is-danger" onClick={() => void remove()} aria-label="Futa kumbukumbu hii" title="Futa">
+          <button type="button" className="icon-btn is-danger" onClick={() => void remove()} aria-label={t("Futa kumbukumbu hii", "Delete this record")} title={t("Futa", "Delete")}>
             <IconTrash />
           </button>
         )}
       </div>
-      <h1 className="page-title">{editing ? `Badili: ${spec.label}` : spec.label}</h1>
+      <h1 className="page-title">{editing ? `${t("Badili", "Edit")}: ${spec.label}` : spec.label}</h1>
 
       <form className="stack" onSubmit={submit} noValidate>
         {allowed.length > 1 && (
           <fieldset className="field plain">
-            <legend>Ni kazi ya sehemu gani?</legend>
+            <legend>{t("Ni kazi ya sehemu gani?", "Which section is this work for?")}</legend>
             <div className="chips">
               {allowed.map((s) => (
                 <button type="button" key={s} className={`chip sec sec-${s}`} aria-pressed={section === s} onClick={() => setSection(s)}>
                   <span className="sec-tag" aria-hidden />
-                  {SECTION_LABELS[s].sw}
+                  {t(SECTION_LABELS[s].sw, SECTION_LABELS[s].en)}
                 </button>
               ))}
             </div>
@@ -294,29 +300,48 @@ function SpecForm({ spec, clientId }: { spec: RecordSpec; clientId?: string }) {
         {!photosRequired && photoBlock}
 
         <div className="field">
-          <span className="field-label" id="where-label">Wapi?</span>
-          <Select labelledBy="where-label" label="Wapi?" value={areaId} onChange={setAreaId} options={areaOptions} placeholder="Sijachagua" />
+          <span className="field-label" id="where-label">{t("Wapi?", "Where?")}</span>
+          <Select labelledBy="where-label" label={t("Wapi?", "Where?")} value={areaId} onChange={setAreaId} options={areaOptions} placeholder={t("Sijachagua", "Not chosen")} />
         </div>
 
         {more.length > 0 && (
           <div className="more">
             <button type="button" className="more-toggle" aria-expanded={showMore} onClick={() => setShowMore((s) => !s)}>
-              {showMore ? "Ficha taarifa za ziada" : `Taarifa za ziada (${more.length})`}
+              {showMore ? t("Ficha taarifa za ziada", "Hide extra details") : t(`Taarifa za ziada (${more.length})`, `Extra details (${more.length})`)}
             </button>
             {showMore && <div className="stack">{more.map(fieldBlock)}</div>}
           </div>
         )}
 
-        <label className="field">
-          <span>Lini?</span>
-          <input className="input" type="datetime-local" value={when} max={toLocalInput(Date.now())} onChange={(e) => setWhen(e.target.value)} />
-        </label>
+        <div className="field">
+          <span className="field-label" id="le-when">{t("Lini?", "When?")}</span>
+          <div className="when-row">
+            <DatePicker
+              labelledBy="le-when"
+              label={t("Tarehe", "Date")}
+              value={when.slice(0, 10)}
+              max={nowLocal.slice(0, 10)}
+              onChange={(d) => {
+                if (!d) return;
+                // Today cannot have a time later than now.
+                const time = d === nowLocal.slice(0, 10) && when.slice(11, 16) > nowLocal.slice(11, 16) ? nowLocal.slice(11, 16) : when.slice(11, 16);
+                setWhen(`${d}T${time}`);
+              }}
+            />
+            <TimeField
+              labelledBy="le-when"
+              value={when.slice(11, 16)}
+              maxForToday={when.slice(0, 10) === nowLocal.slice(0, 10) ? nowLocal.slice(11, 16) : undefined}
+              onChange={(tm) => setWhen(`${when.slice(0, 10)}T${tm}`)}
+            />
+          </div>
+        </div>
 
         <GeoLine status={geo} onRetry={() => setAttempt((n) => n + 1)} />
 
         <div className="form-actions">
           <button className="btn btn-primary btn-block" disabled={saving}>
-            {saving ? "Inahifadhi…" : "Hifadhi"}
+            {saving ? t("Inahifadhi…", "Saving…") : t("Hifadhi", "Save")}
           </button>
         </div>
       </form>

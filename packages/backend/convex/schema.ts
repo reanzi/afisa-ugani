@@ -61,6 +61,20 @@ export default defineSchema({
     .index("by_code", ["code"])
     .index("by_status", ["status"]),
 
+  /**
+   * One sign-up code per section of a council. Typed at sign-up instead of
+   * the council code, it also fixes the section. Shared by the people of
+   * that section (and the Head of Department) from their side menu.
+   */
+  sectionCodes: defineTable({
+    councilId: v.id("councils"),
+    section: vSection,
+    code: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_code", ["code"])
+    .index("by_council", ["councilId"]),
+
   areas: defineTable({
     councilId: v.id("councils"),
     kind: vAreaKind,
@@ -91,6 +105,8 @@ export default defineSchema({
     requestedRole: v.optional(vRole),
     /** Free text from registration ("Kata ya Mzumbe"), until HQ assigns areas. */
     areaHint: v.optional(v.string()),
+    /** Ward or village picked at registration; HQ starts from it when assigning areas. */
+    requestedAreaId: v.optional(v.id("areas")),
     requestedAt: v.number(),
     decidedBy: v.optional(v.id("users")),
     decidedAt: v.optional(v.number()),

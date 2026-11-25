@@ -17,7 +17,7 @@ import {
   toCouncilWallClock,
   validateFoodReport,
   validateMonthlyReport,
-  type Target,
+  type Target, presentName
 } from "@afisa/shared";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -47,7 +47,7 @@ export async function areaLabelOf(ctx: QueryCtx, m: Doc<"memberships"> | null, f
   const names: string[] = [];
   for (const id of m.areaIds) {
     const a = await ctx.db.get(id);
-    if (a) names.push(a.kind === "ward" ? `Kata ya ${a.name}` : `Kijiji cha ${a.name}`);
+    if (a) names.push(a.kind === "ward" ? `Kata ya ${presentName(a.name)}` : `Kijiji cha ${presentName(a.name)}`);
   }
   return names.join(", ") || fallback;
 }
@@ -110,7 +110,7 @@ export const submit = memberMutation({
     const who = {
       councilId: viewer.councilId,
       userId: viewer.userId,
-      name: viewer.user.name ?? "",
+      name: presentName(viewer.user.name),
       areaIds: viewer.membership?.areaIds ?? [],
       primarySection: viewer.membership?.primarySection ?? ("kilimo" as const),
     };
@@ -263,7 +263,7 @@ export const forHq = hqQuery({
       if (!canViewMembership(viewer.actor, target)) continue;
       out.push({
         _id: r._id,
-        officerName: r.officerName,
+        officerName: presentName(r.officerName),
         areaLabel: r.areaLabel,
         primarySection: r.primarySection,
         submittedAt: r.submittedAt,
@@ -303,7 +303,7 @@ export const missingForHq = hqQuery({
     for (const m of officers) {
       if (sent.has(m.userId)) continue;
       const user = await ctx.db.get(m.userId);
-      out.push({ userId: m.userId, name: user?.name ?? "—", phone: user?.phone ?? null, areaLabel: await areaLabelOf(ctx, m, ""), primarySection: m.primarySection });
+      out.push({ userId: m.userId, name: presentName(user?.name) || "—", phone: user?.phone ?? null, areaLabel: await areaLabelOf(ctx, m, ""), primarySection: m.primarySection });
     }
     return out.sort((a, b) => a.areaLabel.localeCompare(b.areaLabel) || a.name.localeCompare(b.name));
   },
@@ -327,7 +327,7 @@ export const reopen = hqMutation({
     if (s.reopened) fail("INVALID", "Ripoti hii tayari imerudishwa kwa marekebisho.");
     const at = Date.now();
     // Root stays hidden: the officer sees "Makao makuu", not root's name.
-    const byName = viewer.actor.isRoot ? "Makao makuu" : (viewer.user.name ?? "");
+    const byName = viewer.actor.isRoot ? "Makao makuu" : presentName(viewer.user.name);
     await ctx.db.patch(s._id, {
       reopened: { at, byId: viewer.userId, byName, note: clean },
       corrections: [...(s.corrections ?? []), { reopenedAt: at, byName, note: clean }],

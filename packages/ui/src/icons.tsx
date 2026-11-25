@@ -96,3 +96,16 @@ export const IconDownload = ({ size }: P) => (
     <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14" />
   </Svg>
 );
+
+export const IconCopy = ({ size }: P) => (
+  <Svg size={size}>
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <path d="M5 15V6a2 2 0 0 1 2-2h8" />
+  </Svg>
+);
+
+export const IconEdit = ({ size }: P) => (
+  <Svg size={size}>
+    <path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" />
+  </Svg>
+);

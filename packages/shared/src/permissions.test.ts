@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  approvableRoles,
   assignableRoles,
   authoritySections,
   canApproveRequest,
@@ -120,8 +121,8 @@ describe("assigning roles", () => {
   });
 });
 
-describe("approving requests made with the council code", () => {
-  const pending = (primary: Section = "kilimo") => target("officer", primary, [], { status: "pending" });
+describe("approving guests: the approver chooses the role", () => {
+  const pending = (primary: Section = "kilimo") => target("guest", primary, [], { status: "pending" });
   it("only root approves a Head of Department request", () => {
     expect(canApproveRequest(root, pending(), "admin")).toBe(true);
     expect(canApproveRequest(actor("admin"), pending(), "admin")).toBe(false);
@@ -134,8 +135,19 @@ describe("approving requests made with the council code", () => {
     expect(canApproveRequest(actor("moderator"), pending(), "section_vice")).toBe(true);
   });
   it("section heads approve officers of their section but never HQ roles", () => {
-    expect(canApproveRequest(actor("section_head", "kilimo"), pending("kilimo"), null)).toBe(true);
+    expect(canApproveRequest(actor("section_head", "kilimo"), pending("kilimo"), "officer")).toBe(true);
+    expect(canApproveRequest(actor("section_head", "kilimo"), pending("mifugo"), "officer")).toBe(false);
     expect(canApproveRequest(actor("section_head", "kilimo"), pending("kilimo"), "section_vice")).toBe(false);
+  });
+  it("nobody approves someone as a guest, and approvable roles follow the approver", () => {
+    expect(canApproveRequest(root, pending(), "guest")).toBe(false);
+    expect(approvableRoles(root, pending())).toEqual(["admin", "moderator", "section_head", "section_vice", "officer"]);
+    expect(approvableRoles(actor("admin"), pending())).toEqual(["moderator", "section_head", "section_vice", "officer"]);
+    expect(approvableRoles(actor("section_vice", "uvuvi"), pending("uvuvi"))).toEqual(["officer"]);
+    expect(approvableRoles(actor("officer"), pending())).toEqual([]);
+  });
+  it("guest is never handed out with a role change", () => {
+    expect(canAssignRole(root, target("officer"), "guest")).toBe(false);
   });
 });
 
