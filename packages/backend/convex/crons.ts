@@ -10,5 +10,7 @@ const crons = cronJobs();
 
 crons.monthly("auto-send food availability reports", { day: 22, hourUTC: 20, minuteUTC: 30 }, internal.autoSend.runFood, {});
 crons.monthly("auto-send monthly ARDS reports", { day: 5, hourUTC: 20, minuteUTC: 30 }, internal.autoSend.runMonthly, {});
+// Weekly reports: Monday 02:00 UTC is 05:00 in Tanzania, ready for HQ's morning meeting.
+crons.weekly("auto-send weekly section reports", { dayOfWeek: "monday", hourUTC: 2, minuteUTC: 0 }, internal.autoSend.runWeekly, {});
 
 export default crons;

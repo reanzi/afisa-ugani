@@ -14,3 +14,6 @@ export * from "./policy.ts";
 export * from "./production.ts";
 export * from "./names.ts";
 export * from "./lang.ts";
+export * from "./report/weekly.ts";
+export * from "./fertilizer.ts";
+export * from "./slaughterhouses.ts";

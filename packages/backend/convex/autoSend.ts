@@ -6,6 +6,7 @@
  *
  *   Food availability and prices: the 22nd, 23:30 East Africa Time.
  *   Monthly ARDS report: the 5th of the next month, 23:30 East Africa Time.
+ *   Weekly reports (per section, when switched on): Monday, 05:00, for the week before.
  *
  * The server runs in UTC; timestamps are shifted to council wall-clock time
  * (toCouncilWallClock) before using the shared period helpers.
@@ -13,6 +14,13 @@
 import { v } from "convex/values";
 import {
   buildMonthlyReport,
+  buildWeeklyReport,
+  shiftWeek,
+  weekKey,
+  weekRange,
+  weeklyKind,
+  type WeeklyReview,
+  type WeeklySection,
   compileFoodPrices,
   financialYear,
   COUNCIL_UTC_OFFSET_MINUTES,
@@ -22,13 +30,12 @@ import {
   shiftMonth,
   toCouncilWallClock,
   PAYLOAD_VERSION,
-  type MonthlyReview, presentName
-} from "@afisa/shared";
+  type MonthlyReview, presentName, isReviewType } from "@afisa/shared";
 import { internal } from "./_generated/api";
 import { approvedPresetsOf } from "./presets";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { areaLabelOf, findSubmission, insertSubmission } from "./submissions";
+import { areaLabelOf, findSubmission, insertSubmission, weeklyOf } from "./submissions";
 
 const OFFSET = COUNCIL_UTC_OFFSET_MINUTES * 60_000;
 const DAY = 86_400_000;
@@ -138,7 +145,7 @@ export const monthlyForOfficer = internalMutation({
     const { start, end } = monthRange(period);
     const records = await wallClockRecords(ctx, m, start, end);
     const reviewRec = records.find((r) => r.type === "monthly_review" && !r.deletedAt && r.payload.month === period);
-    const entries = records.filter((r) => r.type !== "monthly_review" && !r.deletedAt);
+    const entries = records.filter((r) => !isReviewType(r.type) && !r.deletedAt);
     if (entries.length === 0 && !reviewRec) return "nothing-entered";
 
     const areas = new Map<string, string>();
@@ -166,6 +173,67 @@ export const monthlyForOfficer = internalMutation({
       clientId: crypto.randomUUID(),
       kind: "monthly",
       period,
+      areaLabel: report.header.areaLabel,
+      payload: report,
+      payloadVersion: PAYLOAD_VERSION,
+      clientSubmittedAt: Date.now(),
+      auto: true,
+    });
+    return "sent";
+  },
+});
+
+/** Cron, Mondays 05:00: last week's report for each section a council switched weekly reports on for. */
+export const runWeekly = internalMutation({
+  args: { week: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const week = args.week ?? shiftWeek(weekKey(new Date(toCouncilWallClock(Date.now()))), -1);
+    const councils = await ctx.db.query("councils").withIndex("by_status", (q) => q.eq("status", "active")).collect();
+    let queued = 0;
+    for (const c of councils) {
+      const weekly = weeklyOf(c);
+      for (const section of ["mifugo", "kilimo"] as const) {
+        // Switched on means asked for, and auto-sent when the officer has not sent it.
+        if (!weekly[section].on) continue;
+        for (const m of await officersOf(ctx, c._id)) {
+          if (!m.sections.includes(section)) continue;
+          await ctx.scheduler.runAfter(0, internal.autoSend.weeklyForOfficer, { membershipId: m._id, week, section });
+          queued++;
+        }
+      }
+    }
+    return { week, queued };
+  },
+});
+
+export const weeklyForOfficer = internalMutation({
+  args: { membershipId: v.id("memberships"), week: v.string(), section: v.union(v.literal("mifugo"), v.literal("kilimo")) },
+  handler: async (ctx, { membershipId, week, section }) => {
+    const m = await ctx.db.get(membershipId);
+    if (!m || m.status !== "active" || !m.sections.includes(section)) return "skipped";
+    const kind = weeklyKind(section as WeeklySection);
+    if (await findSubmission(ctx, m.userId, m.councilId, kind, week)) return "already-sent";
+    const { start, end } = weekRange(week);
+    const records = await wallClockRecords(ctx, m, start, end);
+    const reviewRec = records.find((r) => r.type === "weekly_review" && !r.deletedAt && r.payload.week === week && r.payload.section === section);
+    const entries = records.filter((r) => !isReviewType(r.type) && !r.deletedAt && r.section === section);
+    if (entries.length === 0 && !reviewRec) return "nothing-entered";
+
+    const { who, phone, areaLabel } = await owner(ctx, m);
+    const council = await ctx.db.get(m.councilId);
+    const report = buildWeeklyReport({
+      week,
+      section,
+      records,
+      review: (reviewRec?.payload as WeeklyReview | undefined) ?? null,
+      areaLabel: areaLabel || presentName(council?.name),
+      officerName: who.name,
+      phone,
+    });
+    await insertSubmission(ctx, who, null, {
+      clientId: crypto.randomUUID(),
+      kind,
+      period: week,
       areaLabel: report.header.areaLabel,
       payload: report,
       payloadVersion: PAYLOAD_VERSION,

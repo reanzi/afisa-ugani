@@ -37,6 +37,8 @@ const TABLES = [
   "media",
   "records",
   "submissions",
+  "slaughterPlaces",
+  "slaughterhouses",
   "presets",
   "councilPresets",
   "memberships",

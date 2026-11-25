@@ -209,6 +209,47 @@ export const AMOUNT_UNITS = opts([
   ["lita", "lita", "litre"],
 ]);
 
+/** Fertilizers recorded per farmer (one entry is one farmer's farm). */
+export const FERTILIZERS = opts([
+  ["dap", "DAP", "DAP"],
+  ["urea", "UREA", "Urea"],
+  ["can", "CAN", "CAN"],
+  ["npk", "NPK", "NPK"],
+  ["sa", "SA (Salfeti ya Amonia)", "SA (Sulphate of Ammonia)"],
+  ["minjingu", "Minjingu", "Minjingu"],
+  ["tsp", "TSP", "TSP"],
+  ["majani", "Mbolea ya majani (foliar)", "Foliar fertilizer"],
+  ["samadi", "Samadi", "Farmyard manure"],
+  ["mboji", "Mboji", "Compost"],
+  ["nyingine", "Nyingine", "Other"],
+]);
+
+/** Organic fertilizers: counted apart from bought (industrial) fertilizer. */
+export const ORGANIC_FERTILIZERS: readonly string[] = ["samadi", "mboji"];
+
+export const FERTILIZER_UNITS = opts([
+  ["kg", "kg", "kg"],
+  ["mfuko", "Mfuko wa kg 50", "50 kg bag"],
+  ["tani", "Tani", "Tonne"],
+  ["lita", "Lita", "Litre"],
+]);
+
+/** Kilograms in one unit; litres stay litres (foliar). */
+export const FERTILIZER_KG: Record<string, number> = { kg: 1, mfuko: 50, tani: 1000 };
+
+/** Kinds of registered slaughter places. */
+export const SLAUGHTERHOUSE_KINDS = opts([
+  ["machinjio", "Machinjio (abattoir)", "Abattoir"],
+  ["slab", "Slab ya kuchinjia", "Slaughter slab"],
+  ["kuku", "Kituo cha kuchinja kuku", "Poultry slaughter point"],
+  ["nyingine", "Nyingine", "Other"],
+]);
+
+export const YES_NO = opts([
+  ["ndiyo", "Ndiyo", "Yes"],
+  ["hapana", "Hapana", "No"],
+]);
+
 export const PRICE_TYPES = opts([
   ["sokoni", "Sokoni", "Market"],
   ["rejareja", "Dukani (rejareja)", "Shop (retail)"],

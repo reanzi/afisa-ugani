@@ -21,7 +21,7 @@ import {
   commodityKey,
   labelOf,
 } from "../catalogs.ts";
-import { summarize } from "../actions.ts";
+import { isReviewType, summarize } from "../actions.ts";
 import { daysInMonth, financialYear, monthLabel, monthRange, parseMonth } from "../period.ts";
 import type { Section } from "../domain.ts";
 import type { Cell, Column, Report, ReportPart, TableBlock, TextBlock } from "./model.ts";
@@ -134,7 +134,7 @@ function cols(...labels: (string | [string, string?, number?])[]): Column[] {
 function buildMonthlyReportSw(input: MonthlyInput): Report {
   const { month } = input;
   const { start, end } = monthRange(month);
-  const records = input.records.filter((r) => !r.deletedAt && r.occurredAt >= start && r.occurredAt < end && r.type !== "monthly_review");
+  const records = input.records.filter((r) => !r.deletedAt && r.occurredAt >= start && r.occurredAt < end && !isReviewType(r.type));
   const review = input.review ?? null;
   const areaName = (id?: string) => (id ? (input.areaName?.(id) ?? "") : "");
 
@@ -160,26 +160,34 @@ function buildMonthlyReportSw(input: MonthlyInput): Report {
       ],
     },
     parts: [
-      partIntroduction(month, records, review),
+      partIntroduction(daysInMonth(month), records, review),
       partCrops(month, records, review, input.yields ?? {}, input.plan ?? null),
       partPlantHealth(records),
-      partSlaughter(records),
+      partSlaughter(records, MONTH),
       partMeatInspection(records),
-      partLivestockProducts(month, records),
-      partLivestockHealth(records),
+      partLivestockProducts(daysInMonth(month), records, MONTH),
+      partLivestockHealth(records, MONTH),
       partFish(records),
       partVisitors(records, areaName),
     ],
   };
 }
 
+/** How a period is named inside table headings. */
+export type Span = { thisPeriod: string };
+const MONTH: Span = { thisPeriod: "mwezi huu" };
+export const WEEK: Span = { thisPeriod: "wiki hii" };
+
+/** The period-end answers the introduction uses (month-end or week-end). */
+export type IntroReview = Pick<MonthlyReview, "rainLevel" | "events" | "work" | "achievements" | "challenges">;
+
 // 1. Utangulizi
-function partIntroduction(month: string, records: ReportRecord[], review: MonthlyReview | null): ReportPart {
+export function partIntroduction(days: number, records: ReportRecord[], review: IntroReview | null): ReportPart {
   const rain = ofType(records, "rainfall");
   const rainDays = new Set(rain.map((r) => localDay(r.occurredAt))).size;
   const mmRecords = rain.filter((r) => has(r.payload.mm));
   const mm = mmRecords.length ? round(mmRecords.reduce((a, r) => a + num(r.payload.mm), 0), 1) : null;
-  const level = review?.rainLevel ?? suggestRainLevel(rainDays, daysInMonth(month));
+  const level = review?.rainLevel ?? suggestRainLevel(rainDays, days);
 
   const events = ofType(records, "event");
   const eventsText = str(review?.events) || events.map((r) => `${dateLabel(r.occurredAt)}: ${summarize(r.type, r.payload)}`).join("\n");
@@ -351,7 +359,7 @@ function partCrops(
 }
 
 // 3. Afya ya mimea
-function partPlantHealth(records: ReportRecord[]): ReportPart {
+export function partPlantHealth(records: ReportRecord[]): ReportPart {
   const pests = ofType(records, "pest_outbreak");
   const build = (rows: ReportRecord[], id: string, title: string, agentLabel: string): TableBlock => {
     const groups = groupBy(rows, (r) => `${key(r.payload.pest)}|${r.payload.crop}`);
@@ -411,7 +419,7 @@ function partPlantHealth(records: ReportRecord[]): ReportPart {
 }
 
 // 4. Mifugo iliyochinjwa
-function partSlaughter(records: ReportRecord[]): ReportPart {
+export function partSlaughter(records: ReportRecord[], span: Span): ReportPart {
   const s = ofType(records, "slaughter");
   const rows: Cell[][] = SLAUGHTER_ANIMALS.map((a) => {
     const g = s.filter((r) => r.payload.animal === a.value);
@@ -424,7 +432,7 @@ function partSlaughter(records: ReportRecord[]): ReportPart {
     blocks: [
       table({
         id: "4",
-        columns: cols("Aina ya mifugo", "Idadi ya waliochinjwa kwa mwezi huu", "Bei ya wastani kwa kg (Tsh)"),
+        columns: cols("Aina ya mifugo", `Idadi ya waliochinjwa kwa ${span.thisPeriod}`, "Bei ya wastani kwa kg (Tsh)"),
         rows,
         hasData: s.length > 0,
       }),
@@ -433,7 +441,7 @@ function partSlaughter(records: ReportRecord[]): ReportPart {
 }
 
 // 5. Ukaguzi wa nyama
-function partMeatInspection(records: ReportRecord[]): ReportPart {
+export function partMeatInspection(records: ReportRecord[]): ReportPart {
   const s = ofType(records, "slaughter");
   const affected = groupBy(
     s.filter((r) => num(r.payload.affected) > 0),
@@ -478,11 +486,10 @@ function partMeatInspection(records: ReportRecord[]): ReportPart {
 }
 
 // 6. Mazao yatokanayo na mifugo
-function partLivestockProducts(month: string, records: ReportRecord[]): ReportPart {
+export function partLivestockProducts(days: number, records: ReportRecord[], span: Span): ReportPart {
   const p = ofType(records, "livestock_products");
   const of = (product: string) => p.filter((r) => r.payload.product === product);
   const qty = (rows: ReportRecord[]) => round(rows.reduce((a, r) => a + num(r.payload.quantity), 0));
-  const days = daysInMonth(month);
 
   const dairy = LIVESTOCK_PRODUCTS.filter((x) => x.kind === "milk" || x.kind === "dairy");
   const milkRows: Cell[][] = dairy.map((x) => {
@@ -516,7 +523,7 @@ function partLivestockProducts(month: string, records: ReportRecord[]): ReportPa
       table({
         id: "6.1",
         title: "6.1 Maziwa",
-        columns: cols(["Aina ya mazao", undefined, 2], "Kiasi kwa mwezi huu", "Wastani wa maziwa kwa siku", "Bei ya wastani (Tsh)"),
+        columns: cols(["Aina ya mazao", undefined, 2], `Kiasi kwa ${span.thisPeriod}`, "Wastani wa maziwa kwa siku", "Bei ya wastani (Tsh)"),
         rows: milkRows,
         note: "Hesabu maziwa yaliyozalishwa kwa ajili ya kuuza tu. Matumizi ya nyumbani hayahusiani na takwimu hizi.",
         hasData: anyOf(["milk", "dairy"]),
@@ -525,7 +532,7 @@ function partLivestockProducts(month: string, records: ReportRecord[]): ReportPa
         id: "6.2a",
         title: "6.2 (a) Ngozi",
         columns: cols("Aina ya mazao", "Zilizokaushwa kwa jua", "Zilizokaushwa kwa chumvi", "Wet Blue", "Maelezo"),
-        groups: [{ label: "", span: 1 }, { label: "Zisizosindikwa (vipande) kwa mwezi huu", span: 2 }, { label: "Zilizosindikwa (vipande)", span: 1 }, { label: "", span: 1 }],
+        groups: [{ label: "", span: 1 }, { label: `Zisizosindikwa (vipande) kwa ${span.thisPeriod}`, span: 2 }, { label: "Zilizosindikwa (vipande)", span: 1 }, { label: "", span: 1 }],
         rows: hideRows,
         hasData: anyOf(["hide"]),
       }),
@@ -541,7 +548,7 @@ function partLivestockProducts(month: string, records: ReportRecord[]): ReportPa
       table({
         id: "6.3",
         title: "6.3 Mayai",
-        columns: cols("Mayai", "Kiasi cha mayai yaliyokusanywa kwa mwezi huu"),
+        columns: cols("Mayai", `Kiasi cha mayai yaliyokusanywa kwa ${span.thisPeriod}`),
         rows: [["Mayai ya kuku wa kienyeji", eggsLocal], ["Mayai ya kuku wa kisasa", eggsImproved], ["Jumla", eggsLocal + eggsImproved]],
         totalRows: [2],
         note: "Andika mayai yaliyozalishwa kibiashara tu.",
@@ -552,7 +559,7 @@ function partLivestockProducts(month: string, records: ReportRecord[]): ReportPa
 }
 
 // 7. Afya ya mifugo
-function partLivestockHealth(records: ReportRecord[]): ReportPart {
+export function partLivestockHealth(records: ReportRecord[], span: Span): ReportPart {
   const treat = ofType(records, "livestock_treatment");
   const tGroups = groupBy(treat, (r) => `${r.payload.animal}|${key(r.payload.disease)}`);
   const tRows: Cell[][] = [...tGroups.values()].map((g) => [
@@ -612,7 +619,7 @@ function partLivestockHealth(records: ReportRecord[]): ReportPart {
         title: "7.3 Huduma za mifugo",
         columns: [{ label: "Aina ya mifugo" }, ...LIVESTOCK_SERVICES.map((s) => ({ label: s.label }))],
         rows: sRows,
-        note: "Utekelezaji wa mwezi huu.",
+        note: `Utekelezaji wa ${span.thisPeriod}.`,
         hasData: svc.length > 0,
       }),
     ],

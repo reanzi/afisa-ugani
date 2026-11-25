@@ -25,14 +25,14 @@ import {
   type SignUpAnswers,
   takePendingProfile,
   useT,
+  AuthPrefs,
 } from "@afisa/ui";
 import { hqClient, type Me } from "./context";
-import { LangSwitch } from "./LangSwitch";
 
 function AuthShell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
   return (
     <main className="hq-auth">
-      <div className="hq-auth-lang"><LangSwitch /></div>
+      <AuthPrefs className="hq-auth-lang" />
       <div className={`hq-auth-card${wide ? " wide" : ""}`}>{children}</div>
     </main>
   );

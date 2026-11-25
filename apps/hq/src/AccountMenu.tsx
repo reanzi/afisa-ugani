@@ -91,7 +91,8 @@ export function AccountMenu({
   };
 
   const themes: { value: ThemeChoice; label: string }[] = [
-    { value: "auto", label: t("Kiotomatiki", "Automatic") },
+    { value: "system", label: t("Mfumo", "System") },
+    { value: "auto", label: t("Kwa saa", "By time") },
     { value: "shambani", label: t("Mchana", "Light") },
     { value: "usiku", label: t("Usiku", "Dark") },
   ];

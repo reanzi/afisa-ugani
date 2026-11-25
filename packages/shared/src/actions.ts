@@ -32,14 +32,20 @@ import {
   SUGGEST_PESTS,
   TRAINING_METHODS,
   labelOf,
+  FERTILIZERS,
+  FERTILIZER_UNITS,
+  YES_NO,
+  RAIN_LEVELS,
   type Option,
 } from "./catalogs.ts";
+import { isWeekKey } from "./period.ts";
 
 export const RECORD_TYPES = [
   "activity",
   "event",
   "rainfall",
   "pest_outbreak",
+  "fertilizer",
   "training",
   "price",
   "visitor",
@@ -51,10 +57,16 @@ export const RECORD_TYPES = [
   "fish_farming",
   "photo",
   "monthly_review",
+  "weekly_review",
 ] as const;
+
+/** Review records hold the officer's period-end answers, not field work. */
+export const REVIEW_TYPES: readonly string[] = ["monthly_review", "weekly_review"];
+export const isReviewType = (type: string) => REVIEW_TYPES.includes(type);
 export type RecordType = (typeof RECORD_TYPES)[number];
 
-export type FieldKind = "count" | "decimal" | "money" | "text" | "longtext" | "select" | "choice";
+/** "place": a registered slaughterhouse id, or "nje" for a place that is not registered (its own screen control). */
+export type FieldKind = "count" | "decimal" | "money" | "text" | "longtext" | "select" | "choice" | "place";
 
 export type FieldSpec = {
   key: string;
@@ -163,13 +175,21 @@ export const RECORD_SPECS: readonly RecordSpec[] = [
       { key: "animal", get label() { return L("Mfugo", "Animal"); }, kind: "select", options: SLAUGHTER_ANIMALS, required: true },
       { key: "count", get label() { return L("Idadi waliochinjwa", "Number slaughtered"); }, kind: "count", required: true },
       { key: "pricePerKg", get label() { return L("Bei ya wastani kwa kg", "Average price per kg"); }, kind: "money", unit: "Tsh/kg" },
-      { key: "slaughterhouse", get label() { return L("Machinjio", "Slaughterhouse"); }, kind: "text" },
+      { key: "slaughterhouseId", get label() { return L("Machinjio", "Slaughterhouse"); }, kind: "place", required: true },
+      {
+        key: "slaughterhouse",
+        get label() { return L("Jina la mahali pa kuchinjia", "Name of the slaughter place"); },
+        get hint() { return L("Mahali hapa hapajasajiliwa. Jina, kijiji na mahali (GPS) vitatumwa makao makuu ili pasajiliwe.", "This place is not registered. Its name, village and GPS location go to HQ so it can be registered."); },
+        kind: "text",
+        required: true,
+        showIf: (p) => p.slaughterhouseId === "nje",
+      },
       { key: "affected", get label() { return L("Wanyama walioathirika (ukaguzi)", "Animals affected (inspection)"); }, kind: "count", more: true },
       { key: "condemnedPart", get label() { return L("Kilichotupwa", "Condemned part"); }, kind: "text", more: true, suggestions: ["Mzoga mzima", "Moyo", "Mapafu", "Maini", "Figo", "Utumbo"] },
       { key: "condemnReason", get label() { return L("Sababu ya kutupa", "Reason condemned"); }, kind: "text", more: true, suggestions: ["Minyoo ya ini (Fasciola)", "Uvimbe", "Kifua kikuu (TB)", "Cysticercosis", "Hydatid cyst", "Majipu"] },
       { key: "condemnCases", get label() { return L("Idadi ya matukio", "Number of cases"); }, kind: "count", more: true },
     ],
-    summary: (p) => `${L("Machinjioni", "Slaughter")}: ${labelOf(SLAUGHTER_ANIMALS, p.animal)} ${fmt(n(p.count))}${n(p.affected) ? `, ${L("walioathirika", "affected")} ${fmt(n(p.affected))}` : ""}`,
+    summary: (p) => `${L("Machinjioni", "Slaughter")}${s(p.slaughterhouse) ? ` (${s(p.slaughterhouse)})` : ""}: ${labelOf(SLAUGHTER_ANIMALS, p.animal)} ${fmt(n(p.count))}${n(p.affected) ? `, ${L("walioathirika", "affected")} ${fmt(n(p.affected))}` : ""}`,
   },
   {
     type: "livestock_products",
@@ -214,6 +234,24 @@ export const RECORD_SPECS: readonly RecordSpec[] = [
       { key: "areaSavedHa", get label() { return L("Eneo lililookolewa", "Area saved"); }, kind: "decimal", unit: "ha", more: true },
     ],
     summary: (p) => `${s(p.pest)} ${L("kwenye", "on")} ${labelOf(ALL_CROPS, p.crop).toLowerCase()}: ha ${fmt(n(p.areaAffectedHa))} (${labelOf(SEVERITY, p.severity).toLowerCase()})${n(p.households) ? L(`, kaya ${fmt(n(p.households))} zimehudumiwa`, `, ${fmt(n(p.households))} households served`) : ""}`,
+  },
+  {
+    type: "fertilizer",
+    get label() { return L("Mbolea", "Fertilizer"); },
+    get hint() { return L("Mbolea aliyotumia mkulima mmoja shambani kwake", "Fertilizer one farmer used on their farm"); },
+    sections: ["kilimo"],
+    ready: true,
+    quick: true,
+    fields: [
+      { key: "fertilizer", get label() { return L("Aina ya mbolea", "Fertilizer type"); }, kind: "select", options: FERTILIZERS, required: true },
+      { key: "quantity", get label() { return L("Kiasi kilichotumika", "Amount used"); }, kind: "decimal", required: true },
+      { key: "unit", get label() { return L("Kipimo", "Unit"); }, kind: "choice", options: FERTILIZER_UNITS, required: true },
+      { key: "crop", get label() { return L("Zao", "Crop"); }, kind: "select", options: ALL_CROPS, required: true },
+      { key: "areaHa", get label() { return L("Eneo la shamba", "Farm area"); }, kind: "decimal", unit: "ha", required: true },
+      { key: "subsidised", get label() { return L("Mbolea ya ruzuku?", "Subsidised fertilizer?"); }, kind: "choice", options: YES_NO, required: true },
+    ],
+    summary: (p) =>
+      `${labelOf(FERTILIZERS, p.fertilizer)} ${fmt(n(p.quantity))} ${labelOf(FERTILIZER_UNITS, p.unit).toLowerCase()} ${L("kwenye", "on")} ${labelOf(ALL_CROPS, p.crop).toLowerCase()}, ha ${fmt(n(p.areaHa))}${p.subsidised === "ndiyo" ? L(" (ruzuku)", " (subsidised)") : ""}`,
   },
   {
     type: "rainfall",
@@ -372,6 +410,7 @@ export function validatePayload(type: string, payload: unknown): string | null {
   if (payload === null || typeof payload !== "object" || Array.isArray(payload)) return "NOT_OBJECT";
   const p = payload as Record<string, unknown>;
   if (type === "monthly_review") return validateReview(p);
+  if (type === "weekly_review") return validateWeeklyReview(p);
   const spec = specFor(type);
   if (!spec) return "UNKNOWN_TYPE";
   for (const f of spec.fields) {
@@ -394,12 +433,26 @@ export function validatePayload(type: string, payload: unknown): string | null {
       case "choice":
         if (typeof v !== "string" || !f.options?.some((o) => o.value === v)) return `BAD_OPTION:${f.key}`;
         break;
+      case "place":
+        if (typeof v !== "string" || v.length > 64) return `BAD_OPTION:${f.key}`;
+        break;
       case "text":
       case "longtext":
         if (typeof v !== "string" || v.length > MAX_TEXT) return `BAD_TEXT:${f.key}`;
         if (f.required && v.trim().length === 0) return `MISSING:${f.key}`;
         break;
     }
+  }
+  return null;
+}
+
+function validateWeeklyReview(p: Record<string, unknown>): string | null {
+  if (typeof p.week !== "string" || !isWeekKey(p.week)) return "BAD_WEEK";
+  if (p.section !== "kilimo" && p.section !== "mifugo") return "BAD_SECTION";
+  if (p.rainLevel !== undefined && (typeof p.rainLevel !== "string" || !RAIN_LEVELS.some((o) => o.value === p.rainLevel))) return "BAD_OPTION:rainLevel";
+  for (const key of ["events", "achievements", "challenges", "work"]) {
+    const v = p[key];
+    if (v !== undefined && (typeof v !== "string" || v.length > 5000)) return `BAD_TEXT:${key}`;
   }
   return null;
 }

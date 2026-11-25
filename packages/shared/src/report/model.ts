@@ -67,8 +67,10 @@ export type ReportHeader = {
 };
 
 export type Report = {
-  /** "monthly": the ARDS form; "performance": plan against results; "food": food availability and prices. */
-  kind: "monthly" | "performance" | "food";
+  /** "monthly": the ARDS form; "weekly": a section's week; "performance": plan against results; "food": food availability and prices. */
+  kind: "monthly" | "performance" | "food" | "weekly";
+  /** Weekly reports are per section. */
+  section?: "kilimo" | "mifugo";
   formVersion: "2018-07";
   month: string;
   header: ReportHeader;

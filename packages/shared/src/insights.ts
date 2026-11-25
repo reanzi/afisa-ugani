@@ -4,9 +4,10 @@
  * so the phone works them out offline and HQ can reuse them later.
  */
 import type { Section } from "./domain.ts";
-import { daysInMonth, monthKey, monthLabel, shiftMonth } from "./period.ts";
+import { daysInMonth, monthKey, monthLabel, shiftMonth, weekLabel } from "./period.ts";
 import { labelOf, AMOUNT_UNITS } from "./catalogs.ts";
-import { specFor } from "./actions.ts";
+import { specFor, isReviewType } from "./actions.ts";
+import { fertilizerUse, type FertilizerRow } from "./fertilizer.ts";
 import { L } from "./lang.ts";
 
 export type InsightRecord = {
@@ -20,7 +21,7 @@ export type InsightRecord = {
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 const fmt = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 1 });
-const live = (rs: readonly InsightRecord[]) => rs.filter((r) => !r.deletedAt && r.type !== "monthly_review");
+const live = (rs: readonly InsightRecord[]) => rs.filter((r) => !r.deletedAt && !isReviewType(r.type));
 
 export type Stat = { id: string; label: string; value: string; section?: Section };
 
@@ -72,6 +73,8 @@ export type ReminderInput = {
   rejectedCount: number;
   /** The food prices report being worked on, if the app knows it. */
   foodReport?: { label: string; due: number; submitted: boolean; prices: number };
+  /** Last week's section reports HQ asks for and the officer has not sent yet. */
+  weeklyDue?: { section: "kilimo" | "mifugo"; week: string; due: number }[];
 };
 
 const DAY = 86_400_000;
@@ -90,6 +93,19 @@ export function reminders(input: ReminderInput): Reminder[] {
       tone: "danger",
       text: L(`Kumbukumbu ${input.rejectedCount} hazikukubaliwa na mfumo. Zifungue uzirekebishe ili ziingie kwenye ripoti.`, `${input.rejectedCount} records were rejected. Open and fix them so they count in the report.`),
       action: { label: L("Zione", "View"), to: "/shughuli?hali=zilizokataliwa" },
+    });
+  }
+
+  for (const w of input.weeklyDue ?? []) {
+    const name = w.section === "mifugo" ? L("mifugo", "livestock") : L("kilimo", "crops");
+    const late = now.getTime() > w.due;
+    out.push({
+      id: `weekly-${w.section}`,
+      tone: late ? "danger" : "wait",
+      text: late
+        ? L(`Ripoti ya wiki ya ${name} (${weekLabel(w.week)}) haijatumwa na imechelewa.`, `The ${name} weekly report (${weekLabel(w.week)}) has not been sent and is late.`)
+        : L(`Ripoti ya wiki ya ${name} (${weekLabel(w.week)}) inatakiwa kabla ya Jumatatu saa 11 alfajiri.`, `The ${name} weekly report (${weekLabel(w.week)}) is due before Monday 5:00 am.`),
+      action: { label: L("Ifungue", "Open it"), to: `/ripoti?aina=wiki&wiki=${w.week}&sehemu=${w.section}` },
     });
   }
 
@@ -156,6 +172,8 @@ export type PeriodSummary = {
   pesticides: { name: string; unit: string; quantity: number; uses: number }[];
   /** Drugs used in livestock treatment, with how often. */
   drugs: { name: string; uses: number; animals: number }[];
+  /** Fertilizer by type: one record per farmer. */
+  fertilizers: FertilizerRow[];
 };
 
 /** Totals for any set of records, for the Shughuli summary and PEPMIS. */
@@ -197,6 +215,7 @@ export function periodSummary(records: readonly InsightRecord[]): PeriodSummary 
     areaSavedHa: sum("pest_outbreak", "areaSavedHa"),
     pesticides: [...pest.values()].sort((a, b) => b.quantity - a.quantity),
     drugs: [...drugs.values()].sort((a, b) => b.animals - a.animals),
+    fertilizers: fertilizerUse(rs),
   };
 }
 
@@ -208,7 +227,7 @@ export function recentKinds(
   const seen = new Set<string>();
   const out: { type: string; section: Section; at: number }[] = [];
   for (const r of [...records].sort((a, b) => b.clientUpdatedAt - a.clientUpdatedAt)) {
-    if (r.deletedAt || r.type === "monthly_review" || !specFor(r.type)?.ready) continue;
+    if (r.deletedAt || isReviewType(r.type) || !specFor(r.type)?.ready) continue;
     const k = `${r.type}|${r.section}`;
     if (seen.has(k)) continue;
     seen.add(k);

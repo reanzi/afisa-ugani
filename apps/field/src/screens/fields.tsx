@@ -47,7 +47,7 @@ export function FieldInput({
   const label = (
     <span className="field-label" id={labelId}>
       {field.label}
-      {!field.required && <span className="optional"> (si lazima)</span>}
+      {!field.required && <span className="optional">{L(" (si lazima)", " (optional)")}</span>}
     </span>
   );
 

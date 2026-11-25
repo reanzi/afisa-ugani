@@ -12,6 +12,7 @@ import { Me } from "./screens/Me";
 import { UpdatePrompt } from "./screens/UpdatePrompt";
 import { Report } from "./screens/Report";
 import { Review } from "./screens/Review";
+import { WeekNotes } from "./screens/WeekNotes";
 import { FoodPrices } from "./screens/FoodPrices";
 import { POLICY_META, PolicyGate } from "./screens/PolicyGate";
 import { Policy } from "./screens/Policy";
@@ -71,6 +72,7 @@ function Main() {
           <Route path="shughuli" element={<History />} />
           <Route path="ripoti" element={<Report />} />
           <Route path="ripoti/majibu" element={<Review />} />
+          <Route path="ripoti/wiki" element={<WeekNotes />} />
           <Route path="bei" element={<FoodPrices />} />
           <Route path="mimi" element={<Me />} />
           <Route path="sera" element={<Policy />} />

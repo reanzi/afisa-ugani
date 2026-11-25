@@ -16,6 +16,7 @@ import {
   validatePayload,
   labelOf,
   type MonthlyReview,
+  isReviewType,
   type TextBlock,
 } from "@afisa/shared";
 import { Select, IconTrash, useT } from "@afisa/ui";
@@ -160,7 +161,7 @@ export function Review() {
   const [saving, setSaving] = useState(false);
   const t = useT();
 
-  const live = useMemo(() => (records ?? []).filter((r) => !r.deletedAt && r.type !== "monthly_review"), [records]);
+  const live = useMemo(() => (records ?? []).filter((r) => !r.deletedAt && !isReviewType(r.type)), [records]);
   const rainDays = useMemo(() => new Set(live.filter((r) => r.type === "rainfall").map((r) => new Date(r.occurredAt).toDateString())).size, [live]);
   const suggestion = suggestRainLevel(rainDays, daysInMonth(month));
 

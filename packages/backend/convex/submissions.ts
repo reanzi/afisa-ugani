@@ -17,6 +17,12 @@ import {
   toCouncilWallClock,
   validateFoodReport,
   validateMonthlyReport,
+  validateWeeklyReport,
+  isWeekKey,
+  weeklySectionOf,
+  weeklyWindow,
+  weekRange,
+  type WeeklyKind,
   type Target, presentName
 } from "@afisa/shared";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -24,13 +30,28 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { fail, hiddenUserIds, hqMutation, hqQuery, memberMutation, memberQuery, type MemberViewer } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
 
-export const vKind = v.union(v.literal("food_prices"), v.literal("monthly"));
+export const vKind = v.union(v.literal("food_prices"), v.literal("monthly"), v.literal("weekly_mifugo"), v.literal("weekly_kilimo"));
+type Kind = Doc<"submissions">["kind"];
+export const isWeeklyKind = (k: Kind): k is WeeklyKind => k === "weekly_mifugo" || k === "weekly_kilimo";
+
+const OFF = { on: false, auto: false };
+/** A council's weekly-report switches, off when never set. */
+export function weeklyOf(c: Doc<"councils"> | null | undefined) {
+  return { mifugo: c?.weekly?.mifugo ?? OFF, kilimo: c?.weekly?.kilimo ?? OFF };
+}
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 /** Due date of a report, in council wall-clock time (see toCouncilWallClock). */
-export function dueOf(kind: Doc<"submissions">["kind"], period: string): number {
+export function dueOf(kind: Kind, period: string): number {
+  if (isWeeklyKind(kind)) return weeklyWindow(period).due;
   return kind === "food_prices" ? foodCycle(period).due : monthlyWindow(period).due;
+}
+
+/** [start, end) of a report's period, in council wall-clock time. */
+export function windowOf(kind: Kind, period: string): { start: number; end: number } {
+  if (isWeeklyKind(kind)) return weekRange(period);
+  return kind === "monthly" ? monthRange(period) : foodCycle(period);
 }
 
 export async function findSubmission(ctx: QueryCtx, ownerId: Id<"users">, councilId: Id<"councils">, kind: Doc<"submissions">["kind"], period: string) {
@@ -65,13 +86,25 @@ export const submit = memberMutation({
   handler: async (ctx, args) => {
     const { viewer } = ctx;
     if (!UUID_RE.test(args.clientId)) fail("INVALID", "Kitambulisho cha ripoti si sahihi.");
-    if (!PERIOD_RE.test(args.period)) fail("INVALID", "Kipindi cha ripoti si sahihi.");
-    const problem = args.kind === "food_prices" ? validateFoodReport(args.payload) : validateMonthlyReport(args.payload, args.period);
+    const weekly = isWeeklyKind(args.kind);
+    if (weekly ? !isWeekKey(args.period) : !PERIOD_RE.test(args.period)) fail("INVALID", "Kipindi cha ripoti si sahihi.");
+    const problem = isWeeklyKind(args.kind)
+      ? validateWeeklyReport(args.payload, args.period, weeklySectionOf(args.kind))
+      : args.kind === "food_prices"
+        ? validateFoodReport(args.payload)
+        : validateMonthlyReport(args.payload, args.period);
     if (problem) fail("INVALID", `Ripoti haijakamilika (${problem}).`);
 
     const now = toCouncilWallClock(Date.now());
     if (args.kind === "monthly" && now < monthlyWindow(args.period).opens) {
       fail("INVALID", "Ripoti ya mwezi hutumwa baada ya mwezi kuisha.");
+    }
+    if (isWeeklyKind(args.kind)) {
+      const section = weeklySectionOf(args.kind);
+      if (!viewer.membership?.sections.includes(section)) fail("FORBIDDEN", "Ripoti hii ni ya maafisa wa sehemu hii tu.");
+      const council = await ctx.db.get(viewer.councilId);
+      if (!weeklyOf(council)[section].on) fail("FORBIDDEN", "Makao makuu hawajawasha ripoti za wiki za sehemu hii.");
+      if (now < weeklyWindow(args.period).opens) fail("INVALID", "Ripoti ya wiki hutumwa baada ya wiki kuisha.");
     }
 
     const existing = await findSubmission(ctx, viewer.userId, viewer.councilId, args.kind, args.period);
@@ -150,6 +183,8 @@ export type SubmissionOwner = {
 export async function insertSubmission(ctx: MutationCtx, who: SubmissionOwner, viewer: MemberViewer | null, s: NewSubmission) {
   const submittedAt = Date.now();
   const late = toCouncilWallClock(submittedAt) > dueOf(s.kind, s.period);
+  // A weekly report belongs to its section, whatever the officer's main section.
+  const section = isWeeklyKind(s.kind) ? weeklySectionOf(s.kind) : who.primarySection;
   const id = await ctx.db.insert("submissions", {
     councilId: who.councilId,
     ownerId: who.userId,
@@ -162,7 +197,7 @@ export async function insertSubmission(ctx: MutationCtx, who: SubmissionOwner, v
     officerName: who.name,
     areaLabel: s.areaLabel.trim().slice(0, 200),
     areaIds: who.areaIds,
-    primarySection: who.primarySection,
+    primarySection: section,
     payload: s.payload,
     payloadVersion: s.payloadVersion,
     clientSubmittedAt: s.clientSubmittedAt,
@@ -173,7 +208,7 @@ export async function insertSubmission(ctx: MutationCtx, who: SubmissionOwner, v
     entity: "submissions",
     entityId: id,
     councilId: who.councilId,
-    section: who.primarySection,
+    section,
     after: { kind: s.kind, period: s.period, late, officer: who.name },
     occurredAt: s.clientSubmittedAt,
   });
@@ -185,7 +220,7 @@ export const mine = memberQuery({
   args: { kind: v.optional(vKind) },
   handler: async (ctx, { kind }) => {
     const { viewer } = ctx;
-    const kinds = kind ? [kind] : (["food_prices", "monthly"] as const);
+    const kinds = kind ? [kind] : (["food_prices", "monthly", "weekly_mifugo", "weekly_kilimo"] as const);
     const out = [];
     for (const k of kinds) {
       const rows = await ctx.db
@@ -290,7 +325,13 @@ export const missingForHq = hqQuery({
         .query("memberships")
         .withIndex("by_council_status", (q) => q.eq("councilId", viewer.councilId).eq("status", "active"))
         .collect()
-    ).filter((m) => m.role === "officer" && canViewMembership(viewer.actor, targetOf(m)));
+    ).filter(
+      (m) =>
+        m.role === "officer" &&
+        canViewMembership(viewer.actor, targetOf(m)) &&
+        // Weekly reports are asked only of that section's officers.
+        (!isWeeklyKind(kind) || m.sections.includes(weeklySectionOf(kind))),
+    );
     const sent = new Set(
       (
         await ctx.db
@@ -365,7 +406,7 @@ export const photosForHq = hqQuery({
 
     // The period in council time (UTC+3): local midnight is 21:00 UTC the day before.
     const offset = COUNCIL_UTC_OFFSET_MINUTES * 60_000;
-    const window = s.kind === "monthly" ? monthRange(s.period) : foodCycle(s.period);
+    const window = windowOf(s.kind, s.period);
     const start = window.start - offset;
     const end = window.end - offset;
 

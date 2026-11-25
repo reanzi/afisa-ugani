@@ -1157,3 +1157,38 @@ textarea {
   font-weight: 700;
   font-size: var(--t-lead);
 }
+
+/* ---------- Language and appearance on the sign-in screens ---------- */
+.auth-prefs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.pref-seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 10px;
+  background: var(--surface-sunk);
+  border: 1px solid var(--rule);
+}
+.pref-seg button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 40px;
+  min-height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: 700;
+  cursor: pointer;
+}
+.pref-seg button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-lift);
+}

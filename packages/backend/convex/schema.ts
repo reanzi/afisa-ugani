@@ -45,6 +45,18 @@ export default defineSchema({
     registrationOpen: v.boolean(),
     /** Reports that send themselves when due, switched on by the Head of Department. */
     autoSend: v.optional(v.object({ food: v.boolean(), monthly: v.boolean() })),
+    /**
+     * Weekly reports, per section. `on`: officers of that section send the
+     * week's report by Monday 05:00, and any not sent then sends itself
+     * (`auto` always equals `on`). Off by default; officers can still build
+     * weekly reports for themselves.
+     */
+    weekly: v.optional(
+      v.object({
+        mifugo: v.object({ on: v.boolean(), auto: v.boolean() }),
+        kilimo: v.object({ on: v.boolean(), auto: v.boolean() }),
+      }),
+    ),
     /** Last NaPA address import: report date and totals. */
     addressImport: v.optional(
       v.object({
@@ -117,6 +129,50 @@ export default defineSchema({
     .index("by_council_status", ["councilId", "status"])
     .index("by_council_primary_status", ["councilId", "primarySection", "status"]),
 
+  /**
+   * Registered slaughterhouses of a council. Officers are offered those in
+   * their areas, those that serve their areas, and those open to the whole council.
+   */
+  slaughterhouses: defineTable({
+    councilId: v.id("councils"),
+    /** Stored lowercase (storeName), shown with presentName. */
+    name: v.string(),
+    kind: v.union(v.literal("machinjio"), v.literal("slab"), v.literal("kuku"), v.literal("nyingine")),
+    /** Ward or village where it is. */
+    areaId: v.id("areas"),
+    /** Other wards or villages it serves. */
+    servesAreaIds: v.array(v.id("areas")),
+    /** Open to officers of the whole council. */
+    servesAll: v.boolean(),
+    geo: v.optional(v.object({ lat: v.number(), lng: v.number() })),
+    licence: v.optional(v.string()),
+    status: v.union(v.literal("active"), v.literal("closed")),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_council", ["councilId"]),
+
+  /**
+   * Places officers recorded slaughter at that are not registered: name,
+   * village and GPS only (never the counts), for HQ to register or dismiss.
+   */
+  slaughterPlaces: defineTable({
+    councilId: v.id("councils"),
+    /** placeKey(name, areaId): the same place written in any case. */
+    key: v.string(),
+    name: v.string(),
+    areaId: v.optional(v.id("areas")),
+    geo: v.optional(v.object({ lat: v.number(), lng: v.number(), accuracy: v.number() })),
+    reportedBy: v.id("users"),
+    uses: v.number(),
+    firstSeenAt: v.number(),
+    lastSeenAt: v.number(),
+    status: v.union(v.literal("open"), v.literal("registered"), v.literal("dismissed")),
+    slaughterhouseId: v.optional(v.id("slaughterhouses")),
+  })
+    .index("by_council_key", ["councilId", "key"])
+    .index("by_council_status", ["councilId", "status"]),
+
   /** Field records (quick logs). Written only through sync.pushRecords. */
   records: defineTable({
     councilId: v.id("councils"),
@@ -150,8 +206,8 @@ export default defineSchema({
     ownerId: v.id("users"),
     /** UUIDv7 made on the phone; makes the send idempotent. */
     clientId: v.string(),
-    kind: v.union(v.literal("food_prices"), v.literal("monthly")),
-    /** "2026-11": the reporting period. */
+    kind: v.union(v.literal("food_prices"), v.literal("monthly"), v.literal("weekly_mifugo"), v.literal("weekly_kilimo")),
+    /** "2026-11": the reporting period; weekly reports use the week's Monday, "2026-11-16". */
     period: v.string(),
     /** 1 when first sent; +1 each time it is corrected and sent again after being reopened. */
     revision: v.number(),

@@ -12,7 +12,8 @@ import { useMyAreas } from "../lib/areas";
 import { requestSync } from "../lib/sync";
 
 const THEMES: { value: ThemeChoice; label: [string, string]; hint: [string, string] }[] = [
-  { value: "auto", label: ["Kiotomatiki", "Automatic"], hint: ["Shambani mchana, Usiku jioni", "Light by day, dark at night"] },
+  { value: "system", label: ["Mfumo", "System"], hint: ["Kama mpangilio wa simu", "Like the phone setting"] },
+  { value: "auto", label: ["Kwa saa", "By time"], hint: ["Shambani mchana, Usiku jioni", "Light by day, dark at night"] },
   { value: "shambani", label: ["Shambani", "Light"], hint: ["Kwa jua kali", "For bright sun"] },
   { value: "usiku", label: ["Usiku", "Dark"], hint: ["Kwa giza", "For the dark"] },
 ];

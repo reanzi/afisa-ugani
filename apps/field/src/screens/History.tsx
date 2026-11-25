@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { parseAsIsoDate, parseAsString, parseAsStringLiteral, useQueryStates } from "nuqs";
 import { useLiveQuery } from "dexie-react-hooks";
-import { actionsFor, inSwahili, periodSummary, SECTION_LABELS, SECTIONS, specFor } from "@afisa/shared";
+import { actionsFor, inSwahili, periodSummary, SECTION_LABELS, SECTIONS, specFor, isReviewType } from "@afisa/shared";
 import { clock, dayTitle, Select, DatePicker, useLabel, useT } from "@afisa/ui";
 import { db, type LocalRecord } from "../lib/db";
 import { useWork } from "../lib/session";
@@ -65,7 +65,7 @@ export function History() {
         .filter(
           (r) =>
             !r.deletedAt &&
-            r.type !== "monthly_review" &&
+            !isReviewType(r.type) &&
             (f.sehemu === "zote" || r.section === f.sehemu) &&
             (!f.aina || r.type === f.aina) &&
             (f.hali === "zote" || (f.hali === "zinazosubiri" ? r.syncState === "pending" : r.syncState === "rejected")),
@@ -188,6 +188,20 @@ export function History() {
                         <span>{p.name}</span>
                         <strong>{fmt(p.quantity)} {p.unit}</strong>
                         <small>{t(`mara ${p.uses}`, `${p.uses} times`)}</small>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {summary.fertilizers.length > 0 && (
+                <div>
+                  <h3 className="summary-title">{t("Mbolea iliyotumika", "Fertilizer used")}</h3>
+                  <ul className="usage">
+                    {summary.fertilizers.map((f) => (
+                      <li key={f.fertilizer}>
+                        <span>{f.label}</span>
+                        <strong>{f.litres ? `${fmt(f.litres)} ${t("lita", "litres")}` : `${fmt(f.kg)} kg`}</strong>
+                        <small>{t(`wakulima ${f.farmers}, ha ${fmt(f.areaHa)}`, `${f.farmers} farmers, ${fmt(f.areaHa)} ha`)}</small>
                       </li>
                     ))}
                   </ul>
