@@ -5,6 +5,7 @@
 import { useState, type FormEvent } from "react";
 import { presetDef } from "@afisa/shared";
 import type { LocalPreset } from "../lib/db";
+import { useT } from "@afisa/ui";
 import { proposePreset } from "../lib/presets";
 
 const fmt = (v: unknown) => (typeof v === "number" ? v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : String(v ?? ""));
@@ -30,13 +31,14 @@ export function PresetAsk({
   const [editing, setEditing] = useState(!row && councilValue === undefined);
   const [text, setText] = useState(row ? fmt(row.value) : "");
   const [problem, setProblem] = useState<string | null>(null);
+  const t = useT();
   if (!def) return null;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const value = Number(text.replace(",", "."));
     if (!Number.isFinite(value) || value < def.min || value > def.max) {
-      setProblem(`Andika namba kati ya ${def.min} na ${def.max.toLocaleString("en-US")}.`);
+      setProblem(t(`Andika namba kati ya ${def.min} na ${def.max.toLocaleString("en-US")}.`, `Enter a number from ${def.min} to ${def.max.toLocaleString("en-US")}.`));
       return;
     }
     setProblem(null);
@@ -46,17 +48,20 @@ export function PresetAsk({
 
   const status = row
     ? row.syncState === "rejected"
-      ? { tone: "danger", text: `Haikupokelewa: ${row.error ?? ""}` }
+      ? { tone: "danger", text: `${t("Haikupokelewa", "Not accepted")}: ${row.error ?? ""}` }
       : row.status === "approved"
-        ? { tone: "ok", text: `Imeidhinishwa: ${fmt(row.approvedValue)} ${def.unit}${row.approvedByName ? `, na ${row.approvedByName}` : ""}` }
+        ? { tone: "ok", text: `${t("Imeidhinishwa", "Approved")}: ${fmt(row.approvedValue)} ${def.unit}${row.approvedByName ? t(`, na ${row.approvedByName}`, `, by ${row.approvedByName}`) : ""}` }
         : row.status === "rejected"
-          ? { tone: "danger", text: `Imekataliwa${row.note ? `: “${row.note}”` : ""}. Weka thamani nyingine.` }
+          ? { tone: "danger", text: `${t("Imekataliwa", "Rejected")}${row.note ? `: “${row.note}”` : ""}. ${t("Weka thamani nyingine.", "Enter another value.")}` }
           : {
               tone: "wait",
-              text: `Umeweka ${fmt(row.value)} ${def.unit}; inasubiri idhini ya mkuu wa sehemu${row.approvedValue !== undefined ? ` (inayotumika sasa ${fmt(row.approvedValue)})` : ""}.`,
+              text:
+                t(`Umeweka ${fmt(row.value)} ${def.unit}; inasubiri idhini ya mkuu wa sehemu`, `You set ${fmt(row.value)} ${def.unit}; waiting for the section head's approval`) +
+                (row.approvedValue !== undefined ? t(` (inayotumika sasa ${fmt(row.approvedValue)})`, ` (in use now: ${fmt(row.approvedValue)})`) : "") +
+                ".",
             }
     : councilValue !== undefined
-      ? { tone: "ok", text: `Ya halmashauri: ${fmt(councilValue)} ${def.unit} (inatumika). Kama eneo lako ni tofauti, weka yako.` }
+      ? { tone: "ok", text: t(`Ya halmashauri: ${fmt(councilValue)} ${def.unit} (inatumika). Kama eneo lako ni tofauti, weka yako.`, `Council value: ${fmt(councilValue)} ${def.unit} (in use). If your area differs, set your own.`) }
       : null;
 
   return (
@@ -70,7 +75,7 @@ export function PresetAsk({
       {status && !editing && (
         <p className="preset-status">
           {status.text}{" "}
-          <button type="button" className="link" onClick={() => setEditing(true)}>{row ? "Badili" : "Weka yangu"}</button>
+          <button type="button" className="link" onClick={() => setEditing(true)}>{row ? t("Badili", "Change") : t("Weka yangu", "Set mine")}</button>
         </p>
       )}
       {editing && (
@@ -88,10 +93,10 @@ export function PresetAsk({
               <span className="unit">{def.unit}</span>
             </span>
           </label>
-          <button className="btn btn-primary" disabled={!text}>Hifadhi</button>
+          <button className="btn btn-primary" disabled={!text}>{t("Hifadhi", "Save")}</button>
         </form>
       )}
-      {editing && !compact && <p className="muted small">{def.hint} Itatumika baada ya mkuu wa sehemu kuidhinisha.</p>}
+      {editing && !compact && <p className="muted small">{def.hint} {t("Itatumika baada ya mkuu wa sehemu kuidhinisha.", "It is used once the section head approves it.")}</p>}
       {problem && <p className="field-error" role="alert">{problem}</p>}
     </div>
   );

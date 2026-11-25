@@ -1,3 +1,4 @@
+import { textLang } from "./lang.ts";
 /** Reporting periods. Months are "YYYY-MM" in the officer's local time. */
 
 export function monthKey(date: Date | number): string {
@@ -47,7 +48,7 @@ export const SW_MONTHS = [
 
 const EN_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-export function monthLabel(key: string, lang: "sw" | "en" = "sw"): string {
+export function monthLabel(key: string, lang: "sw" | "en" = textLang()): string {
   const { year, month } = parseMonth(key);
   return `${(lang === "en" ? EN_MONTHS : SW_MONTHS)[month - 1]} ${year}`;
 }

@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { fieldVisible, type FieldSpec } from "@afisa/shared";
+import { fieldVisible, L, type FieldSpec } from "@afisa/shared";
 import { Select, SuggestInput } from "@afisa/ui";
 
 /** Draft values: numbers stay as typed strings until saving, so "1." can be typed. */
@@ -96,7 +96,7 @@ export function FieldInput({
       <div className={`field ${error ? "has-error" : ""}`}>
         <label htmlFor={id}>{label}</label>
         <div className="stepper">
-          <button type="button" aria-label={`Punguza ${field.label}`} onClick={() => onChange(String(Math.max(0, n - 1)))} disabled={n <= 0}>
+          <button type="button" aria-label={L(`Punguza ${field.label}`, `Decrease ${field.label}`)} onClick={() => onChange(String(Math.max(0, n - 1)))} disabled={n <= 0}>
             −
           </button>
           <input
@@ -108,7 +108,7 @@ export function FieldInput({
             placeholder="0"
             onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ""))}
           />
-          <button type="button" aria-label={`Ongeza ${field.label}`} onClick={() => onChange(String(n + 1))}>
+          <button type="button" aria-label={L(`Ongeza ${field.label}`, `Increase ${field.label}`)} onClick={() => onChange(String(n + 1))}>
             +
           </button>
         </div>

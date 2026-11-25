@@ -25,6 +25,7 @@ import type * as research from "../research.js";
 import type * as submissions from "../submissions.js";
 import type * as sync from "../sync.js";
 import type * as users from "../users.js";
+import type * as wipe from "../wipe.js";
 
 import type {
   ApiFromModules,
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   submissions: typeof submissions;
   sync: typeof sync;
   users: typeof users;
+  wipe: typeof wipe;
 }>;
 
 /**

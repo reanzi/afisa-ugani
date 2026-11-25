@@ -1,4 +1,5 @@
 import type { Block, Cell, Report, TableBlock } from "@afisa/shared";
+import { useT } from "./i18n";
 
 export function formatCell(c: Cell): string {
   if (c === null || c === "") return "";
@@ -46,6 +47,7 @@ function TableView({ block }: { block: TableBlock }) {
 }
 
 function BlockView({ block }: { block: Block }) {
+  const t = useT();
   return (
     <div className="rv-block">
       {block.title && <h3 className="rv-block-title">{block.title}</h3>}
@@ -54,10 +56,10 @@ function BlockView({ block }: { block: Block }) {
       ) : block.text ? (
         <p className={`rv-text ${block.source === "records" ? "is-draft" : ""}`}>{block.text}</p>
       ) : (
-        <p className="rv-text is-empty">Haijajazwa.</p>
+        <p className="rv-text is-empty">{t("Haijajazwa.", "Not filled in.")}</p>
       )}
       {block.kind === "text" && block.source === "records" && (
-        <p className="rv-hint">Imetungwa kutoka kumbukumbu zako. Unaweza kuibadili kwenye majibu ya mwisho wa mwezi.</p>
+        <p className="rv-hint">{t("Imetungwa kutoka kumbukumbu zako. Unaweza kuibadili kwenye majibu ya mwisho wa mwezi.", "Drafted from your records. You can change it in the month-end answers.")}</p>
       )}
       {block.note && <p className="rv-note">{block.note}</p>}
     </div>
@@ -65,6 +67,7 @@ function BlockView({ block }: { block: Block }) {
 }
 
 export function ReportView({ report }: { report: Report }) {
+  const t = useT();
   return (
     <div className="rv">
       {report.parts.map((part) => {
@@ -73,7 +76,7 @@ export function ReportView({ report }: { report: Report }) {
           <details key={part.id} className="rv-part" open={filled}>
             <summary>
               <span className="rv-part-title">{part.number ? `${part.number}. ` : ""}{part.title}</span>
-              <span className={filled ? "rv-state tone-ok" : "rv-state"}>{filled ? "Ina taarifa" : "Hakuna taarifa"}</span>
+              <span className={filled ? "rv-state tone-ok" : "rv-state"}>{filled ? t("Ina taarifa", "Has data") : t("Hakuna taarifa", "No data")}</span>
             </summary>
             {part.blocks.map((b) => <BlockView key={b.id} block={b} />)}
           </details>

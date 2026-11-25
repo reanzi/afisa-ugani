@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { canReadAudit, DEPARTMENT_ROLES } from "@afisa/shared";
+import { canReadAudit, DEPARTMENT_ROLES, presentName } from "@afisa/shared";
 import { fail, hiddenUserIds, hqQuery } from "./lib/guards";
 
 /**
@@ -36,7 +36,7 @@ export const recent = hqQuery({
     const names = new Map<string, string>();
     for (const r of visible.slice(0, max)) {
       if (r.actorId && !names.has(r.actorId)) {
-        names.set(r.actorId, (await ctx.db.get(r.actorId))?.name ?? "—");
+        names.set(r.actorId, presentName((await ctx.db.get(r.actorId))?.name) || "—");
       }
     }
     return visible.slice(0, max).map((r) => ({

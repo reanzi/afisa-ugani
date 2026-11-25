@@ -10,20 +10,51 @@ const MONTHS_EN = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
+const SHORT_SW = ["Jan", "Feb", "Mac", "Apr", "Mei", "Jun", "Jul", "Ago", "Sep", "Okt", "Nov", "Des"];
+const SHORT_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const en = () => getLang() === "en";
 // Read at call time so text follows the language switch.
 const days = () => (en() ? DAYS_EN : DAYS_SW);
 const months = () => (en() ? MONTHS_EN : MONTHS_SW);
 
-/** "Jumanne, 17 Novemba" */
+const shortMonths = () => (en() ? SHORT_EN : SHORT_SW);
+
+/** "Jumanne, Novemba 17" */
 export function dayTitle(d: Date): string {
-  return `${days()[d.getDay()]}, ${d.getDate()} ${months()[d.getMonth()]}`;
+  return `${days()[d.getDay()]}, ${months()[d.getMonth()]} ${d.getDate()}`;
 }
 
-/** "17 Nov 2026" */
+/** "Nov 17, 2026": the date format used across the apps. */
 export function shortDate(ms: number): string {
   const d = new Date(ms);
-  return `${d.getDate()} ${months()[d.getMonth()]!.slice(0, 3)} ${d.getFullYear()}`;
+  return `${shortMonths()[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+/** "Nov 17" */
+export function monthDay(ms: number): string {
+  const d = new Date(ms);
+  return `${shortMonths()[d.getMonth()]} ${d.getDate()}`;
+}
+
+/** "Nov 17, 2026, 14:05" */
+export function dateTime(ms: number): string {
+  return `${shortDate(ms)}, ${clock(ms)}`;
+}
+
+/** "Jumanne, Novemba 17, 2026" */
+export function longDate(ms: number): string {
+  const d = new Date(ms);
+  return `${days()[d.getDay()]}, ${months()[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+/** Short month names in the current language, January first. */
+export function shortMonthNames(): string[] {
+  return shortMonths();
+}
+
+/** Two-letter weekday heads for a calendar, Monday first. */
+export function weekdayInitials(): string[] {
+  return en() ? ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"] : ["J3", "J4", "J5", "Alh", "Iju", "J1", "J2"];
 }
 
 /** "14:05" (24-hour clock, as used on official forms) */

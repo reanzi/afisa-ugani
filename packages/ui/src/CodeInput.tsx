@@ -4,6 +4,7 @@
  * "abcd-ef12" fills every box.
  */
 import { useEffect, useRef, type ClipboardEvent, type KeyboardEvent } from "react";
+import { useT } from "./i18n";
 
 const clean = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
@@ -25,6 +26,7 @@ export function CodeInput({
   autoFocus?: boolean;
 }) {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
+  const t = useT();
   const chars = clean(value).slice(0, length).split("");
   // Focus moves after the new value has rendered, so every handler sees the current code.
   const pendingFocus = useRef<number | null>(null);
@@ -96,7 +98,7 @@ export function CodeInput({
       spellCheck={false}
       maxLength={length}
       autoFocus={autoFocus && i === 0}
-      aria-label={`Herufi ${i + 1} kati ya ${length}`}
+      aria-label={t(`Herufi ${i + 1} kati ya ${length}`, `Character ${i + 1} of ${length}`)}
       // Always type into the first empty box, so a code cannot have gaps.
       onFocus={(e) => {
         const firstEmpty = Math.min(chars.length, length - 1);

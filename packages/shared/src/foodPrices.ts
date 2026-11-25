@@ -7,6 +7,7 @@
  * the 21st of the previous month to the 20th, so every price lands in exactly
  * one report; it is named after the month of the 20th.
  */
+import { inSwahili } from "./lang.ts";
 import { AVAILABILITY, PRICE_TYPES, PRICE_UNITS, commodityKey, commodityLabel, labelOf } from "./catalogs.ts";
 import { financialYear, monthKey, monthLabel, parseMonth, shiftMonth } from "./period.ts";
 import type { Cell, Report } from "./report/model.ts";
@@ -108,7 +109,7 @@ function displayName(names: string[]): string {
 }
 
 /** One row per item and unit (kg and debe are never averaged together). */
-export function compileFoodPrices(records: readonly PriceRecord[], cycle: FoodCycle): FoodPriceRow[] {
+function compileFoodPricesSw(records: readonly PriceRecord[], cycle: FoodCycle): FoodPriceRow[] {
   const prices = records.filter((r) => {
     if (r.type !== "price" || r.deletedAt || num(r.payload.price) <= 0) return false;
     // Prices recorded since the quick entry carry their report; older ones go by date.
@@ -230,7 +231,7 @@ export function validateMonthlyReport(p: unknown, month: string): string | null 
  * A sent food report as a printable report (the same shape as the ARDS
  * monthly report), so HQ's reader and the Word export show it the same way.
  */
-export function foodReportAsReport(
+function foodReportAsReportSw(
   payload: FoodReportPayload,
   meta: { period: string; areaLabel: string; officerName: string; phone?: string | null; councilName?: string },
 ): Report {
@@ -285,3 +286,9 @@ export function foodReportAsReport(
     ],
   };
 }
+
+/** Official text is Swahili whatever the screen language: built inside inSwahili. */
+export const compileFoodPrices: typeof compileFoodPricesSw = ((...args: Parameters<typeof compileFoodPricesSw>) => inSwahili(() => compileFoodPricesSw(...args))) as typeof compileFoodPricesSw;
+
+/** Official text is Swahili whatever the screen language: built inside inSwahili. */
+export const foodReportAsReport: typeof foodReportAsReportSw = ((...args: Parameters<typeof foodReportAsReportSw>) => inSwahili(() => foodReportAsReportSw(...args))) as typeof foodReportAsReportSw;

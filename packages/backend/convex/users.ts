@@ -5,7 +5,7 @@ import { components } from "./_generated/api";
 import { authedMutation, authedQuery } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
 import { vClientMeta } from "./lib/validators";
-import { cleanName, isFullName, isValidPhone, normalizePhone, POLICY_VERSION } from "@afisa/shared";
+import { cleanName, isFullName, isValidPhone, normalizePhone, POLICY_VERSION, presentMaybe, presentName, storeName } from "@afisa/shared";
 
 /** The sign-in name, when it is a check number (accounts made before check numbers may use a phone or a word). */
 async function checkNumberOf(ctx: QueryCtx, userId: Id<"users">): Promise<string | null> {
@@ -74,8 +74,8 @@ export const me = authedQuery({
         return {
           _id: m._id,
           councilId: m.councilId,
-          councilName: council?.name ?? "",
-          councilDisplayName: council?.displayName ?? null,
+          councilName: presentName(council?.name),
+          councilDisplayName: presentMaybe(council?.displayName),
           autoSend: { food: council?.autoSend?.food ?? false, monthly: council?.autoSend?.monthly ?? false },
           role: m.role,
           requestedRole: m.requestedRole ?? null,
@@ -90,7 +90,7 @@ export const me = authedQuery({
     );
     return {
       userId: user._id,
-      name: user.name ?? null,
+      name: presentMaybe(user.name),
       phone: user.phone ?? null,
       checkNumber: user.checkNumber ?? (await checkNumberOf(ctx, user._id)),
       policyVersion: user.policyVersion ?? null,
@@ -114,7 +114,7 @@ export const updateProfile = authedMutation({
     if (tel && !isValidPhone(tel)) throw new Error("Namba ya simu si sahihi.");
     const before = { name: user.name, phone: user.phone };
     const checkNumber = user.checkNumber ?? (await checkNumberOf(ctx, user._id)) ?? undefined;
-    await ctx.db.patch(user._id, { name: clean, phone: tel, checkNumber });
+    await ctx.db.patch(user._id, { name: storeName(clean), phone: tel, checkNumber });
     await writeAudit(ctx, ctx.viewer, {
       action: "user.updateProfile",
       entity: "users",

@@ -1,28 +1,29 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
-import { actionByType, summarize } from "@afisa/shared";
+import { actionByType, L, summarize } from "@afisa/shared";
 import { clock, IconCamera } from "@afisa/ui";
 import type { LocalRecord } from "../lib/db";
 
-const REJECT_REASONS: Record<string, string> = {
-  SECTION_NOT_ALLOWED: "Sehemu hii haikuruhusiwi",
-  AREA_NOT_ASSIGNED: "Eneo hili si lako",
-  AREA_UNKNOWN: "Eneo halipo tena",
-  FUTURE_DATE: "Tarehe iko mbele",
-  NOT_OWNER: "Si kumbukumbu yako",
-  PAYLOAD_VERSION: "Toleo la zamani",
-  INVALID_ID: "Hitilafu ya kumbukumbu",
+const REJECT_REASONS: Record<string, [string, string]> = {
+  SECTION_NOT_ALLOWED: ["Sehemu hii haikuruhusiwi", "Section not allowed"],
+  AREA_NOT_ASSIGNED: ["Eneo hili si lako", "Not your area"],
+  AREA_UNKNOWN: ["Eneo halipo tena", "Area no longer exists"],
+  FUTURE_DATE: ["Tarehe iko mbele", "Date is in the future"],
+  NOT_OWNER: ["Si kumbukumbu yako", "Not your record"],
+  PAYLOAD_VERSION: ["Toleo la zamani", "Old version"],
+  INVALID_ID: ["Hitilafu ya kumbukumbu", "Record error"],
 };
 
 function rejectText(reason?: string): string {
-  if (reason?.startsWith("INVALID_PAYLOAD")) return "Taarifa hazijakamilika";
-  return REJECT_REASONS[reason ?? ""] ?? "Imekataliwa";
+  if (reason?.startsWith("INVALID_PAYLOAD")) return L("Taarifa hazijakamilika", "Details incomplete");
+  const r = REJECT_REASONS[reason ?? ""];
+  return r ? L(...r) : L("Imekataliwa", "Rejected");
 }
 
 export function syncLabel(r: LocalRecord): { text: string; tone: string } {
-  if (r.syncState === "synced") return { text: "Imetumwa", tone: "ok" };
+  if (r.syncState === "synced") return { text: L("Imetumwa", "Sent"), tone: "ok" };
   if (r.syncState === "rejected") return { text: rejectText(r.rejectReason), tone: "danger" };
-  return { text: "Inasubiri", tone: "wait" };
+  return { text: L("Inasubiri", "Waiting"), tone: "wait" };
 }
 
 export function entryText(r: LocalRecord): string {
@@ -41,7 +42,7 @@ export function EntryRow({ record, areaName, trailing, photos = 0 }: { record: L
             <span>{actionByType(record.type)?.label}</span>
             {areaName && <span>{areaName}</span>}
             {photos > 0 && (
-              <span className="entry-photos" aria-label={`Picha ${photos}`}>
+              <span className="entry-photos" aria-label={L(`Picha ${photos}`, `${photos} photos`)}>
                 <IconCamera size={16} /> {photos}
               </span>
             )}

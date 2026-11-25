@@ -13,6 +13,7 @@ export function Dialog({
   children,
   actions,
   busy = false,
+  wide = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -20,6 +21,8 @@ export function Dialog({
   children?: ReactNode;
   actions: ReactNode;
   busy?: boolean;
+  /** Room for a form with several fields side by side. */
+  wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -34,7 +37,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      className="dialog"
+      className={wide ? "dialog is-wide" : "dialog"}
       aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault();

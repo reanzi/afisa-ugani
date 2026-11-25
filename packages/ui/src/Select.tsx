@@ -249,7 +249,7 @@ export function Select({
               aria-activedescendant={shown[active] ? `${listId}-${active}` : undefined}
               className="sel-list"
             >
-              {shown.length === 0 && <li className="sel-empty">Hakuna kinacholingana</li>}
+              {shown.length === 0 && <li className="sel-empty">{t("Hakuna kinacholingana", "No matches")}</li>}
               {shown.map((o, i) => {
                 const heading = o.group && o.group !== lastGroup ? o.group : null;
                 lastGroup = o.group;

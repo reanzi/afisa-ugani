@@ -2,22 +2,27 @@ import { v } from "convex/values";
 import {
   canApproveRequest,
   canAssignRole,
-  HQ_ROLES,
   canGrantSection,
   canManageMember,
   canRevokeSection,
   canViewMembership,
+  DEFAULT_ROLE,
+  levelForAreas,
+  type AreaKind,
   type Target,
   cleanName,
   isFullName,
   isValidPhone,
   normalizePhone,
+  presentMaybe,
+  presentName,
+  storeName,
 } from "@afisa/shared";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { authedMutation, fail, hiddenUserIds, hqMutation, hqQuery, type MemberViewer } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
-import { findCouncilByCode } from "./councils";
+import { joinBlocker, resolveCode } from "./councils";
 import { vMembershipStatus, vOfficerLevel, vRole, vSection } from "./lib/validators";
 
 const toTarget = (m: Doc<"memberships">): Target => ({
@@ -56,52 +61,69 @@ async function loadTarget(
   return m;
 }
 
-async function validateAreas(ctx: MutationCtx, councilId: Id<"councils">, areaIds: Id<"areas">[]) {
+/** Checks the areas belong to the council and returns their kinds. */
+async function validateAreas(ctx: MutationCtx, councilId: Id<"councils">, areaIds: Id<"areas">[]): Promise<AreaKind[]> {
+  const kinds: AreaKind[] = [];
   for (const id of areaIds) {
     const area = await ctx.db.get(id);
     if (!area || area.councilId !== councilId || area.archivedAt !== undefined) {
       fail("INVALID", "Eneo moja au zaidi halipo katika halmashauri hii.");
     }
+    kinds.push(area.kind);
   }
+  return kinds;
 }
 
 /**
- * Registration: a signed-in user asks to join a council. Starts pending.
+ * Registration: a signed-in user asks to join a council with its code. Every
+ * request starts as a pending guest; HQ gives the role and designation when
+ * approving. Nobody picks their own role.
  *
- * Officers pick a council from the open list (`councilId`). HQ staff type the
- * council code (`councilCode`) and say which HQ role they hold
- * (`requestedRole`); the code works even when the council is closed to
- * officer registration. The role is only granted on approval.
+ * The section, level and area are hints for whoever approves. `councilId`
+ * and `requestedRole` are still accepted from phones running the older Join
+ * screen: the council must still be ready, and the role is ignored.
  */
 export const requestJoin = authedMutation({
   args: {
-    councilId: v.optional(v.id("councils")),
     councilCode: v.optional(v.string()),
+    /** @deprecated older Join screen (pick from a list). */
+    councilId: v.optional(v.id("councils")),
+    /** @deprecated ignored: HQ chooses the role. */
     requestedRole: v.optional(vRole),
     name: v.string(),
     phone: v.optional(v.string()),
     primarySection: vSection,
+    /** @deprecated ignored: the level follows the areas HQ assigns. */
     level: v.optional(vOfficerLevel),
+    /** Ward or village where they work, from the council's own list. */
+    requestedAreaId: v.optional(v.id("areas")),
     areaHint: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { viewer } = ctx;
     let council: Doc<"councils"> | null = null;
+    /** Set when they typed a section code: it decides their section. */
+    let codeSection: Doc<"memberships">["primarySection"] | null = null;
     if (args.councilCode?.trim()) {
-      council = await findCouncilByCode(ctx, args.councilCode);
-      if (!council || council.status !== "active") fail("INVALID", "Msimbo wa halmashauri haupo. Hakikisha umeuandika sawasawa.");
+      const hit = await resolveCode(ctx, args.councilCode);
+      council = hit?.council ?? null;
+      codeSection = hit?.section ?? null;
+      if (!council || council.status !== "active") fail("INVALID", "Msimbo huu haupo. Hakikisha umeuandika sawasawa.");
     } else if (args.councilId) {
       council = await ctx.db.get(args.councilId);
-      if (!council || council.status !== "active" || !council.registrationOpen) {
-        fail("INVALID", "Halmashauri hii haipokei maombi kwa sasa.");
-      }
+      if (!council) fail("INVALID", "Halmashauri haipo.");
     } else {
-      fail("INVALID", "Chagua halmashauri au andika msimbo wake.");
+      fail("INVALID", "Andika msimbo wa halmashauri.");
     }
-    const requestedRole = args.requestedRole && args.requestedRole !== "officer" ? args.requestedRole : undefined;
-    if (requestedRole && !args.councilCode) fail("INVALID", "Cheo cha makao makuu kinaombwa kwa msimbo wa halmashauri.");
-    if (requestedRole && !HQ_ROLES.includes(requestedRole)) fail("INVALID", "Cheo hiki hakiombwi.");
-    if (!requestedRole && !args.level) fail("INVALID", "Chagua ngazi yako ya kazi.");
+    const blocked = await joinBlocker(ctx, council);
+    if (blocked) fail("INVALID", blocked);
+
+    if (args.requestedAreaId) {
+      const area = await ctx.db.get(args.requestedAreaId);
+      if (!area || area.councilId !== council._id || area.archivedAt !== undefined || (area.kind !== "ward" && area.kind !== "village")) {
+        fail("INVALID", "Eneo ulilochagua halipo katika halmashauri hii.");
+      }
+    }
 
     const name = cleanName(args.name);
     if (!isFullName(name)) fail("INVALID", "Andika jina lako kamili: majina mawili au zaidi.");
@@ -116,18 +138,19 @@ export const requestJoin = authedMutation({
       fail("INVALID", "Tayari umeomba kujiunga na halmashauri hii.");
     }
 
-    await ctx.db.patch(viewer.userId, { name, phone });
+    await ctx.db.patch(viewer.userId, { name: storeName(name), phone });
     const doc = {
       userId: viewer.userId,
       councilId: council._id,
-      role: "officer" as const,
-      requestedRole,
+      role: DEFAULT_ROLE,
+      requestedRole: undefined,
       status: "pending" as const,
-      primarySection: args.primarySection,
-      sections: [args.primarySection],
-      level: requestedRole ? undefined : args.level,
+      primarySection: codeSection ?? args.primarySection,
+      sections: [codeSection ?? args.primarySection],
+      level: undefined,
       areaIds: [],
       areaHint: args.areaHint?.trim() || undefined,
+      requestedAreaId: args.requestedAreaId,
       requestedAt: Date.now(),
       decidedBy: undefined,
       decidedAt: undefined,
@@ -145,7 +168,7 @@ export const requestJoin = authedMutation({
       entity: "memberships",
       entityId: id,
       councilId: council._id,
-      section: args.primarySection,
+      section: codeSection ?? args.primarySection,
       before: existing ? snapshot(existing) : undefined,
       after: snapshot({ ...doc, _id: id, _creationTime: 0 }),
     });
@@ -176,7 +199,7 @@ export const listForHq = hqQuery({
         return {
           _id: m._id,
           userId: m.userId,
-          name: user?.name ?? "—",
+          name: presentName(user?.name) || "—",
           phone: user?.phone ?? null,
           checkNumber: user?.checkNumber ?? null,
           role: m.role,
@@ -187,9 +210,10 @@ export const listForHq = hqQuery({
           level: m.level ?? null,
           areaIds: m.areaIds,
           areaHint: m.areaHint ?? null,
+          requestedAreaId: m.requestedAreaId ?? null,
           requestedAt: m.requestedAt,
           decidedAt: m.decidedAt ?? null,
-          decidedByName: decider?.name ?? null,
+          decidedByName: presentMaybe(decider?.name),
           decisionNote: m.decisionNote ?? null,
           isSelf: m.userId === viewer.userId,
         };
@@ -198,10 +222,19 @@ export const listForHq = hqQuery({
   },
 });
 
+/**
+ * Approve a pending guest: the approver gives the role and the designation
+ * (section, plus level and work areas for officers). Root seats the Head of
+ * Department; after that the HoD and section leads approve the rest.
+ */
 export const approve = hqMutation({
   args: {
     membershipId: v.id("memberships"),
+    role: vRole,
+    /** Defaults to the section the guest picked. */
+    primarySection: v.optional(vSection),
     areaIds: v.array(v.id("areas")),
+    /** @deprecated ignored: the level follows the assigned areas. */
     level: v.optional(vOfficerLevel),
     note: v.optional(v.string()),
   },
@@ -209,20 +242,26 @@ export const approve = hqMutation({
     const { viewer } = ctx;
     const m = await loadTarget(ctx, viewer, args.membershipId);
     if (m.status !== "pending") fail("INVALID", "Ombi hili limeshashughulikiwa.");
-    const role = m.requestedRole ?? "officer";
-    if (!canApproveRequest(viewer.actor, toTarget(m), role)) {
-      fail("FORBIDDEN", role === "admin" ? "Mkuu wa Idara huidhinishwa na msimamizi wa mfumo." : "Huna ruhusa ya kuidhinisha ombi hili.");
+    const role = args.role;
+    if (role === "guest") fail("INVALID", "Chagua cheo cha kumpa.");
+    const primarySection = args.primarySection ?? m.primarySection;
+    // Section leads judge the request by the section the guest asked for, and
+    // may not move them into a section they do not lead.
+    const asTarget = toTarget(m);
+    if (!canApproveRequest(viewer.actor, asTarget, role) || !canApproveRequest(viewer.actor, { ...asTarget, primarySection }, role)) {
+      fail("FORBIDDEN", role === "admin" ? "Mkuu wa Idara huidhinishwa na msimamizi wa mfumo." : "Huna ruhusa ya kutoa cheo hiki.");
     }
-    if (role === "officer" && args.areaIds.length === 0) {
-      fail("INVALID", "Chagua angalau eneo moja la kazi.");
-    }
-    await validateAreas(ctx, viewer.councilId, args.areaIds);
+    if (role === "officer" && args.areaIds.length === 0) fail("INVALID", "Chagua angalau eneo moja la kazi.");
+    const kinds = await validateAreas(ctx, viewer.councilId, args.areaIds);
+    const level = role === "officer" ? levelForAreas(kinds) : undefined;
     const patch = {
       status: "active" as const,
       role,
       requestedRole: undefined,
+      primarySection,
+      sections: primarySection === m.primarySection ? m.sections : [primarySection],
       areaIds: args.areaIds,
-      level: role === "officer" ? (args.level ?? m.level) : undefined,
+      level,
       decidedBy: viewer.userId,
       decidedAt: Date.now(),
       decisionNote: args.note?.trim() || undefined,
@@ -232,7 +271,7 @@ export const approve = hqMutation({
       action: "membership.approve",
       entity: "memberships",
       entityId: m._id,
-      section: m.primarySection,
+      section: primarySection,
       before: snapshot(m),
       after: { ...snapshot(m), ...patch },
     });
@@ -355,8 +394,9 @@ export const assignAreas = hqMutation({
     const { viewer } = ctx;
     const m = await loadTarget(ctx, viewer, args.membershipId);
     if (!canManageMember(viewer.actor, toTarget(m))) fail("FORBIDDEN", "Huna ruhusa juu ya mwanachama huyu.");
-    await validateAreas(ctx, viewer.councilId, args.areaIds);
-    await ctx.db.patch(m._id, { areaIds: args.areaIds });
+    const kinds = await validateAreas(ctx, viewer.councilId, args.areaIds);
+    const level = m.role === "officer" && kinds.length > 0 ? levelForAreas(kinds) : m.level;
+    await ctx.db.patch(m._id, { areaIds: args.areaIds, level });
     await writeAudit(ctx, viewer, {
       action: "membership.assignAreas",
       entity: "memberships",

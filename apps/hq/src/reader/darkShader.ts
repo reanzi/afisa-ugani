@@ -31,7 +31,9 @@ void main() {
   float l = dot(rgb, W);
   vec3 chroma = rgb - vec3(l);
   // Lightness flips: paper (l = 1) -> dark paper, ink (l = 0) -> light ink.
-  vec3 base = mix(u_ink, u_paper, l);
+  // The curve pulls greys toward the ink, so thin and grey text stays legible.
+  float k = pow(l, 1.6);
+  vec3 base = mix(u_ink, u_paper, k);
   gl_FragColor = vec4(clamp(base + chroma * 0.9, 0.0, 1.0), 1.0);
 }`;
 
@@ -81,8 +83,8 @@ function setup(paper: [number, number, number], ink: [number, number, number]): 
 }
 
 /** The reader's dark paper and ink, as 0–1 RGB. */
-const PAPER: [number, number, number] = [0x1c / 255, 0x22 / 255, 0x1f / 255];
-const INK: [number, number, number] = [0xe2 / 255, 0xe8 / 255, 0xe4 / 255];
+const PAPER: [number, number, number] = [0x10 / 255, 0x13 / 255, 0x11 / 255];
+const INK: [number, number, number] = [0xf0 / 255, 0xf4 / 255, 0xf1 / 255];
 
 /** Lightest and darkest luminance (0–1) of a canvas, from a small copy. */
 function lightRange(c: HTMLCanvasElement): { min: number; max: number } | null {

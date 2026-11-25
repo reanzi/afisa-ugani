@@ -1,5 +1,5 @@
 import { Route, Routes } from "react-router";
-import { ConfirmProvider, useTheme } from "@afisa/ui";
+import { ConfirmProvider, useLang, useT, useTheme } from "@afisa/ui";
 import { useSessionState, WorkProvider } from "./lib/session";
 import { SignIn } from "./screens/SignIn";
 import { Join } from "./screens/Join";
@@ -31,6 +31,9 @@ export function App() {
 
 function Main() {
   useTheme();
+  // Re-render everything on a language change: catalog labels read it at render time.
+  useLang();
+  const t = useT();
   const session = useSessionState();
   // Agreed on this phone (maybe offline) but not yet recorded on the server.
   const localPolicy = useLiveQuery(async () => (await db.meta.get(POLICY_META))?.value as { version: string } | undefined, [], null);
@@ -38,7 +41,7 @@ function Main() {
   if (session.kind === "loading") {
     return (
       <main className="center-screen" aria-busy="true">
-        <p>Inafungua…</p>
+        <p>{t("Inafungua…", "Opening…")}</p>
       </main>
     );
   }
@@ -50,7 +53,7 @@ function Main() {
     const waiting = me.memberships.find((m) => m.status === "pending" || m.status === "suspended");
     if (waiting) return <Waiting membership={waiting} name={me.name} />;
     const rejected = me.memberships.find((m) => m.status === "rejected");
-    return <Join rejectedNote={rejected?.decisionNote ?? null} defaultName={me.name} defaultPhone={me.phone} />;
+    return <Join rejectedNote={rejected?.decisionNote ?? null} defaultName={me.name} defaultPhone={me.phone} checkNumber={me.checkNumber} />;
   }
 
   if (localPolicy === null) return null;

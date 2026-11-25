@@ -4,7 +4,7 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
 import { SECTION_LABELS, type Section, type Target } from "@afisa/shared";
-import { Dialog, errorMessage, getLang, IconReturn, locale, useLabel, useT } from "@afisa/ui";
+import { Dialog, errorMessage, getLang, IconReturn, useLabel, useT, dateTime } from "@afisa/ui";
 import { hqClient, useHq } from "../context";
 
 export type MemberRow = FunctionReturnType<typeof api.memberships.listForHq>[number];
@@ -37,38 +37,115 @@ export function useAreas() {
   return useQuery(api.areas.list, { councilId });
 }
 
-/** Wards with their villages as checkboxes. Ticking a ward covers all its villages. */
+const foldText = (x: string) => x.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+/**
+ * Pick work areas: wards on the left, the open ward's villages on the right,
+ * what is chosen on top. Choosing a whole ward covers all its villages (and
+ * makes the officer ward level).
+ */
 export function AreaPicker({ value, onChange }: { value: Id<"areas">[]; onChange: (next: Id<"areas">[]) => void }) {
   const t = useT();
   const areas = useAreas();
+  const [openWard, setOpenWard] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   if (!areas) return <p className="muted">{t("Inapakia maeneo…", "Loading areas…")}</p>;
   const wards = areas.filter((a) => a.kind === "ward");
   if (wards.length === 0) return <p className="muted">{t("Hakuna maeneo bado. Ongeza kata na vijiji kwenye ukurasa wa Maeneo.", "No areas yet. Add wards and villages on the Areas page.")}</p>;
-  const set = new Set(value);
+
+  const set = new Set<string>(value);
+  const villagesOf = (wardId: string) => areas.filter((v) => v.kind === "village" && v.parentId === wardId);
+  const q = foldText(search.trim());
+  const shownWards = wards.filter((w) => !q || foldText(w.name).includes(q) || villagesOf(w._id).some((v) => foldText(v.name).includes(q)));
+  // Open the first ward with a choice in it, else the first ward shown.
+  const firstChosen = wards.find((w) => set.has(w._id) || villagesOf(w._id).some((v) => set.has(v._id)));
+  const ward = shownWards.find((w) => w._id === openWard) ?? (firstChosen && shownWards.includes(firstChosen) ? firstChosen : shownWards[0]);
+  const villages = ward ? villagesOf(ward._id).filter((v) => !q || foldText(v.name).includes(q) || foldText(ward.name).includes(q)) : [];
+  const wholeWard = ward ? set.has(ward._id) : false;
+
   const toggle = (id: Id<"areas">) => onChange(set.has(id) ? value.filter((v) => v !== id) : [...value, id]);
+  const toggleWard = (id: Id<"areas">) => {
+    // A whole ward replaces any single villages chosen in it.
+    const inside = new Set<string>(villagesOf(id).map((v) => v._id));
+    onChange(set.has(id) ? value.filter((v) => v !== id) : [...value.filter((v) => !inside.has(v)), id]);
+  };
+
+  const chosen = value
+    .map((id) => areas.find((a) => a._id === id))
+    .filter((a): a is NonNullable<typeof a> => Boolean(a))
+    .map((a) => ({
+      id: a._id,
+      label: a.kind === "ward" ? t(`Kata ya ${a.name}`, `${a.name} ward`) : a.name,
+      hint: a.kind === "ward" ? t("kata nzima", "whole ward") : wards.find((w) => w._id === a.parentId)?.name,
+      ward: a.kind === "ward",
+    }));
+
   return (
-    <div className="area-picker">
-      {wards.map((w) => {
-        const wardOn = set.has(w._id);
-        return (
-          <fieldset key={w._id} className="area-ward">
-            <label className="check strong">
-              <input type="checkbox" checked={wardOn} onChange={() => toggle(w._id)} />
-              {t(`Kata ya ${w.name} (yote)`, `${w.name} ward (all)`)}
-            </label>
-            <div className="area-villages">
-              {areas
-                .filter((v) => v.parentId === w._id)
-                .map((v) => (
-                  <label key={v._id} className="check">
-                    <input type="checkbox" checked={wardOn || set.has(v._id)} disabled={wardOn} onChange={() => toggle(v._id)} />
-                    {v.name}
-                  </label>
-                ))}
+    <div className="ap">
+      <div className="ap-chosen" aria-live="polite">
+        {chosen.length === 0 ? (
+          <span className="muted small">{t("Bado hujachagua eneo. Chagua kata nzima au vijiji.", "Nothing chosen yet. Pick a whole ward or villages.")}</span>
+        ) : (
+          chosen.map((c) => (
+            <span key={c.id} className={`ap-chip${c.ward ? " is-ward" : ""}`}>
+              <span>{c.label}</span>
+              {c.hint && <small>{c.hint}</small>}
+              <button type="button" aria-label={t(`Ondoa ${c.label}`, `Remove ${c.label}`)} onClick={() => toggle(c.id)}>×</button>
+            </span>
+          ))
+        )}
+      </div>
+      <div className="ap-body">
+        <div className="ap-wards">
+          <input
+            className="input input-search"
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("Tafuta kata au kijiji", "Search wards or villages")}
+            aria-label={t("Tafuta kata au kijiji", "Search wards or villages")}
+          />
+          <ul>
+            {shownWards.map((w) => {
+              const picked = set.has(w._id) ? "all" : villagesOf(w._id).filter((v) => set.has(v._id)).length;
+              return (
+                <li key={w._id}>
+                  <button type="button" aria-current={ward?._id === w._id ? "true" : undefined} onClick={() => setOpenWard(w._id)}>
+                    <span className="ap-ward-name">{w.name}</span>
+                    {picked === "all" ? (
+                      <span className="ap-badge is-all">{t("Yote", "All")}</span>
+                    ) : picked > 0 ? (
+                      <span className="ap-badge">{picked}</span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+            {shownWards.length === 0 && <li className="muted small ap-none">{t("Hakuna kinacholingana.", "Nothing matches.")}</li>}
+          </ul>
+        </div>
+        {ward && (
+          <div className="ap-villages">
+            <div className="ap-villages-head">
+              <strong>{t(`Kata ya ${ward.name}`, `${ward.name} ward`)}</strong>
+              <label className={`ap-whole${wholeWard ? " is-on" : ""}`}>
+                <input type="checkbox" checked={wholeWard} onChange={() => toggleWard(ward._id)} />
+                {t("Kata nzima", "Whole ward")}
+              </label>
             </div>
-          </fieldset>
-        );
-      })}
+            {wholeWard && <p className="muted small">{t("Vijiji vyote vya kata hii vimejumuishwa.", "Every village in this ward is included.")}</p>}
+            <div className="ap-grid">
+              {villages.map((v) => (
+                <label key={v._id} className={`ap-village${wholeWard || set.has(v._id) ? " is-on" : ""}`}>
+                  <input type="checkbox" checked={wholeWard || set.has(v._id)} disabled={wholeWard} onChange={() => toggle(v._id)} />
+                  <span>{v.name}</span>
+                </label>
+              ))}
+              {villages.length === 0 && <p className="muted small">{t("Kata hii haina vijiji.", "This ward has no villages.")}</p>}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -84,8 +161,7 @@ export function areaNames(ids: readonly string[], areas: { _id: string; name: st
 }
 
 export function when(ms: number): string {
-  const d = new Date(ms);
-  return d.toLocaleString(locale(), { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return dateTime(ms);
 }
 
 type ReportRow = { auto: boolean; late: boolean; revision: number; reopened: { byName: string; note: string } | null };

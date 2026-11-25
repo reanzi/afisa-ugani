@@ -49,15 +49,40 @@ npx convex run admin:addAreas '{"councilCode":"BAGAMOYO-TC","wards":[{"name":"Yo
 
 Then:
 
-1. The Head of Department signs up in **HQ** (**Fungua akaunti**), enters the council code, and asks to be **Mkuu wa Idara**.
-2. Root approves the request in HQ under **Maombi**.
-3. The HoD approves section heads, who sign up the same way. Officers sign up in the Field app.
+1. A council takes sign-ups only once it has addresses (at least one ward with villages): load the NaPA file in HQ (**Halmashauri zote** or the council's **Maeneo**), or use `admin:addAreas`.
+2. Each section (Kilimo, Mifugo, Uvuvi) has its own sign-up code, shown in the side menu of the Head of Department (all three) and of everyone in that section (their own), and on "Mimi" in the Field app. Signing up with a section code puts the person straight into that section. The council code (root gives it to the HoD) still works and lets them pick the section. Older deployments: `npx convex run admin:backfillSectionCodes` (HQ also makes them on first view).
+3. Everyone signs up in three steps, in HQ or the Field app: the council code, then their section (and, in the Field app, their ward and village; HQ staff are based at head office and their lead can add stations later), then their name, check number, phone and password. One button creates the account and sends the request. Nobody picks a role: each new member is a **guest** (`Mgeni`) until approved. Section and area are only hints for whoever approves.
+4. Root opens the council with the switcher and, under **Maombi**, gives the Head of Department the role **Mkuu wa Idara**.
+5. The HoD (and vice) then give roles and designations to everyone else; section heads approve guests of their own section as officers. An officer's designation follows their section (Crop, Livestock or Fisheries Officer); village or ward level is set from the areas they are assigned.
 
 `seatMember` and `makeRoot` only promote accounts that already exist. To create an account from the CLI, use `admin:createAccount`.
 
 `admin:*` functions are internal: only someone holding the deployment key can call them, from the CLI or the Convex dashboard.
 
 For a full showcase deployment (Convex Cloud plus static hosting for both apps), see [docs/DEPLOY.md](docs/DEPLOY.md).
+
+## Names
+
+Names of people, councils, regions, wards, villages and streets are stored in lower case and shown capitalised (`presentName` in `packages/shared/src/names.ts`: "Halmashauri ya Mji wa Bagamoyo", "Bagamoyo TC"). After upgrading a deployment that already has data, convert it once:
+
+```bash
+npx convex run admin:lowercaseNames
+```
+
+## Starting over (wipe)
+
+Root can wipe the whole system: every council with its addresses, members, records, reports and photos, and every account except root. Settings (such as the minimum app version) stay. It is off unless the deployment allows it:
+
+```bash
+npx convex env set ALLOW_WIPE true        # allow (never on production you care about)
+# then in HQ: Halmashauri zote → Futa mfumo… and type FUTA KILA KITU
+# or from the CLI:
+npx convex run wipe:startFromCli '{"confirm":"FUTA KILA KITU"}'
+npx convex run wipe:statusFromCli
+npx convex env remove ALLOW_WIPE          # forbid again
+```
+
+The wipe runs in batches in the background; removing `ALLOW_WIPE` stops it at the next batch. Phones that still hold old records are signed out and must sign up again.
 
 ## Checks
 

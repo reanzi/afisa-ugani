@@ -4,7 +4,7 @@ import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { useLiveQuery } from "dexie-react-hooks";
 import { v7 as uuidv7 } from "uuid";
 import { monthKey, monthLabel, monthlyWindow, partHasData, PAYLOAD_VERSION, shiftMonth, type Report as ArdsReport } from "@afisa/shared";
-import { ConfirmDialog, errorMessage, ReportView, shortDate } from "@afisa/ui";
+import { ConfirmDialog, errorMessage, ReportView, shortDate, useT } from "@afisa/ui";
 import { useAreaLabel, useMonthlyReport } from "../lib/report";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
@@ -38,6 +38,7 @@ function MonthlyReport() {
   const canSend = !sealed && now >= window_.opens;
   const autoOn = membership.autoSend?.monthly ?? false;
   const [confirm, setConfirm] = useState(false);
+  const t = useT();
 
   const send = async () => {
     if (!live) return;
@@ -93,13 +94,13 @@ function MonthlyReport() {
   return (
     <div className="monthly">
       <header className="month-head">
-        <button className="btn btn-quiet btn-small" onClick={() => void setMonth(shiftMonth(month, -1))} aria-label="Mwezi uliopita">‹</button>
-        <h2 className="page-title">Ripoti ya {monthLabel(month)}</h2>
+        <button className="btn btn-quiet btn-small" onClick={() => void setMonth(shiftMonth(month, -1))} aria-label={t("Mwezi uliopita", "Previous month")}>‹</button>
+        <h2 className="page-title">{t(`Ripoti ya ${monthLabel(month)}`, `${monthLabel(month)} report`)}</h2>
         <button
           className="btn btn-quiet btn-small"
           onClick={() => void setMonth(shiftMonth(month, 1))}
           disabled={month >= current}
-          aria-label="Mwezi unaofuata"
+          aria-label={t("Mwezi unaofuata", "Next month")}
         >
           ›
         </button>
@@ -109,49 +110,49 @@ function MonthlyReport() {
         <div className={`seal${sealed.syncState === "pending" ? " seal-wait" : ""}`} role="status">
           <strong>
             {sealed.syncState === "pending"
-              ? "Imefungwa, inasubiri mtandao"
-              : `${sealed.auto ? "Ilitumwa yenyewe" : "Imetumwa makao makuu"} ${shortDate(sealed.submittedAt ?? sealed.clientSubmittedAt)}`}
+              ? t("Imefungwa, inasubiri mtandao", "Locked, waiting for network")
+              : `${sealed.auto ? t("Ilitumwa yenyewe", "Sent automatically") : t("Imetumwa makao makuu", "Sent to HQ")} ${shortDate(sealed.submittedAt ?? sealed.clientSubmittedAt)}`}
           </strong>
-          <span>{sealed.late ? "Ilifika baada ya tarehe 5. " : ""}Ripoti hii imefungwa. Unaweza kuisoma na kuipakua tu.</span>
+          <span>{sealed.late ? t("Ilifika baada ya tarehe 5. ", "Arrived after the 5th. ") : ""}{t("Ripoti hii imefungwa. Unaweza kuisoma na kuipakua tu.", "This report is locked. You can only read and download it.")}</span>
         </div>
       )}
       {reopened?.reopened && (
         <div className="seal seal-reopened" role="status">
-          <strong>Imerudishwa kwa marekebisho</strong>
-          <span>{reopened.reopened.byName || "Makao makuu"}: “{reopened.reopened.note}”</span>
-          <span>Rekebisha kumbukumbu au majibu ya mwisho wa mwezi, kisha uitume tena.</span>
+          <strong>{t("Imerudishwa kwa marekebisho", "Returned for corrections")}</strong>
+          <span>{reopened.reopened.byName || t("Makao makuu", "HQ")}: “{reopened.reopened.note}”</span>
+          <span>{t("Rekebisha kumbukumbu au majibu ya mwisho wa mwezi, kisha uitume tena.", "Fix the records or month-end answers, then send it again.")}</span>
         </div>
       )}
       {!sealed && rejected && (
-        <div className="notice notice-danger" role="alert"><p>Makao makuu hawakuipokea: {rejected.error ?? "jaribu tena"}.</p></div>
+        <div className="notice notice-danger" role="alert"><p>{t("Makao makuu hawakuipokea", "HQ did not accept it")}: {rejected.error ?? t("jaribu tena", "try again")}.</p></div>
       )}
 
       <section className="report-status">
-        <div className="meter" aria-label={`Sehemu ${filled} kati ya ${total} zina taarifa`}>
+        <div className="meter" aria-label={t(`Sehemu ${filled} kati ya ${total} zina taarifa`, `${filled} of ${total} parts have data`)}>
           {report?.parts.map((p) => (
             <span key={p.id} className={partHasData(p) ? "on" : undefined} title={`${p.number}. ${p.title}`} />
           ))}
         </div>
         <p>
-          <strong>Sehemu {filled} kati ya {total}</strong> zina taarifa. Sehemu zisizo na taarifa zitaandikwa 0 kama fomu inavyoelekeza.
+          <strong>{t(`Sehemu ${filled} kati ya ${total}`, `${filled} of ${total} parts`)}</strong>{t(" zina taarifa. Sehemu zisizo na taarifa zitaandikwa 0 kama fomu inavyoelekeza.", " have data. Parts without data will show 0, as the form requires.")}
         </p>
         {sealed ? (
-          <Link to={`/ripoti/majibu?mwezi=${month}`} className="btn btn-block btn-quiet">Soma majibu ya mwisho wa mwezi</Link>
+          <Link to={`/ripoti/majibu?mwezi=${month}`} className="btn btn-block btn-quiet">{t("Soma majibu ya mwisho wa mwezi", "Read the month-end answers")}</Link>
         ) : (
           <>
             <Link to={`/ripoti/majibu?mwezi=${month}`} className={`btn btn-block ${review ? "btn-quiet" : "btn-primary"}`}>
-              {review ? "Badili majibu ya mwisho wa mwezi" : "Jibu maswali ya mwisho wa mwezi"}
+              {review ? t("Badili majibu ya mwisho wa mwezi", "Change the month-end answers") : t("Jibu maswali ya mwisho wa mwezi", "Answer the month-end questions")}
             </Link>
-            {!review && <p className="muted">Hali ya mvua, mafanikio, changamoto na makadirio ya mazao. Dakika chache tu.</p>}
+            {!review && <p className="muted">{t("Hali ya mvua, mafanikio, changamoto na makadirio ya mazao. Dakika chache tu.", "Rainfall, achievements, challenges and crop estimates. Just a few minutes.")}</p>}
           </>
         )}
         <div className="export-row">
           <button className="btn btn-quiet" disabled={!report || busy !== null} onClick={() => void exportDocx("download")}>
-            {busy === "download" ? "Inaandaa…" : "Pakua Word (.docx)"}
+            {busy === "download" ? t("Inaandaa…", "Preparing…") : t("Pakua Word (.docx)", "Download Word (.docx)")}
           </button>
           {canShare && (
             <button className="btn btn-quiet" disabled={!report || busy !== null} onClick={() => void exportDocx("share")}>
-              {busy === "share" ? "Inaandaa…" : "Tuma"}
+              {busy === "share" ? t("Inaandaa…", "Preparing…") : t("Tuma", "Share")}
             </button>
           )}
         </div>
@@ -164,24 +165,24 @@ function MonthlyReport() {
             <>
               <p>
                 {reopened
-                  ? "Ukimaliza marekebisho, itume tena. Itafungwa tena baada ya kutumwa."
+                  ? t("Ukimaliza marekebisho, itume tena. Itafungwa tena baada ya kutumwa.", "When you finish the corrections, send it again. It locks again once sent.")
                   : now > window_.due
-                  ? "Tarehe 5 imepita. Ukiituma sasa itaonekana imechelewa."
+                  ? t("Tarehe 5 imepita. Ukiituma sasa itaonekana imechelewa.", "The 5th has passed. If you send it now it will show as late.")
                   : autoOn
-                    ? `Itume kabla ya tarehe 5. Usipoituma, itatumwa yenyewe tarehe 5 saa 5:30 usiku.`
-                    : "Mwezi umeisha. Itume kabla ya tarehe 5."}
+                    ? t("Itume kabla ya tarehe 5. Usipoituma, itatumwa yenyewe tarehe 5 saa 5:30 usiku.", "Send it before the 5th. If you don't, it will be sent automatically on the 5th at 11:30 pm.")
+                    : t("Mwezi umeisha. Itume kabla ya tarehe 5.", "The month has ended. Send it before the 5th.")}
               </p>
-              <button className="btn btn-primary btn-block" disabled={!live} onClick={() => setConfirm(true)}>{reopened ? "Tuma tena" : "Tuma ripoti ya mwezi"}</button>
+              <button className="btn btn-primary btn-block" disabled={!live} onClick={() => setConfirm(true)}>{reopened ? t("Tuma tena", "Send again") : t("Tuma ripoti ya mwezi", "Send monthly report")}</button>
             </>
           ) : (
-            <p>Utaweza kuituma kuanzia {shortDate(window_.opens)}, mwezi ukiisha.{autoOn ? " Usipoituma, itatumwa yenyewe tarehe 5." : ""}</p>
+            <p>{t(`Utaweza kuituma kuanzia ${shortDate(window_.opens)}, mwezi ukiisha.`, `You can send it from ${shortDate(window_.opens)}, when the month ends.`)}{autoOn ? t(" Usipoituma, itatumwa yenyewe tarehe 5.", " If you don't, it will be sent automatically on the 5th.") : ""}</p>
           )}
         </section>
       )}
 
-      <ConfirmDialog open={confirm} title={`Tuma ripoti ya ${monthLabel(month)}?`} confirmLabel="Ndiyo, tuma" onConfirm={() => void send()} onCancel={() => setConfirm(false)}>
-        <p>Ripoti itatumwa makao makuu na kufungwa. Huwezi kuibadilisha baada ya kutuma.</p>
-        {!review && <p><strong>Hujajibu maswali ya mwisho wa mwezi.</strong> Sehemu za mvua, mafanikio na changamoto zitakuwa tupu.</p>}
+      <ConfirmDialog open={confirm} title={t(`Tuma ripoti ya ${monthLabel(month)}?`, `Send the ${monthLabel(month)} report?`)} confirmLabel={t("Ndiyo, tuma", "Yes, send")} onConfirm={() => void send()} onCancel={() => setConfirm(false)}>
+        <p>{t("Ripoti itatumwa makao makuu na kufungwa. Huwezi kuibadilisha baada ya kutuma.", "The report will be sent to HQ and locked. You cannot change it after sending.")}</p>
+        {!review && <p><strong>{t("Hujajibu maswali ya mwisho wa mwezi.", "You have not answered the month-end questions.")}</strong> {t("Sehemu za mvua, mafanikio na changamoto zitakuwa tupu.", "The rainfall, achievements and challenges parts will be empty.")}</p>}
       </ConfirmDialog>
 
       {report && <ReportView report={report} />}
@@ -193,12 +194,13 @@ const KINDS = ["mwezi", "malengo", "chakula"] as const;
 
 export function Report() {
   const [kind, setKind] = useQueryState("aina", parseAsStringLiteral(KINDS).withDefault("mwezi"));
+  const t = useT();
   return (
     <main className="page">
-      <div className="segmented report-kinds" role="tablist" aria-label="Aina ya ripoti">
-        <button role="tab" aria-selected={kind === "mwezi"} onClick={() => void setKind("mwezi")}>Mwezi</button>
-        <button role="tab" aria-selected={kind === "malengo"} onClick={() => void setKind("malengo")}>Malengo</button>
-        <button role="tab" aria-selected={kind === "chakula"} onClick={() => void setKind("chakula")}>Chakula</button>
+      <div className="segmented report-kinds" role="tablist" aria-label={t("Aina ya ripoti", "Report type")}>
+        <button role="tab" aria-selected={kind === "mwezi"} onClick={() => void setKind("mwezi")}>{t("Mwezi", "Monthly")}</button>
+        <button role="tab" aria-selected={kind === "malengo"} onClick={() => void setKind("malengo")}>{t("Malengo", "Targets")}</button>
+        <button role="tab" aria-selected={kind === "chakula"} onClick={() => void setKind("chakula")}>{t("Chakula", "Food")}</button>
       </div>
       {kind === "mwezi" ? <MonthlyReport /> : kind === "malengo" ? <Performance /> : <FoodReport />}
     </main>

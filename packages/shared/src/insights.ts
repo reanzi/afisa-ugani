@@ -7,6 +7,7 @@ import type { Section } from "./domain.ts";
 import { daysInMonth, monthKey, monthLabel, shiftMonth } from "./period.ts";
 import { labelOf, AMOUNT_UNITS } from "./catalogs.ts";
 import { specFor } from "./actions.ts";
+import { L } from "./lang.ts";
 
 export type InsightRecord = {
   type: string;
@@ -29,26 +30,26 @@ export function monthStats(records: readonly InsightRecord[], sections: readonly
   const of = (type: string) => rs.filter((r) => r.type === type);
   const sum = (type: string, key: string, section?: Section) =>
     of(type).filter((r) => !section || r.section === section).reduce((a, r) => a + num(r.payload[key]), 0);
-  const out: Stat[] = [{ id: "entries", label: "Kumbukumbu", value: fmt(rs.length) }];
+  const out: Stat[] = [{ id: "entries", label: L("Kumbukumbu", "Records"), value: fmt(rs.length) }];
 
   const trained = of("training").reduce((a, r) => a + num(r.payload.men) + num(r.payload.women), 0);
-  if (trained > 0) out.push({ id: "trained", label: "Waliopata mafunzo", value: fmt(trained) });
+  if (trained > 0) out.push({ id: "trained", label: L("Waliopata mafunzo", "People trained"), value: fmt(trained) });
 
   if (sections.includes("kilimo")) {
     const ha = sum("pest_outbreak", "areaAffectedHa");
-    if (ha > 0) out.push({ id: "pest_ha", label: "Hekta zilizoshambuliwa", value: fmt(ha), section: "kilimo" });
+    if (ha > 0) out.push({ id: "pest_ha", label: L("Hekta zilizoshambuliwa", "Hectares attacked"), value: fmt(ha), section: "kilimo" });
     const saved = sum("pest_outbreak", "areaSavedHa");
-    if (saved > 0) out.push({ id: "saved_ha", label: "Hekta zilizookolewa", value: fmt(saved), section: "kilimo" });
+    if (saved > 0) out.push({ id: "saved_ha", label: L("Hekta zilizookolewa", "Hectares saved"), value: fmt(saved), section: "kilimo" });
   }
   if (sections.includes("mifugo")) {
     const treated = sum("livestock_treatment", "treated");
-    if (treated > 0) out.push({ id: "treated", label: "Mifugo iliyotibiwa", value: fmt(treated), section: "mifugo" });
+    if (treated > 0) out.push({ id: "treated", label: L("Mifugo iliyotibiwa", "Animals treated"), value: fmt(treated), section: "mifugo" });
     const vaccinated = sum("vaccination", "count");
-    if (vaccinated > 0) out.push({ id: "vaccinated", label: "Chanjo na uogeshaji", value: fmt(vaccinated), section: "mifugo" });
+    if (vaccinated > 0) out.push({ id: "vaccinated", label: L("Chanjo na uogeshaji", "Vaccinated and dipped"), value: fmt(vaccinated), section: "mifugo" });
   }
   if (sections.includes("uvuvi")) {
     const kg = sum("fish_farming", "harvestKg");
-    if (kg > 0) out.push({ id: "fish", label: "Samaki waliovuliwa (kg)", value: fmt(kg), section: "uvuvi" });
+    if (kg > 0) out.push({ id: "fish", label: L("Samaki waliovuliwa (kg)", "Fish caught (kg)"), value: fmt(kg), section: "uvuvi" });
   }
   return out.slice(0, 5);
 }
@@ -87,8 +88,8 @@ export function reminders(input: ReminderInput): Reminder[] {
     out.push({
       id: "rejected",
       tone: "danger",
-      text: `Kumbukumbu ${input.rejectedCount} hazikukubaliwa na mfumo. Zifungue uzirekebishe ili ziingie kwenye ripoti.`,
-      action: { label: "Zione", to: "/shughuli?hali=zilizokataliwa" },
+      text: L(`Kumbukumbu ${input.rejectedCount} hazikukubaliwa na mfumo. Zifungue uzirekebishe ili ziingie kwenye ripoti.`, `${input.rejectedCount} records were rejected. Open and fix them so they count in the report.`),
+      action: { label: L("Zione", "View"), to: "/shughuli?hali=zilizokataliwa" },
     });
   }
 
@@ -100,9 +101,9 @@ export function reminders(input: ReminderInput): Reminder[] {
       tone: "wait",
       text:
         food.prices > 0
-          ? `Ripoti ya upatikanaji wa chakula (${food.label}) inatakiwa tarehe ${dueDay}. Bei ${food.prices} zimeandikwa; zikague kisha utume.`
-          : `Ripoti ya upatikanaji wa chakula (${food.label}) inatakiwa tarehe ${dueDay}. Andika bei za vyakula vinavyouzwa sokoni na madukani.`,
-      action: { label: food.prices > 0 ? "Andaa ripoti" : "Andika bei", to: food.prices > 0 ? "/ripoti?aina=chakula" : "/andika/price" },
+          ? L(`Ripoti ya upatikanaji wa chakula (${food.label}) inatakiwa tarehe ${dueDay}. Bei ${food.prices} zimeandikwa; zikague kisha utume.`, `The food availability report (${food.label}) is due on the ${dueDay}th. ${food.prices} prices recorded; check them, then send.`)
+          : L(`Ripoti ya upatikanaji wa chakula (${food.label}) inatakiwa tarehe ${dueDay}. Andika bei za vyakula vinavyouzwa sokoni na madukani.`, `The food availability report (${food.label}) is due on the ${dueDay}th. Record prices of foods sold in markets and shops.`),
+      action: { label: food.prices > 0 ? L("Andaa ripoti", "Prepare report") : L("Andika bei", "Record prices"), to: food.prices > 0 ? "/ripoti?aina=chakula" : "/andika/price" },
     });
   }
 
@@ -111,8 +112,8 @@ export function reminders(input: ReminderInput): Reminder[] {
     out.push({
       id: `prev-review-${prev}`,
       tone: "wait",
-      text: `Ripoti ya ${monthLabel(prev)} inatakiwa wilayani wiki hii. Jibu maswali ya mwisho wa mwezi kisha uipakue.`,
-      action: { label: "Maliza ripoti", to: `/ripoti/majibu?mwezi=${prev}` },
+      text: L(`Ripoti ya ${monthLabel(prev)} inatakiwa wilayani wiki hii. Jibu maswali ya mwisho wa mwezi kisha uipakue.`, `The ${monthLabel(prev)} report is due at the council this week. Answer the month-end questions, then download it.`),
+      action: { label: L("Maliza ripoti", "Finish report"), to: `/ripoti/majibu?mwezi=${prev}` },
     });
   }
 
@@ -120,8 +121,8 @@ export function reminders(input: ReminderInput): Reminder[] {
     out.push({
       id: `review-${month}`,
       tone: "wait",
-      text: left === 0 ? "Leo ni siku ya mwisho ya mwezi. Jibu maswali ya mwisho wa mwezi." : `Zimebaki siku ${left} mwezi uishe. Jibu maswali ya mwisho wa mwezi mapema.`,
-      action: { label: "Jibu sasa", to: `/ripoti/majibu?mwezi=${month}` },
+      text: left === 0 ? L("Leo ni siku ya mwisho ya mwezi. Jibu maswali ya mwisho wa mwezi.", "Today is the last day of the month. Answer the month-end questions.") : L(`Zimebaki siku ${left} mwezi uishe. Jibu maswali ya mwisho wa mwezi mapema.`, `${left} days left in the month. Answer the month-end questions early.`),
+      action: { label: L("Jibu sasa", "Answer now"), to: `/ripoti/majibu?mwezi=${month}` },
     });
   }
 
@@ -129,15 +130,15 @@ export function reminders(input: ReminderInput): Reminder[] {
     out.push({
       id: "unsent",
       tone: "wait",
-      text: `Kumbukumbu ${input.pendingCount} zimekaa kwenye simu kwa zaidi ya siku 2. Zitatumwa ukipata mtandao.`,
+      text: L(`Kumbukumbu ${input.pendingCount} zimekaa kwenye simu kwa zaidi ya siku 2. Zitatumwa ukipata mtandao.`, `${input.pendingCount} records have waited on the phone for over 2 days. They will be sent when you are online.`),
     });
   }
 
   if (input.lastEntryAt === null) {
-    out.push({ id: "welcome", tone: "ok", text: "Karibu! Ukimaliza kila shughuli, iandike hapa. Ripoti ya mwezi itajijenga yenyewe." });
+    out.push({ id: "welcome", tone: "ok", text: L("Karibu! Ukimaliza kila shughuli, iandike hapa. Ripoti ya mwezi itajijenga yenyewe.", "Welcome! Record each activity here when you finish it. The monthly report builds itself.") });
   } else {
     const idle = Math.floor((now.getTime() - input.lastEntryAt) / DAY);
-    if (idle >= 3) out.push({ id: `idle-${monthKey(now)}-${day}`, tone: "ok", text: `Siku ${idle} bila kumbukumbu mpya. Kazi ya leo ni ipi?` });
+    if (idle >= 3) out.push({ id: `idle-${monthKey(now)}-${day}`, tone: "ok", text: L(`Siku ${idle} bila kumbukumbu mpya. Kazi ya leo ni ipi?`, `${idle} days without a new record. What did you work on today?`) });
   }
 
   return out.slice(0, 2);

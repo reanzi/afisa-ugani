@@ -15,7 +15,7 @@ import {
   presetSection,
   validatePreset,
   type ProductionPlan,
-  type Section,
+  type Section, presentMaybe, presentName
 } from "@afisa/shared";
 import { fail, hiddenUserIds, hqMutation, hqQuery, memberMutation, memberQuery } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
@@ -93,7 +93,7 @@ function view(p: Doc<"presets">) {
     status: p.status,
     approvedValue: (p.approvedValue ?? null) as unknown,
     approvedAt: p.approvedAt ?? null,
-    approvedByName: p.approvedByName ?? null,
+    approvedByName: presentMaybe(p.approvedByName),
     note: p.note ?? null,
     clientId: p.clientId,
     proposedAt: p.proposedAt,
@@ -184,8 +184,8 @@ export const forHq = hqQuery({
         const user = await ctx.db.get(r.ownerId);
         const areas = m ? await Promise.all(m.areaIds.slice(0, 3).map((id) => ctx.db.get(id))) : [];
         people.set(r.ownerId, {
-          name: user?.name ?? "—",
-          area: areas.filter(Boolean).map((a) => a!.name).join(", "),
+          name: presentName(user?.name) || "—",
+          area: areas.filter(Boolean).map((a) => presentName(a!.name)).join(", "),
           visible: m
             ? canViewMembership(viewer.actor, { userId: m.userId, role: m.role, status: m.status, primarySection: m.primarySection, sections: m.sections })
             : false,
@@ -233,7 +233,7 @@ export const decide = hqMutation({
     if (!canApprovePreset(viewer.actor, p.section)) fail("FORBIDDEN", "Huna mamlaka ya kuidhinisha viwango vya sehemu hii.");
     if (p.status !== "pending") fail("INVALID", "Hili limeshaamuliwa.");
     const now = Date.now();
-    const byName = viewer.user.name ?? "";
+    const byName = presentName(viewer.user.name);
     if (approve) {
       await ctx.db.patch(p._id, { status: "approved", approvedValue: p.value, approvedAt: now, approvedByName: viewer.isRoot ? "" : byName, note: undefined, updatedAt: now });
     } else {
@@ -261,7 +261,7 @@ export const councilDefaults = memberQuery({
       .query("councilPresets")
       .withIndex("by_council_key", (q) => q.eq("councilId", ctx.viewer.councilId))
       .collect();
-    return rows.map((r) => ({ key: r.key, value: r.value, setByName: r.setByName, updatedAt: r.updatedAt }));
+    return rows.map((r) => ({ key: r.key, value: r.value, setByName: presentName(r.setByName), updatedAt: r.updatedAt }));
   },
 });
 
@@ -274,7 +274,7 @@ export const councilDefaultsForHq = hqQuery({
       .withIndex("by_council_key", (q) => q.eq("councilId", ctx.viewer.councilId))
       .collect();
     return {
-      values: rows.map((r) => ({ key: r.key, value: r.value, setByName: r.setByName, updatedAt: r.updatedAt })),
+      values: rows.map((r) => ({ key: r.key, value: r.value, setByName: presentName(r.setByName), updatedAt: r.updatedAt })),
       canEdit: canApprovePreset(ctx.viewer.actor, "kilimo"),
     };
   },
@@ -297,7 +297,7 @@ export const setCouncilDefault = hqMutation({
       .withIndex("by_council_key", (q) => q.eq("councilId", viewer.councilId).eq("key", key))
       .unique();
     const now = Date.now();
-    const byName = viewer.isRoot ? "" : (viewer.user.name ?? "");
+    const byName = viewer.isRoot ? "" : presentName(viewer.user.name);
     if (value === null) {
       if (existing) await ctx.db.delete(existing._id);
     } else if (existing) {

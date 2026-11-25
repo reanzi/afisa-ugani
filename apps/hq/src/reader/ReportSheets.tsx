@@ -3,7 +3,7 @@
  * sheet per part, then the photos that came with the report.
  */
 import type { Block, Report, TableBlock } from "@afisa/shared";
-import { formatCell, useT } from "@afisa/ui";
+import { formatCell, useT, monthDay } from "@afisa/ui";
 
 export type ReaderPhoto = {
   clientId: string;
@@ -134,7 +134,7 @@ export function ReportSheets({ report, photos, onPhoto }: { report: Report; phot
                   <strong>{[p.record.labels.category, p.record.labels.subject].filter(Boolean).join(": ") || p.record.summary}</strong>
                   {p.record.labels.suspected && <span>{t("Inadhaniwa", "Suspected")}: {p.record.labels.suspected}</span>}
                   <span className="muted">
-                    {new Date(p.takenAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, {t(...(SHOTS[p.shot] ?? [p.shot, p.shot]))}
+                    {monthDay(p.takenAt)}, {t(...(SHOTS[p.shot] ?? [p.shot, p.shot]))}
                     {p.caption ? `: ${p.caption}` : ""}
                   </span>
                 </div>

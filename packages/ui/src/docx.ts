@@ -22,6 +22,7 @@ import {
   WidthType,
 } from "docx";
 import type { Block, Cell, Report, TableBlock } from "@afisa/shared";
+import { shortDate } from "./format";
 
 const FONT = "Arial";
 const BODY = 19; // half-points: 9.5 pt
@@ -199,7 +200,7 @@ export async function reportToDocx(report: Report): Promise<Blob> {
         },
         footers: {
           default: new Footer({
-            children: [para(`Imeandaliwa kwa programu ya Afisa Ugani, ${new Date().toLocaleDateString("en-GB")}. ${h.areaLabel}, ${h.monthLabel}.`, { size: 14, align: AlignmentType.RIGHT, after: 0 })],
+            children: [para(`Imeandaliwa kwa programu ya Afisa Ugani, ${shortDate(Date.now())}. ${h.areaLabel}, ${h.monthLabel}.`, { size: 14, align: AlignmentType.RIGHT, after: 0 })],
           }),
         },
         children,

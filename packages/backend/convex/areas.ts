@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { canManageAreas } from "@afisa/shared";
+import { canManageAreas, presentName, storeName } from "@afisa/shared";
 import { fail, hqMutation, memberQuery, rootMutation } from "./lib/guards";
 import type { Id } from "./_generated/dataModel";
 import { writeAudit } from "./lib/audit";
@@ -16,7 +16,7 @@ export const list = memberQuery({
     ]);
     const live = [...wards, ...villages].filter((a) => a.archivedAt === undefined);
     return live
-      .map((a) => ({ _id: a._id, kind: a.kind, name: a.name, parentId: a.parentId ?? null }))
+      .map((a) => ({ _id: a._id, kind: a.kind, name: presentName(a.name), parentId: a.parentId ?? null }))
       .sort((a, b) => a.name.localeCompare(b.name));
   },
 });
@@ -30,7 +30,7 @@ export const create = hqMutation({
   handler: async (ctx, args) => {
     const { viewer } = ctx;
     if (!canManageAreas(viewer.actor)) fail("FORBIDDEN", "Huna ruhusa ya kuongeza maeneo.");
-    const name = args.name.trim();
+    const name = storeName(args.name);
     if (name.length < 2) fail("INVALID", "Jina la eneo ni fupi mno.");
     if (args.kind === "street") fail("INVALID", "Barabara na vitongoji huingizwa kutoka faili la anwani la NaPA.");
     if (args.kind === "village") {
@@ -56,7 +56,7 @@ export const rename = hqMutation({
     if (!canManageAreas(viewer.actor)) fail("FORBIDDEN", "Huna ruhusa ya kubadili maeneo.");
     const area = await ctx.db.get(areaId);
     if (!area || area.councilId !== viewer.councilId) fail("NOT_FOUND", "Eneo halipo.");
-    const clean = name.trim();
+    const clean = storeName(name);
     if (clean.length < 2) fail("INVALID", "Jina la eneo ni fupi mno.");
     await ctx.db.patch(areaId, { name: clean });
     await writeAudit(ctx, viewer, {
@@ -94,20 +94,20 @@ export const importNapaWard = rootMutation({
   handler: async (ctx, { councilId, ward }) => {
     const council = await ctx.db.get(councilId);
     if (!council) fail("NOT_FOUND", "Halmashauri haipo.");
-    const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+    const same = (a: string, b: string) => storeName(a) === storeName(b);
     const counts = { wardsAdded: 0, villagesAdded: 0, streetsAdded: 0, streetsUpdated: 0 };
 
     const wards = await ctx.db.query("areas").withIndex("by_council_kind", (q) => q.eq("councilId", councilId).eq("kind", "ward")).collect();
     let wardId: Id<"areas"> | undefined = wards.find((w) => same(w.name, ward.name) && w.archivedAt === undefined)?._id;
     if (!wardId) {
-      wardId = await ctx.db.insert("areas", { councilId, kind: "ward", name: ward.name.trim() });
+      wardId = await ctx.db.insert("areas", { councilId, kind: "ward", name: storeName(ward.name) });
       counts.wardsAdded++;
     }
     const villages = await ctx.db.query("areas").withIndex("by_parent", (q) => q.eq("parentId", wardId)).collect();
     for (const village of ward.villages) {
       let villageId: Id<"areas"> | undefined = villages.find((x) => same(x.name, village.name) && x.kind === "village")?._id;
       if (!villageId) {
-        villageId = await ctx.db.insert("areas", { councilId, kind: "village", name: village.name.trim(), parentId: wardId });
+        villageId = await ctx.db.insert("areas", { councilId, kind: "village", name: storeName(village.name), parentId: wardId });
         counts.villagesAdded++;
       }
       const streets = await ctx.db.query("areas").withIndex("by_parent", (q) => q.eq("parentId", villageId)).collect();
@@ -120,7 +120,7 @@ export const importNapaWard = rootMutation({
             counts.streetsUpdated++;
           }
         } else {
-          await ctx.db.insert("areas", { councilId, kind: "street", name: st.name.trim(), parentId: villageId, ...meta });
+          await ctx.db.insert("areas", { councilId, kind: "street", name: storeName(st.name), parentId: villageId, ...meta });
           counts.streetsAdded++;
         }
       }
@@ -169,7 +169,7 @@ export const streets = memberQuery({
     const rows = await ctx.db.query("areas").withIndex("by_parent", (q) => q.eq("parentId", villageId)).collect();
     return rows
       .filter((r) => r.kind === "street" && r.archivedAt === undefined)
-      .map((r) => ({ _id: r._id, name: r.name, kind: r.streetKind ?? null, surface: r.surface ?? null, addresses: r.addresses ?? null }))
+      .map((r) => ({ _id: r._id, name: presentName(r.name), kind: r.streetKind ?? null, surface: r.surface ?? null, addresses: r.addresses ?? null }))
       .sort((a, b) => a.name.localeCompare(b.name));
   },
 });

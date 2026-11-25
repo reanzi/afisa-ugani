@@ -50,6 +50,7 @@ export function AuthForm({
   pending,
   requireOnline = false,
   afterRegisterNote,
+  registerContent,
 }: {
   registering: boolean;
   onModeChange: (registering: boolean) => void;
@@ -59,6 +60,8 @@ export function AuthForm({
   /** Field: the first sign-in on a phone needs the network. */
   requireOnline?: boolean;
   afterRegisterNote?: ReactNode;
+  /** Shown instead of the account fields when creating an account (the join wizard). */
+  registerContent?: ReactNode;
 }) {
   const t = useT();
   const [checkNumber, setCheckNumber] = useState("");
@@ -102,6 +105,26 @@ export function AuthForm({
     setError(null);
     onModeChange(r);
   };
+
+  const tabs = (
+    <div className="segmented" role="tablist" aria-label={t("Chagua", "Choose")}>
+      <button type="button" role="tab" aria-selected={!registering} onClick={() => switchTo(false)}>
+        {t("Ingia", "Sign in")}
+      </button>
+      <button type="button" role="tab" aria-selected={registering} onClick={() => switchTo(true)}>
+        {t("Fungua akaunti", "Create account")}
+      </button>
+    </div>
+  );
+
+  if (registering && registerContent) {
+    return (
+      <div className="auth-form stack">
+        {tabs}
+        {registerContent}
+      </div>
+    );
+  }
 
   return (
     <form className="auth-form stack" onSubmit={submit} noValidate>

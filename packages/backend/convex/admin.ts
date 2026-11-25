@@ -20,8 +20,8 @@ import { v } from "convex/values";
 import { api, components, internal } from "./_generated/api";
 import { internalAction, internalMutation } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { formatCouncilCode } from "@afisa/shared";
-import { findCouncilByCode, newCouncilCode } from "./councils";
+import { formatCouncilCode, storeName } from "@afisa/shared";
+import { ensureSectionCodes, findCouncilByCode, newCouncilCode } from "./councils";
 import { writeAudit } from "./lib/audit";
 import { vRole, vSection } from "./lib/validators";
 
@@ -64,7 +64,7 @@ export const setNameByUsername = internalMutation({
   handler: async (ctx, { username, name }) => {
     const raw = await ctx.runQuery(components.authUsername.public.getUserIdByUsername, { username });
     const id = raw === null ? null : ctx.db.normalizeId("users", raw);
-    if (id && name?.trim()) await ctx.db.patch(id, { name: name.trim() });
+    if (id && name?.trim()) await ctx.db.patch(id, { name: storeName(name) });
     return id;
   },
 });
@@ -103,13 +103,14 @@ export const createCouncil = internalMutation({
   handler: async (ctx, args) => {
     const code = await newCouncilCode(ctx);
     const id = await ctx.db.insert("councils", {
-      name: args.name.trim(),
+      name: storeName(args.name),
       code,
-      region: args.region.trim(),
+      region: storeName(args.region),
       status: "active",
       registrationOpen: true,
       createdAt: Date.now(),
     });
+    await ensureSectionCodes(ctx, id);
     await writeAudit(ctx, null, { action: "council.create", entity: "councils", entityId: id, councilId: id, actorIsRootOverride: true });
     return { councilId: id, code: formatCouncilCode(code) };
   },
@@ -133,7 +134,7 @@ export const seatMember = internalMutation({
     if (!userId) throw new Error(missingAccount(args.username));
     const council = await findCouncilByCode(ctx, args.councilCode);
     if (!council) throw new Error(`No council ${args.councilCode}`);
-    if (args.name) await ctx.db.patch(userId, { name: args.name });
+    if (args.name) await ctx.db.patch(userId, { name: storeName(args.name) });
     const existing = await ctx.db
       .query("memberships")
       .withIndex("by_user_council", (q) => q.eq("userId", userId).eq("councilId", council._id))
@@ -184,7 +185,7 @@ export const addAreas = internalMutation({
     let wardsAdded = 0;
     let villagesAdded = 0;
     for (const w of args.wards) {
-      const name = w.name.trim();
+      const name = storeName(w.name);
       let ward = existing.find((x) => x.name.toLowerCase() === name.toLowerCase());
       if (!ward) {
         const id = await ctx.db.insert("areas", { councilId: council._id, kind: "ward", name });
@@ -194,7 +195,7 @@ export const addAreas = internalMutation({
       }
       const villages = await ctx.db.query("areas").withIndex("by_parent", (q) => q.eq("parentId", ward._id)).collect();
       for (const vName of w.villages) {
-        const clean = vName.trim();
+        const clean = storeName(vName);
         if (!clean || villages.some((x) => x.name.toLowerCase() === clean.toLowerCase())) continue;
         await ctx.db.insert("areas", { councilId: council._id, kind: "village", name: clean, parentId: ward._id });
         villagesAdded++;
@@ -219,5 +220,54 @@ export const setMinClientVersion = internalMutation({
     else await ctx.db.insert("settings", { key: "minClientVersion", value: version });
     await writeAudit(ctx, null, { action: "settings.minClientVersion", entity: "settings", after: { version }, actorIsRootOverride: true });
     return null;
+  },
+});
+
+/**
+ * One-off: store existing names in lower case (people, councils, regions,
+ * wards, villages, streets). Safe to run again; it works in pages and
+ * schedules itself until every table is done.
+ *   npx convex run admin:lowercaseNames
+ */
+export const lowercaseNames = internalMutation({
+  args: {
+    table: v.optional(v.union(v.literal("users"), v.literal("councils"), v.literal("areas"))),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    changed: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<string> => {
+    const order = ["users", "councils", "areas"] as const;
+    const table = args.table ?? "users";
+    const page = await ctx.db.query(table).paginate({ cursor: args.cursor ?? null, numItems: 400 });
+    let changed = args.changed ?? 0;
+    for (const row of page.page) {
+      const patch: Record<string, string> = {};
+      const fix = (key: string, value: string | undefined) => {
+        if (value && storeName(value) !== value) patch[key] = storeName(value);
+      };
+      fix("name", (row as { name?: string }).name);
+      if (table === "councils") {
+        fix("displayName", (row as { displayName?: string }).displayName);
+        fix("region", (row as { region?: string }).region);
+      }
+      if (Object.keys(patch).length > 0) {
+        await ctx.db.patch(row._id, patch);
+        changed++;
+      }
+    }
+    const next = page.isDone ? order[order.indexOf(table) + 1] : table;
+    if (!next) return `Imekamilika: majina ${changed} yamebadilishwa.`;
+    await ctx.scheduler.runAfter(0, internal.admin.lowercaseNames, { table: next, cursor: page.isDone ? null : page.continueCursor, changed });
+    return `Inaendelea (${table}): ${changed} hadi sasa.`;
+  },
+});
+
+/** One-off: give every council its section codes. Safe to repeat.  npx convex run admin:backfillSectionCodes */
+export const backfillSectionCodes = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let made = 0;
+    for (const c of await ctx.db.query("councils").collect()) made += await ensureSectionCodes(ctx, c._id);
+    return `Misimbo ${made} ya sehemu imetengenezwa.`;
   },
 });

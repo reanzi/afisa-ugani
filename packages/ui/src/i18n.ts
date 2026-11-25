@@ -4,6 +4,7 @@
  * no key files drift out of date.
  */
 import { useSyncExternalStore } from "react";
+import { setTextLang } from "@afisa/shared";
 
 export type Lang = "sw" | "en";
 export const LANGS: { value: Lang; label: string; short: string }[] = [
@@ -22,11 +23,14 @@ function read(): Lang {
 }
 
 let lang: Lang = typeof window === "undefined" ? "sw" : read();
+// Catalog and record labels from @afisa/shared follow the same choice.
+setTextLang(lang);
 const listeners = new Set<() => void>();
 if (typeof document !== "undefined") document.documentElement.lang = lang;
 
 export function setLang(next: Lang) {
   lang = next;
+  setTextLang(next);
   try {
     localStorage.setItem(KEY, next);
   } catch {

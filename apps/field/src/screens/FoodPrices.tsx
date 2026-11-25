@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { v7 as uuidv7 } from "uuid";
 import { commodityKey, commodityLabel, PAYLOAD_VERSION, PRICE_UNITS, SUGGEST_FOODS, labelOf } from "@afisa/shared";
-import { IconTrash, IconUndo, relativeWhen, shortDate, SuggestInput } from "@afisa/ui";
+import { IconTrash, IconUndo, relativeWhen, shortDate, SuggestInput, useT } from "@afisa/ui";
 import { db, getMeta, setMeta } from "../lib/db";
 import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
@@ -15,13 +15,14 @@ import { parseAsString, useQueryState } from "nuqs";
 
 const UNITS = PRICE_UNITS.filter((u) => ["kg", "lita", "kipande", "mfuko", "fungu", "debe"].includes(u.value));
 const PLACES = [
-  { value: "sokoni", label: "Sokoni" },
-  { value: "rejareja", label: "Dukani" },
+  { value: "sokoni", label: ["Sokoni", "Market"] },
+  { value: "rejareja", label: ["Dukani", "Shop"] },
 ] as const;
 const tsh = (n: number) => n.toLocaleString("en-US");
 
 export function FoodPrices() {
   const navigate = useNavigate();
+  const t = useT();
   const { councilId, sections, membership } = useWork();
   const open = useOpenFoodPeriod();
   const reopened = useReopened();
@@ -71,7 +72,8 @@ export function FoodPrices() {
     await setMeta(`food:unit:${commodityKey(name)}`, unit);
     await setMeta("food:lastPlace", place);
     requestSync();
-    setNotice({ text: `${name}, Tsh ${tsh(amount)} kwa ${labelOf(PRICE_UNITS, unit).toLowerCase()}: imeongezwa.` });
+    const per = labelOf(PRICE_UNITS, unit).toLowerCase();
+    setNotice({ text: t(`${name}, Tsh ${tsh(amount)} kwa ${per}: imeongezwa.`, `${name}, Tsh ${tsh(amount)} per ${per}: added.`) });
     setCommodity("");
     setPrice("");
     formRef.current?.querySelector<HTMLInputElement>("input[role=combobox]")?.focus();
@@ -80,7 +82,7 @@ export function FoodPrices() {
   const remove = async (r: { clientId: string; payload: Record<string, unknown> }) => {
     await db.records.update(r.clientId, { deletedAt: Date.now(), clientUpdatedAt: Date.now(), syncState: "pending" });
     requestSync();
-    setNotice({ text: `${commodityLabel(r.payload.commodity)} imefutwa.`, undo: r.clientId });
+    setNotice({ text: t(`${commodityLabel(r.payload.commodity)} imefutwa.`, `${commodityLabel(r.payload.commodity)} deleted.`), undo: r.clientId });
   };
 
   const undo = async (clientId: string) => {
@@ -93,73 +95,86 @@ export function FoodPrices() {
 
   return (
     <main className="page narrow food-entry">
-      <button type="button" className="back" onClick={goBack}>Rudi</button>
+      <button type="button" className="back" onClick={goBack}>{t("Rudi", "Back")}</button>
       <header>
-        <h1 className="page-title">Bei za vyakula</h1>
+        <h1 className="page-title">{t("Bei za vyakula", "Food prices")}</h1>
         {state && (
           <p className="lead">
-            Ripoti ya {state.cycle.label}: bei za {shortDate(state.cycle.start)} hadi {shortDate(state.cycle.end - 1)}.
+            {t(
+              `Ripoti ya ${state.cycle.label}: bei za ${shortDate(state.cycle.start)} hadi ${shortDate(state.cycle.end - 1)}.`,
+              `${state.cycle.label} report: prices from ${shortDate(state.cycle.start)} to ${shortDate(state.cycle.end - 1)}.`,
+            )}
           </p>
         )}
       </header>
 
       {correcting && state && (
         <Link to={`/ripoti?aina=chakula&kipindi=${correcting}`} className="ready-banner is-correcting">
-          <strong>Unarekebisha ripoti ya {state.cycle.label}</strong>
-          <span>Ukimaliza, rudi kwenye ripoti uitume tena</span>
+          <strong>{t(`Unarekebisha ripoti ya ${state.cycle.label}`, `Correcting the ${state.cycle.label} report`)}</strong>
+          <span>{t("Ukimaliza, rudi kwenye ripoti uitume tena", "When done, go back to the report and send it again")}</span>
         </Link>
       )}
 
       {state?.ready && !state.sealed && !correcting && (
         <Link to="/ripoti?aina=chakula" className="ready-banner">
-          <strong>Ripoti yako iko tayari</strong>
-          <span>Kagua bei {state.entries.length} kisha uitume</span>
+          <strong>{t("Ripoti yako iko tayari", "Your report is ready")}</strong>
+          <span>{t(`Kagua bei ${state.entries.length} kisha uitume`, `Check the ${state.entries.length} prices, then send it`)}</span>
         </Link>
       )}
 
       <form ref={formRef} className="quick-price" onSubmit={add}>
         <div className="field">
-          <span className="field-label" id="qp-item">Bidhaa</span>
+          <span className="field-label" id="qp-item">{t("Bidhaa", "Item")}</span>
           <SuggestInput labelledBy="qp-item" value={commodity} onChange={setCommodity} suggestions={SUGGEST_FOODS} />
         </div>
         <div className="qp-row">
-          <label className="field qp-price">
-            <span>Bei (Tsh)</span>
-            <input
-              ref={priceRef}
-              className="input"
-              inputMode="numeric"
-              value={price}
-              onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, ","))}
-            />
-          </label>
-          <fieldset className="field plain qp-place">
-            <legend>Wapi</legend>
-            <div className="toggle-2">
+          <div className="field qp-price">
+            <label className="field-label" htmlFor="qp-price">{t("Bei", "Price")}</label>
+            <div className="affix">
+              <span className="affix-text" aria-hidden>Tsh</span>
+              <input
+                id="qp-price"
+                ref={priceRef}
+                className="input"
+                inputMode="numeric"
+                placeholder="0"
+                aria-label={t("Bei kwa shilingi", "Price in shillings")}
+                value={price}
+                onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, "").replace(/\B(?=(\d{3})+(?!\d))/g, ","))}
+              />
+            </div>
+          </div>
+          <div className="field qp-place">
+            <span className="field-label" id="qp-place">{t("Wapi", "Where")}</span>
+            <div className="toggle-2" role="group" aria-labelledby="qp-place">
               {PLACES.map((p) => (
-                <button key={p.value} type="button" aria-pressed={place === p.value} onClick={() => setPlace(p.value)}>{p.label}</button>
+                <button key={p.value} type="button" aria-pressed={place === p.value} onClick={() => setPlace(p.value)}>{t(p.label[0], p.label[1])}</button>
               ))}
             </div>
-          </fieldset>
+          </div>
         </div>
-        <fieldset className="field plain">
-          <legend>Kwa kila</legend>
-          <div className="chips unit-chips">
+        <div className="field">
+          <span className="field-label" id="qp-unit">{t("Kwa kila", "Per")}</span>
+          <div className="unit-grid" role="group" aria-labelledby="qp-unit">
             {UNITS.map((u) => (
-              <button key={u.value} type="button" className="chip" aria-pressed={unit === u.value} onClick={() => setUnit(u.value)}>
+              <button key={u.value} type="button" aria-pressed={unit === u.value} onClick={() => setUnit(u.value)}>
                 {u.label}
               </button>
             ))}
           </div>
-        </fieldset>
-        <button className="btn btn-primary btn-block" disabled={!canAdd}>Ongeza</button>
+        </div>
+        <button className="btn btn-primary btn-block" disabled={!canAdd}>
+          {canAdd
+            ? t(`Ongeza: Tsh ${tsh(amount)} kwa ${labelOf(PRICE_UNITS, unit).toLowerCase()}`, `Add: Tsh ${tsh(amount)} per ${labelOf(PRICE_UNITS, unit).toLowerCase()}`)
+            : t("Ongeza", "Add")}
+        </button>
         <div aria-live="polite">
           {notice && (
             <p className={`added${notice.undo ? " is-removed" : ""}`} role="status">
               {notice.text}
               {notice.undo && (
                 <button type="button" className="undo-btn" onClick={() => void undo(notice.undo!)}>
-                  <IconUndo size={18} /> Rudisha
+                  <IconUndo size={18} /> {t("Rudisha", "Undo")}
                 </button>
               )}
             </p>
@@ -169,28 +184,31 @@ export function FoodPrices() {
 
       <section aria-labelledby="zilizoandikwa">
         <h2 id="zilizoandikwa" className="section-title">
-          Bei zilizoandikwa {state && state.entries.length > 0 ? <span className="count">{state.entries.length}</span> : null}
+          {t("Bei zilizoandikwa", "Prices recorded")} {state && state.entries.length > 0 ? <span className="count">{state.entries.length}</span> : null}
         </h2>
-        {state && state.entries.length === 0 && <p className="empty">Bado hakuna bei katika ripoti hii.</p>}
-        <ul className="price-entries">
+        {state && state.entries.length === 0 && <p className="empty">{t("Bado hakuna bei katika ripoti hii. Kila bei unayoongeza inaonekana hapa.", "No prices in this report yet. Each price you add shows here.")}</p>}
+        {state && state.entries.length > 0 && <ul className="price-entries">
           {state?.entries.map((r) => (
             <li key={r.clientId}>
               <span className="pe-name">
                 <strong>{commodityLabel(r.payload.commodity)}</strong>
-                <small>{relativeWhen(r.occurredAt)}, {r.payload.priceType === "rejareja" ? "dukani" : String(r.payload.priceType ?? "")}</small>
+                <small>
+                  <span className={`pe-place${r.payload.priceType === "rejareja" ? " is-shop" : ""}`}>{r.payload.priceType === "rejareja" ? t("Dukani", "Shop") : t("Sokoni", "Market")}</span>
+                  {relativeWhen(r.occurredAt)}
+                </small>
               </span>
               <span className="pe-price">
                 {tsh(Number(r.payload.price))}
                 <small>/{labelOf(PRICE_UNITS, r.payload.unit).toLowerCase()}</small>
               </span>
               {!state.sealed && (
-                <button type="button" className="icon-btn is-danger" onClick={() => void remove(r)} aria-label={`Futa ${commodityLabel(r.payload.commodity)}`}>
+                <button type="button" className="icon-btn is-danger" onClick={() => void remove(r)} aria-label={t(`Futa ${commodityLabel(r.payload.commodity)}`, `Delete ${commodityLabel(r.payload.commodity)}`)}>
                   <IconTrash />
                 </button>
               )}
             </li>
           ))}
-        </ul>
+        </ul>}
       </section>
     </main>
   );

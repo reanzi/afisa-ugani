@@ -22,7 +22,7 @@ import {
   shiftMonth,
   toCouncilWallClock,
   PAYLOAD_VERSION,
-  type MonthlyReview,
+  type MonthlyReview, presentName
 } from "@afisa/shared";
 import { internal } from "./_generated/api";
 import { approvedPresetsOf } from "./presets";
@@ -63,7 +63,7 @@ async function wallClockRecords(ctx: MutationCtx, m: Doc<"memberships">, fromWal
 async function owner(ctx: MutationCtx, m: Doc<"memberships">) {
   const user = await ctx.db.get(m.userId);
   return {
-    who: { councilId: m.councilId, userId: m.userId, name: user?.name ?? "", areaIds: m.areaIds, primarySection: m.primarySection },
+    who: { councilId: m.councilId, userId: m.userId, name: presentName(user?.name), areaIds: m.areaIds, primarySection: m.primarySection },
     phone: user?.phone ?? null,
     areaLabel: await areaLabelOf(ctx, m, ""),
   };
@@ -144,7 +144,7 @@ export const monthlyForOfficer = internalMutation({
     const areas = new Map<string, string>();
     for (const kind of ["ward", "village"] as const) {
       for (const a of await ctx.db.query("areas").withIndex("by_council_kind", (q) => q.eq("councilId", m.councilId).eq("kind", kind)).collect()) {
-        areas.set(a._id, a.name);
+        areas.set(a._id, presentName(a.name));
       }
     }
     const { who, phone, areaLabel } = await owner(ctx, m);
@@ -157,7 +157,7 @@ export const monthlyForOfficer = internalMutation({
       plan: approved.plans.kilimo ?? null,
       records,
       review: (reviewRec?.payload as MonthlyReview | undefined) ?? null,
-      areaLabel: areaLabel || council?.name || "",
+      areaLabel: areaLabel || presentName(council?.name),
       officerName: who.name,
       phone,
       areaName: (id) => areas.get(id),

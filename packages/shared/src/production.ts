@@ -10,7 +10,8 @@
  * plan with what the records show, for each quarter and for the whole year
  * (complete in June), ready for ward and village council meetings.
  */
-import { ALL_CROPS, CROPS, LIVESTOCK_PRODUCTS, labelOf } from "./catalogs.ts";
+import { L, inEnglish, inSwahili } from "./lang.ts";
+import { ALL_CROPS, CROPS, LIVESTOCK_PRODUCTS, labelOf, rememberText } from "./catalogs.ts";
 import type { Section } from "./domain.ts";
 import { financialYear, fyQuarter, monthLabel, monthRange, parseMonth, shiftMonth } from "./period.ts";
 import type { Cell, Report, ReportPart, TableBlock, TextBlock } from "./report/model.ts";
@@ -41,9 +42,9 @@ export function presetDef(key: string): PresetDef | null {
     return {
       key,
       section: "kilimo",
-      label: `Tija ya ${CROP_LABEL(crop)}`,
-      unit: "tani/ha",
-      hint: "Wastani wa mavuno kwa hekta moja katika eneo lako, kwa msimu wa kawaida.",
+      label: L(`Tija ya ${CROP_LABEL(crop)}`, `${CROP_LABEL(crop)} yield`),
+      unit: L("tani/ha", "t/ha"),
+      hint: L("Wastani wa mavuno kwa hekta moja katika eneo lako, kwa msimu wa kawaida.", "Average harvest per hectare in your area, in a normal season."),
       min: 0.05,
       max: 80,
     };
@@ -52,9 +53,9 @@ export function presetDef(key: string): PresetDef | null {
     return {
       key,
       section: "kilimo",
-      label: "Eneo linalofaa kwa kilimo",
+      label: L("Eneo linalofaa kwa kilimo", "Arable land"),
       unit: "ha",
-      hint: "Jumla ya eneo linalofaa kwa kilimo katika eneo lako la kazi.",
+      hint: L("Jumla ya eneo linalofaa kwa kilimo katika eneo lako la kazi.", "Total land suitable for farming in your work area."),
       min: 1,
       max: 2_000_000,
     };
@@ -129,7 +130,7 @@ export function presetLabel(key: string): string {
   const def = presetDef(key);
   if (def) return def.label;
   const plan = parsePlanKey(key);
-  if (plan) return `Mpango wa uzalishaji ${plan.fy}`;
+  if (plan) return L(`Mpango wa uzalishaji ${plan.fy}`, `Production plan ${plan.fy}`);
   return key;
 }
 
@@ -141,8 +142,8 @@ export function presetValueText(key: string, value: unknown): string {
     const p = value as ProductionPlan;
     const crops = Object.keys(p.crops ?? {}).length;
     const targets = Object.keys(p.targets ?? {}).length;
-    const parts = [crops ? `mazao ${crops}` : "", targets ? `malengo ${targets}` : ""].filter(Boolean);
-    return parts.join(", ") || "tupu";
+    const parts = [crops ? L(`mazao ${crops}`, `${crops} crops`) : "", targets ? L(`malengo ${targets}`, `${targets} targets`) : ""].filter(Boolean);
+    return parts.join(", ") || L("tupu", "empty");
   }
   return String(value ?? "");
 }
@@ -168,35 +169,41 @@ const trained = (section: Section) => (rs: readonly ReportRecord[]) =>
   ofType(rs, "training", section).reduce((a, r) => a + n(r.payload.men) + n(r.payload.women), 0);
 
 export const PLAN_METRICS: readonly PlanMetric[] = [
-  { key: "kilimo_mafunzo", section: "kilimo", label: "Wakulima waliopata mafunzo", unit: "watu", actual: trained("kilimo") },
+  { key: "kilimo_mafunzo", section: "kilimo", get label() { return L("Wakulima waliopata mafunzo", "Farmers trained"); }, get unit() { return L("watu", "people"); }, actual: trained("kilimo") },
   {
     key: "maziwa",
     section: "mifugo",
-    label: "Maziwa yaliyozalishwa",
-    unit: "lita",
+    get label() { return L("Maziwa yaliyozalishwa", "Milk produced"); },
+    get unit() { return L("lita", "litres"); },
     actual: (rs) => ofType(rs, "livestock_products").filter((r) => productKind(r.payload.product) === "milk").reduce((a, r) => a + n(r.payload.quantity), 0),
   },
   {
     key: "mayai",
     section: "mifugo",
-    label: "Mayai yaliyozalishwa",
-    unit: "mayai",
+    get label() { return L("Mayai yaliyozalishwa", "Eggs produced"); },
+    get unit() { return L("mayai", "eggs"); },
     actual: (rs) => ofType(rs, "livestock_products").filter((r) => productKind(r.payload.product) === "eggs").reduce((a, r) => a + n(r.payload.quantity), 0),
   },
   {
     key: "ngozi",
     section: "mifugo",
-    label: "Ngozi zilizokusanywa",
-    unit: "vipande",
+    get label() { return L("Ngozi zilizokusanywa", "Hides collected"); },
+    get unit() { return L("vipande", "pieces"); },
     actual: (rs) => ofType(rs, "livestock_products").filter((r) => productKind(r.payload.product) === "hide").reduce((a, r) => a + n(r.payload.quantity), 0),
   },
-  { key: "chanjo", section: "mifugo", label: "Mifugo iliyochanjwa / kuogeshwa", unit: "mifugo", actual: (rs) => ofType(rs, "vaccination").reduce((a, r) => a + n(r.payload.count), 0) },
-  { key: "tiba", section: "mifugo", label: "Mifugo iliyotibiwa", unit: "mifugo", actual: (rs) => ofType(rs, "livestock_treatment").reduce((a, r) => a + n(r.payload.treated), 0) },
-  { key: "machinjio", section: "mifugo", label: "Mifugo iliyochinjwa na kukaguliwa", unit: "mifugo", actual: (rs) => ofType(rs, "slaughter").reduce((a, r) => a + n(r.payload.count), 0) },
-  { key: "mifugo_mafunzo", section: "mifugo", label: "Wafugaji waliopata mafunzo", unit: "watu", actual: trained("mifugo") },
-  { key: "samaki", section: "uvuvi", label: "Samaki waliovunwa", unit: "kg", actual: (rs) => ofType(rs, "fish_farming").reduce((a, r) => a + n(r.payload.harvestKg), 0) },
-  { key: "uvuvi_mafunzo", section: "uvuvi", label: "Wafugaji wa samaki waliopata mafunzo", unit: "watu", actual: trained("uvuvi") },
+  { key: "chanjo", section: "mifugo", get label() { return L("Mifugo iliyochanjwa / kuogeshwa", "Animals vaccinated / dipped"); }, get unit() { return L("mifugo", "animals"); }, actual: (rs) => ofType(rs, "vaccination").reduce((a, r) => a + n(r.payload.count), 0) },
+  { key: "tiba", section: "mifugo", get label() { return L("Mifugo iliyotibiwa", "Animals treated"); }, get unit() { return L("mifugo", "animals"); }, actual: (rs) => ofType(rs, "livestock_treatment").reduce((a, r) => a + n(r.payload.treated), 0) },
+  { key: "machinjio", section: "mifugo", get label() { return L("Mifugo iliyochinjwa na kukaguliwa", "Animals slaughtered and inspected"); }, get unit() { return L("mifugo", "animals"); }, actual: (rs) => ofType(rs, "slaughter").reduce((a, r) => a + n(r.payload.count), 0) },
+  { key: "mifugo_mafunzo", section: "mifugo", get label() { return L("Wafugaji waliopata mafunzo", "Livestock keepers trained"); }, get unit() { return L("watu", "people"); }, actual: trained("mifugo") },
+  { key: "samaki", section: "uvuvi", get label() { return L("Samaki waliovunwa", "Fish harvested"); }, get unit() { return L("kg", "kg"); }, actual: (rs) => ofType(rs, "fish_farming").reduce((a, r) => a + n(r.payload.harvestKg), 0) },
+  { key: "uvuvi_mafunzo", section: "uvuvi", get label() { return L("Wafugaji wa samaki waliopata mafunzo", "Fish farmers trained"); }, get unit() { return L("watu", "people"); }, actual: trained("uvuvi") },
 ];
+
+// Report rows carry the Swahili label; catalogText() shows them in English when asked.
+for (const m of PLAN_METRICS) {
+  rememberText(inSwahili(() => m.label), inEnglish(() => m.label));
+  rememberText(inSwahili(() => m.unit), inEnglish(() => m.unit));
+}
 
 export const metricsFor = (section: Section) => PLAN_METRICS.filter((m) => m.section === section);
 
@@ -221,10 +228,11 @@ export function periodMonths(p: PerfPeriod): string[] {
 }
 
 const QUARTER_NAMES = ["Julai–Septemba", "Oktoba–Desemba", "Januari–Machi", "Aprili–Juni"];
+const QUARTER_NAMES_EN = ["July–September", "October–December", "January–March", "April–June"];
 
 export function periodLabel(p: PerfPeriod): string {
-  if (!p.quarter) return `Mwaka wa fedha ${p.fy} (Julai–Juni)`;
-  return `Robo ya ${p.quarter} ya ${p.fy} (${QUARTER_NAMES[p.quarter - 1]})`;
+  if (!p.quarter) return L(`Mwaka wa fedha ${p.fy} (Julai–Juni)`, `Financial year ${p.fy} (July–June)`);
+  return L(`Robo ya ${p.quarter} ya ${p.fy} (${QUARTER_NAMES[p.quarter - 1]})`, `Quarter ${p.quarter} of ${p.fy} (${QUARTER_NAMES_EN[p.quarter - 1]})`);
 }
 
 /** The quarter a month falls in. */
@@ -293,7 +301,7 @@ function latestCropFigures(records: readonly ReportRecord[], fy: string, lastMon
 
 const SECTION_TITLES: Record<Section, string> = { kilimo: "Kilimo", mifugo: "Mifugo", uvuvi: "Uvuvi" };
 
-export function buildPerformance(input: PerformanceInput): { report: Report; missing: MissingPreset[] } {
+function buildPerformanceSw(input: PerformanceInput): { report: Report; missing: MissingPreset[] } {
   const { period, asOf, records } = input;
   const months = periodMonths(period);
   const done = monthsToDate(period, asOf);
@@ -328,7 +336,12 @@ export function buildPerformance(input: PerformanceInput): { report: Report; mis
         const yieldUsed = typeof f.yield === "number" ? f.yield : tija;
         const needsTija = (area > 0 || harvestedHa > 0) && tija === undefined && typeof f.harvest !== "number";
         if (needsTija && presetDef(yieldKey(c))) {
-          missing.push({ key: yieldKey(c), label: presetDef(yieldKey(c))!.label, reason: `Kukokotoa mavuno ya ${CROP_LABEL(c)}` });
+          missing.push({
+            key: yieldKey(c),
+            // Read when shown, so they follow the language chosen then (the report itself is built in Swahili).
+            get label() { return presetDef(yieldKey(c))!.label; },
+            get reason() { return L(`Kukokotoa mavuno ya ${CROP_LABEL(c)}`, `To work out the ${CROP_LABEL(c)} harvest`); },
+          });
         }
         const target = area > 0 && tija !== undefined ? round(area * tija) : null;
         const production = typeof f.harvest === "number" ? f.harvest : harvestedHa > 0 && yieldUsed !== undefined ? round(harvestedHa * yieldUsed) : harvestedHa > 0 ? null : 0;
@@ -372,7 +385,12 @@ export function buildPerformance(input: PerformanceInput): { report: Report; mis
       const arable = input.presets[ARABLE_KEY];
       if (tPlanted > 0) {
         if (arable === undefined) {
-          missing.push({ key: ARABLE_KEY, label: "Eneo linalofaa kwa kilimo", reason: "Kuonyesha asilimia ya eneo linalofaa lililolimwa", optional: true });
+          missing.push({
+            key: ARABLE_KEY,
+            get label() { return L("Eneo linalofaa kwa kilimo", "Arable land"); },
+            get reason() { return L("Kuonyesha asilimia ya eneo linalofaa lililolimwa", "To show the share of arable land that was farmed"); },
+            optional: true,
+          });
         }
       }
 
@@ -479,3 +497,6 @@ function dedupe(xs: MissingPreset[]): MissingPreset[] {
 export function isPlanningMonth(month: string): boolean {
   return parseMonth(month).month === 7;
 }
+
+/** Official text is Swahili whatever the screen language: built inside inSwahili. */
+export const buildPerformance: typeof buildPerformanceSw = ((...args: Parameters<typeof buildPerformanceSw>) => inSwahili(() => buildPerformanceSw(...args))) as typeof buildPerformanceSw;

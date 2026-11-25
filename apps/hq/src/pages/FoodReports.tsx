@@ -8,6 +8,7 @@ import { parseAsString, useQueryState } from "nuqs";
 import { api } from "@afisa/backend/api";
 import {
   availabilityLabel,
+  catalogText,
   combineFoodReports,
   currentFoodReport,
   foodCycle,
@@ -23,12 +24,12 @@ import { Reader, type ReaderDoc } from "../reader/Reader";
 import { MissingReports, ReopenReport, SectionTags, SendTags, when } from "./common";
 
 const tsh = (n: number) => n.toLocaleString("en-US");
-const AVAIL_EN: Record<string, string> = { wingi: "Plenty", wastani: "Average", haba: "Scarce", haipatikani: "Not available" };
 
 export function FoodReports() {
   const t = useT();
   const lang = useLang();
-  const avail = (v: string | null | undefined) => (v ? (lang === "en" ? (AVAIL_EN[v] ?? v) : availabilityLabel(v)) : "");
+  // Availability and saved Swahili item names follow the language chosen.
+  const avail = (v: string | null | undefined) => availabilityLabel(v);
   const { councilId, councilFullName: councilName } = useHq();
   const current = currentFoodReport(Date.now()).period;
   const periods = useQuery(api.submissions.periodsForHq, { councilId, kind: "food_prices" });
@@ -57,7 +58,7 @@ export function FoodReports() {
       t("Bidhaa", "Item"), t("Kipimo", "Unit"), t("Wastani (Tsh)", "Average (Tsh)"), t("Chini", "Low"), t("Juu", "High"),
       t("Kata", "Wards"), t("Bei zilizoandikwa", "Prices recorded"), t("Upatikanaji", "Availability"),
     ].join("\t");
-    const body = combined.map((r) => [r.commodity, r.unit, r.average, r.min, r.max, r.wards, r.prices, avail(r.availability)].join("\t"));
+    const body = combined.map((r) => [catalogText(r.commodity), catalogText(r.unit), r.average, r.min, r.max, r.wards, r.prices, avail(r.availability)].join("\t"));
     try {
       await navigator.clipboard.writeText([head, ...body].join("\n"));
       setCopied(true);
@@ -118,8 +119,8 @@ export function FoodReports() {
             <tbody>
               {combined.map((r) => (
                 <tr key={`${r.commodity}|${r.unit}`}>
-                  <td><strong>{r.commodity}</strong></td>
-                  <td>{r.unit}</td>
+                  <td><strong>{catalogText(r.commodity)}</strong></td>
+                  <td>{catalogText(r.unit)}</td>
                   <td className="num"><strong>{tsh(r.average)}</strong></td>
                   <td className="num small">{r.min === r.max ? "" : `${tsh(r.min)}–${tsh(r.max)}`}</td>
                   <td className="num">{r.wards}</td>
@@ -174,8 +175,8 @@ export function FoodReports() {
                       <tbody>
                         {r.payload.rows.map((row) => (
                           <tr key={`${row.commodity}|${row.unit}`}>
-                            <td>{row.commodity}</td>
-                            <td>{row.unit}</td>
+                            <td>{catalogText(row.commodity)}</td>
+                            <td>{catalogText(row.unit)}</td>
                             <td className="num">{tsh(row.average)}</td>
                             <td className="num small">{row.min === row.max ? "" : `${tsh(row.min)}–${tsh(row.max)}`}</td>
                             <td className="num">{row.count}</td>

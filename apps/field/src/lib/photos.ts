@@ -11,7 +11,7 @@ import { useConvexAuth } from "convex/react";
 import { ConvexError } from "convex/values";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
-import { fitWithin, MEDIA_KEEP_ON_PHONE_DAYS, MEDIA_MAX_EDGE, MEDIA_THUMB_EDGE, type PhotoShot } from "@afisa/shared";
+import { fitWithin, MEDIA_KEEP_ON_PHONE_DAYS, MEDIA_MAX_EDGE, MEDIA_THUMB_EDGE, type PhotoShot, L } from "@afisa/shared";
 import { clientMeta, convex } from "./client";
 import { db, getMeta, setMeta, type LocalMedia } from "./db";
 
@@ -42,7 +42,7 @@ function draw(img: ImageBitmap, max: number): HTMLCanvasElement {
   canvas.width = size.width;
   canvas.height = size.height;
   const g = canvas.getContext("2d");
-  if (!g) throw new Error("Simu hii haiwezi kuchakata picha.");
+  if (!g) throw new Error(L("Simu hii haiwezi kuchakata picha.", "This phone cannot process photos."));
   g.imageSmoothingQuality = "high";
   g.drawImage(img, 0, 0, size.width, size.height);
   return canvas;
@@ -152,12 +152,12 @@ export async function pushMedia(councilId: string): Promise<void> {
       continue;
     }
     if (record.syncState === "rejected") {
-      await db.media.update(m.clientId, { syncState: "rejected", rejectReason: "Kumbukumbu yake ilikataliwa." });
+      await db.media.update(m.clientId, { syncState: "rejected", rejectReason: L("Kumbukumbu yake ilikataliwa.", "Its record was rejected.") });
       continue;
     }
     if (record.syncState !== "synced") continue; // the record goes first
     if (!m.blob) {
-      await db.media.update(m.clientId, { syncState: "rejected", rejectReason: "Picha haipo tena kwenye simu." });
+      await db.media.update(m.clientId, { syncState: "rejected", rejectReason: L("Picha haipo tena kwenye simu.", "The photo is no longer on the phone.") });
       continue;
     }
     if (wifiOnly && onMobileData()) return;
@@ -166,7 +166,7 @@ export async function pushMedia(councilId: string): Promise<void> {
     if (!storageId) {
       const uploadUrl = await convex.mutation(api.media.generateUploadUrl, { councilId: cid, client: await clientMeta() });
       const res = await fetch(uploadUrl, { method: "POST", headers: { "Content-Type": "image/jpeg" }, body: m.blob });
-      if (!res.ok) throw new Error(`Upakiaji wa picha umeshindwa (${res.status}).`);
+      if (!res.ok) throw new Error(L(`Upakiaji wa picha umeshindwa (${res.status}).`, `Photo upload failed (${res.status}).`));
       storageId = ((await res.json()) as { storageId: string }).storageId;
       await db.media.update(m.clientId, { storageId });
     }
