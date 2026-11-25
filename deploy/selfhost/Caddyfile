@@ -1,0 +1,45 @@
+{
+	email {$ACME_EMAIL}
+	# Demo on a LAN with no internet: uncomment the next line so Caddy issues
+	# its own certificates (see docs/SELFHOST.md, "Offline demo").
+	# local_certs
+}
+
+# Static PWA hosting shared by Field and HQ.
+(spa) {
+	encode zstd gzip
+	# Never cache the app shell or service worker, so a new build reaches
+	# officers on their next visit.
+	@shell path / /index.html /sw.js /registerSW.js /manifest.webmanifest
+	header @shell Cache-Control "no-cache"
+	# Hashed build output can be cached forever.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000"
+	}
+	try_files {path} /index.html
+	file_server
+}
+
+# Convex API, realtime websocket and file uploads.
+api.{$DOMAIN} {
+	reverse_proxy backend:3210
+}
+
+# Convex HTTP actions (unused today, routed so CONVEX_SITE_ORIGIN is real).
+site.{$DOMAIN} {
+	reverse_proxy backend:3211
+}
+
+field.{$DOMAIN} {
+	root * /srv/field
+	import spa
+}
+
+hq.{$DOMAIN} {
+	root * /srv/hq
+	import spa
+}

@@ -1,0 +1,79 @@
+# Afisa Ugani backend on a laptop (Ubuntu). The Field and HQ apps stay on Vercel.
+#
+#   postgres   the database, on this laptop's disk
+#   backend    the open-source Convex backend (same engine as Convex Cloud)
+#   dashboard  Convex admin dashboard at http://127.0.0.1:6791
+#
+# Nothing listens on the network. Tailscale Funnel publishes the backend as
+# https://<laptop>.<tailnet>.ts.net, and TLS ends on this laptop.
+#
+# Start with ./start.sh, not by hand.
+name: afisa-laptop
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: convex
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run ./start.sh}
+      # Must equal INSTANCE_NAME below with "-" turned into "_".
+      POSTGRES_DB: afisa_ugani
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U convex -d afisa_ugani"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    image: ghcr.io/convex/convex-backend:${CONVEX_VERSION:-latest}
+    restart: unless-stopped
+    stop_grace_period: 10s
+    stop_signal: SIGINT
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - convexdata:/convex/data
+    ports:
+      - "127.0.0.1:3210:3210"
+      - "127.0.0.1:3211:3211"
+    environment:
+      INSTANCE_NAME: afisa-ugani
+      INSTANCE_SECRET: ${INSTANCE_SECRET:?run ./start.sh}
+      POSTGRES_URL: postgresql://convex:${POSTGRES_PASSWORD}@postgres:5432
+      DO_NOT_REQUIRE_SSL: "1"
+      # Public addresses through Tailscale Funnel. Convex Auth checks sign-in
+      # tokens against https://<TS_HOST>/.well-known/jwks.json, so the backend
+      # must be able to reach this address (start.sh tests it).
+      CONVEX_CLOUD_ORIGIN: https://${TS_HOST:?run ./start.sh}
+      CONVEX_SITE_ORIGIN: https://${TS_HOST}:8443
+      DISABLE_BEACON: "true"
+      DISABLE_METRICS_ENDPOINT: "true"
+      REDACT_LOGS_TO_CLIENT: "true"
+      DOCUMENT_RETENTION_DELAY: "172800"
+      RUST_LOG: ${RUST_LOG:-info}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3210/version"]
+      interval: 5s
+      start_period: 15s
+      retries: 30
+
+  dashboard:
+    image: ghcr.io/convex/convex-dashboard:${CONVEX_VERSION:-latest}
+    restart: unless-stopped
+    stop_grace_period: 10s
+    stop_signal: SIGINT
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:6791:6791"
+    environment:
+      NEXT_PUBLIC_DEPLOYMENT_URL: http://127.0.0.1:3210
+
+volumes:
+  pgdata:
+  convexdata:

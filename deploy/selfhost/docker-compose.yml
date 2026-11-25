@@ -1,0 +1,108 @@
+# Afisa Ugani on one server in Tanzania.
+#
+#   postgres   the database (all data stays on this machine)
+#   backend    the open-source Convex backend: the same engine as Convex Cloud,
+#              so queries, mutations, realtime subscriptions, file storage,
+#              crons and Convex Auth all work with no code changes
+#   dashboard  Convex admin dashboard, reachable only through an SSH tunnel
+#   caddy      HTTPS (Let's Encrypt) for the API and for the Field and HQ apps
+#
+# Start with ./setup.sh, not by hand: it generates the secrets first.
+name: afisa-ugani
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: convex
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run ./setup.sh first}
+      # Must equal INSTANCE_NAME below with "-" turned into "_".
+      POSTGRES_DB: afisa_ugani
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U convex -d afisa_ugani"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    # Pin to a tag (e.g. a git sha from ghcr.io/convex/convex-backend) once the
+    # demo works, and always use the same tag for backend and dashboard.
+    image: ghcr.io/convex/convex-backend:${CONVEX_VERSION:-latest}
+    restart: unless-stopped
+    stop_grace_period: 10s
+    stop_signal: SIGINT
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Uploaded photos and documents (ctx.storage) live here.
+      - convexdata:/convex/data
+    ports:
+      # Local only: for the dashboard tunnel and debugging. The public reaches
+      # the backend through Caddy.
+      - "127.0.0.1:3210:3210"
+    environment:
+      INSTANCE_NAME: afisa-ugani
+      INSTANCE_SECRET: ${INSTANCE_SECRET:?run ./setup.sh first}
+      POSTGRES_URL: postgresql://convex:${POSTGRES_PASSWORD}@postgres:5432
+      DO_NOT_REQUIRE_SSL: "1"
+      # Public addresses. Convex Auth reads CONVEX_CLOUD_URL (derived from this)
+      # to find the token issuer and https://api.<domain>/.well-known/jwks.json.
+      CONVEX_CLOUD_ORIGIN: https://api.${DOMAIN:?set DOMAIN in .env}
+      CONVEX_SITE_ORIGIN: https://site.${DOMAIN}
+      DISABLE_BEACON: "true"
+      DISABLE_METRICS_ENDPOINT: "true"
+      REDACT_LOGS_TO_CLIENT: "true"
+      DOCUMENT_RETENTION_DELAY: "172800"
+      RUST_LOG: ${RUST_LOG:-info}
+    extra_hosts:
+      # The backend fetches its own JWKS over HTTPS to check sign-in tokens.
+      # Point its own domain at this host so that works even where the router
+      # cannot loop public traffic back in (common on office networks).
+      - "api.${DOMAIN}:host-gateway"
+      - "site.${DOMAIN}:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3210/version"]
+      interval: 5s
+      start_period: 15s
+      retries: 30
+
+  dashboard:
+    image: ghcr.io/convex/convex-dashboard:${CONVEX_VERSION:-latest}
+    restart: unless-stopped
+    stop_grace_period: 10s
+    stop_signal: SIGINT
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:6791:6791"
+    environment:
+      NEXT_PUBLIC_DEPLOYMENT_URL: https://api.${DOMAIN}
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./www:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  convexdata:
+  caddy_data:
+  caddy_config:
