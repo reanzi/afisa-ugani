@@ -21,7 +21,7 @@ import {
   type TableBlock,
   type TextBlock,
 } from "@afisa/shared";
-import { errorMessage, ReportView, useLabel, useT, type T } from "@afisa/ui";
+import { errorMessage, ReportView, useLabel, useT, type T, Glide } from "@afisa/ui";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
 import { useAreaLabel } from "../lib/report";
@@ -173,6 +173,7 @@ export function Performance() {
             {p === "mwaka" ? t("Mwaka", "Year") : t(`Robo ${p}`, `Q${p}`)}
           </button>
         ))}
+        <Glide />
       </div>
 
       {noPlan.length > 0 && (

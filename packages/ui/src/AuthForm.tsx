@@ -7,6 +7,7 @@
  * saves them (takePendingProfile).
  */
 import { useState, type FormEvent, type ReactNode } from "react";
+import { Glide } from "./Glide.tsx";
 import {
   cleanName,
   normalizeCheckNumber,
@@ -114,6 +115,7 @@ export function AuthForm({
       <button type="button" role="tab" aria-selected={registering} onClick={() => switchTo(true)}>
         {t("Fungua akaunti", "Create account")}
       </button>
+      <Glide />
     </div>
   );
 
@@ -135,6 +137,7 @@ export function AuthForm({
         <button type="button" role="tab" aria-selected={registering} onClick={() => switchTo(true)}>
           {t("Fungua akaunti", "Create account")}
         </button>
+        <Glide />
       </div>
 
       {registering && (

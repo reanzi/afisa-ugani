@@ -8,7 +8,7 @@ import { useQuery } from "convex/react";
 import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { api } from "@afisa/backend/api";
 import { partHasData, SECTION_LABELS, shiftWeek, weekKey, weekLabel, weeklyKind, weeklyWindow, WEEKLY_SECTIONS, type Report } from "@afisa/shared";
-import { errorMessage, IconDownload, Select, useLabel, useLang, useT } from "@afisa/ui";
+import { errorMessage, IconDownload, Select, useLabel, useLang, useT, Glide } from "@afisa/ui";
 import { useHq } from "../context";
 import { Reader, type ReaderDoc } from "../reader/Reader";
 import { MissingReports, ReopenReport, SendTags, when } from "./common";
@@ -81,6 +81,7 @@ export function WeeklyReports() {
                 {label(SECTION_LABELS[s])}
               </button>
             ))}
+            <Glide />
           </div>
           <div className="field inline">
             <span id="f-wiki">{t("Wiki", "Week")}</span>

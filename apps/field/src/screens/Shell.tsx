@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from "react-router";
-import { clock, useT } from "@afisa/ui";
+import { clock, useT, Glide } from "@afisa/ui";
 import { useOnline, useWork } from "../lib/session";
 import { requestSync, useSyncEngine } from "../lib/sync";
 import { IconLog, IconMe, IconReport, IconToday } from "./icons";
@@ -79,6 +79,7 @@ export function Shell() {
               )}
             </NavLink>
           ))}
+          <Glide target=".tab-icon" />
         </nav>
       </footer>
     </div>

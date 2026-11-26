@@ -8,7 +8,7 @@ import { Link } from "react-router";
 import { useLiveQuery } from "dexie-react-hooks";
 import { v7 as uuidv7 } from "uuid";
 import { partHasData, PAYLOAD_VERSION, SECTION_LABELS, shiftWeek, weekLabel, weeklyKind, weeklyWindow, type Report as ArdsReport } from "@afisa/shared";
-import { ConfirmDialog, errorMessage, ReportView, shortDate, useLabel, useT } from "@afisa/ui";
+import { ConfirmDialog, errorMessage, ReportView, shortDate, useLabel, useT, Glide } from "@afisa/ui";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
@@ -91,6 +91,7 @@ export function WeeklyReport() {
               {label(SECTION_LABELS[s])}
             </button>
           ))}
+          <Glide />
         </div>
       )}
 

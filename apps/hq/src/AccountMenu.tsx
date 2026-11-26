@@ -5,7 +5,7 @@
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { displayName, initialsOf, titleCaseName } from "@afisa/shared";
-import { IconLogout, LANGS, setLang, setThemeChoice, useLang, useT, useTheme, type ThemeChoice } from "@afisa/ui";
+import { IconLogout, LANGS, setLang, setThemeChoice, useLang, useT, useTheme, type ThemeChoice, Glide } from "@afisa/ui";
 
 const Chevron = () => (
   <svg className="acct-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -122,6 +122,7 @@ export function AccountMenu({
                   {x.label}
                 </button>
               ))}
+              <Glide />
             </div>
           </div>
 
@@ -133,6 +134,7 @@ export function AccountMenu({
                   {l.label}
                 </button>
               ))}
+              <Glide />
             </div>
           </div>
 

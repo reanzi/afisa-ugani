@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { v7 as uuidv7 } from "uuid";
 import { commodityKey, commodityLabel, PAYLOAD_VERSION, PRICE_UNITS, SUGGEST_FOODS, labelOf } from "@afisa/shared";
-import { IconTrash, IconUndo, relativeWhen, shortDate, SuggestInput, useT } from "@afisa/ui";
+import { IconTrash, IconUndo, relativeWhen, shortDate, SuggestInput, useT, Glide } from "@afisa/ui";
 import { db, getMeta, setMeta } from "../lib/db";
 import { useWork } from "../lib/session";
 import { requestSync } from "../lib/sync";
@@ -150,6 +150,7 @@ export function FoodPrices() {
               {PLACES.map((p) => (
                 <button key={p.value} type="button" aria-pressed={place === p.value} onClick={() => setPlace(p.value)}>{t(p.label[0], p.label[1])}</button>
               ))}
+              <Glide />
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { useLiveQuery } from "dexie-react-hooks";
 import { v7 as uuidv7 } from "uuid";
 import { monthKey, monthLabel, monthlyWindow, partHasData, PAYLOAD_VERSION, shiftMonth, type Report as ArdsReport } from "@afisa/shared";
-import { ConfirmDialog, errorMessage, ReportView, shortDate, useT } from "@afisa/ui";
+import { ConfirmDialog, errorMessage, ReportView, shortDate, useT, Glide } from "@afisa/ui";
 import { useAreaLabel, useMonthlyReport } from "../lib/report";
 import { db } from "../lib/db";
 import { useWork } from "../lib/session";
@@ -217,6 +217,7 @@ export function Report() {
         {weekly && <button role="tab" aria-selected={kind === "wiki"} onClick={() => void setKind("wiki")}>{t("Wiki", "Weekly")}</button>}
         <button role="tab" aria-selected={kind === "malengo"} onClick={() => void setKind("malengo")}>{t("Malengo", "Targets")}</button>
         <button role="tab" aria-selected={kind === "chakula"} onClick={() => void setKind("chakula")}>{t("Chakula", "Food")}</button>
+        <Glide />
       </div>
       {kind === "mwezi" ? (
         <MonthlyReport />

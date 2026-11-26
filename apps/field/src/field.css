@@ -2000,3 +2000,32 @@ fieldset.plain legend {
   background: var(--surface-sunk);
   font-weight: 600;
 }
+
+/* ---------- Motion ---------- */
+/* Bottom tabs: the maize pill slides between icons. */
+.tabs > .glide {
+  background: var(--maize);
+  box-shadow: none;
+}
+.tabs.has-glide a.active .tab-icon {
+  background: transparent;
+}
+.tabs.has-glide a.active:active .tab-icon {
+  background: var(--maize-press);
+}
+.tab-icon {
+  transition:
+    background-color 0.15s,
+    color 0.2s ease;
+}
+.theme-option,
+.unit-grid button,
+.shot-pick button,
+.toggle-2 button,
+.period-pick button {
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}

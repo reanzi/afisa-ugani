@@ -3,6 +3,7 @@
  * is an account menu to hold them. The theme starts on "system".
  */
 import { LANGS, setLang, useLang, useT } from "./i18n";
+import { Glide } from "./Glide.tsx";
 import { setThemeChoice, useTheme, type ThemeChoice } from "./theme";
 
 const svg = (d: string) => (
@@ -33,6 +34,7 @@ export function AuthPrefs({ className }: { className?: string }) {
             {l.short}
           </button>
         ))}
+        <Glide />
       </div>
       <div className="pref-seg" role="group" aria-label={t("Mwonekano", "Appearance")}>
         {themes.map((th) => (
@@ -47,6 +49,7 @@ export function AuthPrefs({ className }: { className?: string }) {
             {ICONS[th.value]}
           </button>
         ))}
+        <Glide />
       </div>
     </div>
   );

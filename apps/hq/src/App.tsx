@@ -4,7 +4,7 @@ import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
 import { api } from "@afisa/backend/api";
 import type { Id } from "@afisa/backend/dataModel";
 import { isHqRole, ROLE_LABELS, type Actor } from "@afisa/shared";
-import { ConfirmProvider, FitText, PolicyView, Select, useLabel, useT, useTheme, type T } from "@afisa/ui";
+import { ConfirmProvider, FitText, PolicyView, Select, useLabel, useT, useTheme, type T, Glide } from "@afisa/ui";
 import { HqContext, useHq, type Me } from "./context";
 import { Requests } from "./pages/Requests";
 import { Members } from "./pages/Members";
@@ -104,6 +104,7 @@ function Main() {
             <button aria-current={tab !== "akaunti" && tab !== "sera" ? "page" : undefined} onClick={showAllCouncils}>
               {NAV_ICONS.halmashauri}<span>{tabLabel(t, "halmashauri")}</span>
             </button>
+            <Glide />
           </nav>
           <AccountMenu
             name={me.name}
@@ -151,6 +152,7 @@ function Main() {
                 {NAV_ICONS.halmashauri}
                 <span>{tabLabel(t, "halmashauri")}</span>
               </button>
+              <Glide />
             </nav>
           )}
           {(isRoot || councils.length > 1) && (
@@ -178,6 +180,7 @@ function Main() {
                 {x === "viwango" && <PendingPresets />}
               </button>
             ))}
+            <Glide />
           </nav>
           {!inSystem && <SectionCodes />}
           <AccountMenu

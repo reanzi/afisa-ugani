@@ -14,3 +14,4 @@ export * from "./FitText.tsx";
 export * from "./JoinWizard.tsx";
 export * from "./DatePicker.tsx";
 export * from "./AuthPrefs.tsx";
+export * from "./Glide.tsx";

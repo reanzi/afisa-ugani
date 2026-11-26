@@ -1232,3 +1232,85 @@ textarea {
   color: var(--ink);
   box-shadow: var(--shadow-lift);
 }
+
+/* ---------- Motion: sliding highlight for tabs, switches and menus ---------- */
+
+:root {
+  --ease-glide: cubic-bezier(0.3, 0.7, 0.2, 1);
+}
+.has-glide {
+  position: relative;
+  isolation: isolate;
+}
+.has-glide > :not(.glide) {
+  position: relative;
+  z-index: 1;
+}
+.glide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lift), 0 1px 3px rgb(0 0 0 / 0.12);
+}
+.glide[data-ready] {
+  transition:
+    transform 0.32s var(--ease-glide),
+    width 0.32s var(--ease-glide),
+    height 0.32s var(--ease-glide),
+    opacity 0.2s ease;
+}
+/* The highlight replaces each container's own "active" fill (the rules for
+ * those differ in strength, hence !important). */
+.has-glide > [aria-selected="true"],
+.has-glide > [aria-pressed="true"],
+.has-glide > [aria-current="page"] {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+.has-glide > button,
+.has-glide > a {
+  transition: color 0.2s ease;
+}
+
+/* Option cards and chips: ease between states instead of snapping. */
+.chip,
+.sel-option,
+.btn {
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+/* On/off switch: a little spring in the thumb. */
+.switch-track {
+  transition: background-color 0.22s ease;
+}
+.switch-thumb {
+  transition: transform 0.28s cubic-bezier(0.3, 1.35, 0.5, 1), width 0.18s ease;
+}
+.switch:active .switch-thumb {
+  width: 30px;
+}
+.switch[aria-checked="true"]:active .switch-thumb {
+  transform: translateX(20px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glide[data-ready],
+  .has-glide > button,
+  .has-glide > a,
+  .chip,
+  .sel-option,
+  .btn,
+  .switch-track,
+  .switch-thumb {
+    transition: none;
+  }
+}

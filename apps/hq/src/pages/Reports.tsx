@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
-import { useT } from "@afisa/ui";
+import { useT, Glide } from "@afisa/ui";
 import { FoodReports } from "./FoodReports";
 import { MonthlyReports } from "./MonthlyReports";
 import { WeeklyReports } from "./WeeklyReports";
@@ -31,6 +31,7 @@ export function Reports() {
           <button role="tab" aria-selected={kind === "mwaka"} onClick={() => void setKind("mwaka")}>{t("Za mwaka", "Annual")}</button>
           <button role="tab" aria-selected={kind === "wiki"} onClick={() => void setKind("wiki")}>{t("Ripoti za wiki", "Weekly reports")}</button>
           <button role="tab" aria-selected={kind === "chakula"} onClick={() => void setKind("chakula")}>{t("Chakula na bei", "Food and prices")}</button>
+          <Glide />
         </div>
         <button type="button" className="btn btn-quiet btn-small" onClick={() => file.current?.click()}>
           {t("Soma PDF", "Read a PDF")}

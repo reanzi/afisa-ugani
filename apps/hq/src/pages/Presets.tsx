@@ -20,7 +20,7 @@ import {
   yieldKey,
   type ProductionPlan,
 } from "@afisa/shared";
-import { Dialog, errorMessage, useT } from "@afisa/ui";
+import { Dialog, errorMessage, useT, Glide } from "@afisa/ui";
 import { hqClient, useHq } from "../context";
 import { SectionTags, when } from "./common";
 
@@ -235,6 +235,7 @@ export function Presets() {
           </button>
           <button role="tab" aria-selected={filter === "zote"} onClick={() => void setFilter("zote")}>{t("Za maafisa wote", "All officers'")}</button>
           <button role="tab" aria-selected={filter === "halmashauri"} onClick={() => void setFilter("halmashauri")}>{t("Za halmashauri", "Council-wide")}</button>
+          <Glide />
         </div>
       </header>
 

@@ -953,6 +953,35 @@ button.badge {
   }
 }
 
+/* ---------- Segmented switch (e.g. Livestock / Crops) ---------- */
+/* The sign-in card and the report tabs refine this further below. */
+.segmented {
+  display: inline-flex;
+  padding: 4px;
+  gap: 4px;
+  border-radius: 12px;
+  background: var(--surface-sunk);
+}
+.segmented button {
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.segmented button:hover {
+  color: var(--ink);
+}
+.segmented button[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-lift);
+}
+
 /* ---------- Reports: kinds, send tags, missing ---------- */
 .report-kinds {
   display: inline-flex;
@@ -974,6 +1003,7 @@ button.badge {
 }
 .report-kinds button[aria-selected="true"] {
   background: var(--surface);
+  color: var(--ink);
   box-shadow: var(--shadow-lift);
 }
 .send-tags {
@@ -2309,4 +2339,21 @@ button.badge.inline {
 }
 .table tr.is-muted td {
   color: var(--ink-soft);
+}
+
+/* ---------- Motion ---------- */
+/* Side menu: the active marker (fill + maize edge) slides between links. */
+.hq-nav > .glide {
+  background: var(--surface-sunk);
+  box-shadow: inset 5px 0 0 var(--maize);
+}
+.hq-nav button {
+  transition: color 0.2s ease;
+}
+.ward-list button,
+.ap-wards button {
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
 }
