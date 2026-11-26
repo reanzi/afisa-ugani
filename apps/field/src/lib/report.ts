@@ -41,7 +41,7 @@ export function useAreaLabel(): string {
   return named.join(", ") || membership.councilName;
 }
 
-export function useMonthlyReport(month: string): { report: Report | undefined; review: MonthlyReview | null } {
+export function useMonthlyReport(month: string): { report: Report | undefined; base: Report | undefined; review: MonthlyReview | null } {
   const { me, councilId } = useWork();
   const approved = useApproved(councilId);
   const { byId } = useMyAreas();
@@ -50,20 +50,24 @@ export function useMonthlyReport(month: string): { report: Report | undefined; r
   const areaLabel = useAreaLabel();
   const review = (reviewRec && !reviewRec.deletedAt ? (reviewRec.payload as MonthlyReview) : null) ?? null;
 
-  const report = useMemo(() => {
-    if (!records || !approved) return undefined;
-    return buildMonthlyReport({
+  const built = useMemo(() => {
+    if (!records || !approved) return { report: undefined, base: undefined };
+    const input = {
       month,
       yields: approved.yields,
       plan: approved.plans[financialYear(month)]?.kilimo ?? null,
       records,
-      review,
       areaLabel,
       officerName: me.name ?? "",
       phone: me.phone,
-      areaName: (id) => byId.get(id)?.name,
-    });
+      areaName: (id: string) => byId.get(id)?.name,
+    };
+    return {
+      report: buildMonthlyReport({ ...input, review }),
+      // Without the officer's additions: what the additions editor builds on.
+      base: buildMonthlyReport({ ...input, review: review ? { ...review, additions: undefined } : null }),
+    };
   }, [records, review, month, areaLabel, me.name, me.phone, byId, approved]);
 
-  return { report, review };
+  return { ...built, review };
 }

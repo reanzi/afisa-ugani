@@ -23,14 +23,29 @@ import {
   weeklyWindow,
   weekRange,
   type WeeklyKind,
-  type Target, presentName
+  type Target, presentName,
+  annualWindow,
+  fyKeyMonths,
+  isFyKey,
+  isQuarterKey,
+  periodRange,
+  quarterlyWindow,
+  quarterMonths,
+  validatePeriodicReport,
 } from "@afisa/shared";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { fail, hiddenUserIds, hqMutation, hqQuery, memberMutation, memberQuery, type MemberViewer } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
 
-export const vKind = v.union(v.literal("food_prices"), v.literal("monthly"), v.literal("weekly_mifugo"), v.literal("weekly_kilimo"));
+export const vKind = v.union(
+  v.literal("food_prices"),
+  v.literal("monthly"),
+  v.literal("weekly_mifugo"),
+  v.literal("weekly_kilimo"),
+  v.literal("quarterly"),
+  v.literal("annual"),
+);
 type Kind = Doc<"submissions">["kind"];
 export const isWeeklyKind = (k: Kind): k is WeeklyKind => k === "weekly_mifugo" || k === "weekly_kilimo";
 
@@ -45,12 +60,16 @@ const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 /** Due date of a report, in council wall-clock time (see toCouncilWallClock). */
 export function dueOf(kind: Kind, period: string): number {
   if (isWeeklyKind(kind)) return weeklyWindow(period).due;
+  if (kind === "quarterly") return quarterlyWindow(period).due;
+  if (kind === "annual") return annualWindow(period).due;
   return kind === "food_prices" ? foodCycle(period).due : monthlyWindow(period).due;
 }
 
 /** [start, end) of a report's period, in council wall-clock time. */
 export function windowOf(kind: Kind, period: string): { start: number; end: number } {
   if (isWeeklyKind(kind)) return weekRange(period);
+  if (kind === "quarterly") return periodRange(quarterMonths(period));
+  if (kind === "annual") return periodRange(fyKeyMonths(period));
   return kind === "monthly" ? monthRange(period) : foodCycle(period);
 }
 
@@ -87,17 +106,32 @@ export const submit = memberMutation({
     const { viewer } = ctx;
     if (!UUID_RE.test(args.clientId)) fail("INVALID", "Kitambulisho cha ripoti si sahihi.");
     const weekly = isWeeklyKind(args.kind);
-    if (weekly ? !isWeekKey(args.period) : !PERIOD_RE.test(args.period)) fail("INVALID", "Kipindi cha ripoti si sahihi.");
+    const periodOk = weekly
+      ? isWeekKey(args.period)
+      : args.kind === "quarterly"
+        ? isQuarterKey(args.period)
+        : args.kind === "annual"
+          ? isFyKey(args.period)
+          : PERIOD_RE.test(args.period);
+    if (!periodOk) fail("INVALID", "Kipindi cha ripoti si sahihi.");
     const problem = isWeeklyKind(args.kind)
       ? validateWeeklyReport(args.payload, args.period, weeklySectionOf(args.kind))
       : args.kind === "food_prices"
         ? validateFoodReport(args.payload)
-        : validateMonthlyReport(args.payload, args.period);
+        : args.kind === "quarterly" || args.kind === "annual"
+          ? validatePeriodicReport(args.payload, args.kind, args.period)
+          : validateMonthlyReport(args.payload, args.period);
     if (problem) fail("INVALID", `Ripoti haijakamilika (${problem}).`);
 
     const now = toCouncilWallClock(Date.now());
     if (args.kind === "monthly" && now < monthlyWindow(args.period).opens) {
       fail("INVALID", "Ripoti ya mwezi hutumwa baada ya mwezi kuisha.");
+    }
+    if (args.kind === "quarterly" && now < quarterlyWindow(args.period).opens) {
+      fail("INVALID", "Ripoti ya robo hutumwa kuanzia tarehe 15 ya mwezi wa mwisho wa robo.");
+    }
+    if (args.kind === "annual" && now < annualWindow(args.period).opens) {
+      fail("INVALID", "Ripoti ya mwaka hutumwa kuanzia tarehe 1 Juni.");
     }
     if (isWeeklyKind(args.kind)) {
       const section = weeklySectionOf(args.kind);
@@ -220,7 +254,7 @@ export const mine = memberQuery({
   args: { kind: v.optional(vKind) },
   handler: async (ctx, { kind }) => {
     const { viewer } = ctx;
-    const kinds = kind ? [kind] : (["food_prices", "monthly", "weekly_mifugo", "weekly_kilimo"] as const);
+    const kinds = kind ? [kind] : (["food_prices", "monthly", "weekly_mifugo", "weekly_kilimo", "quarterly", "annual"] as const);
     const out = [];
     for (const k of kinds) {
       const rows = await ctx.db

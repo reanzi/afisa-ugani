@@ -132,3 +132,15 @@
   min-width: 96px;
   max-width: 160px;
 }
+
+/* A value the officer typed in at the period's end (not built from records). */
+.rv-typed {
+  margin-left: 3px;
+  color: var(--wait);
+  font-size: 0.8em;
+  font-weight: 700;
+}
+td.is-typed,
+th.is-typed {
+  background: var(--wait-ground);
+}

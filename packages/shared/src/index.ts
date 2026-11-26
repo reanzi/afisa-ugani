@@ -17,3 +17,7 @@ export * from "./lang.ts";
 export * from "./report/weekly.ts";
 export * from "./fertilizer.ts";
 export * from "./slaughterhouses.ts";
+export * from "./report/additions.ts";
+export * from "./report/forms.ts";
+export * from "./report/quarterly.ts";
+export * from "./report/annual.ts";

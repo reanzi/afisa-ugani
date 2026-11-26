@@ -1,10 +1,17 @@
-import type { Block, Cell, Report, TableBlock } from "@afisa/shared";
+import { isTyped, TYPED_MARK, type Block, type Cell, type Report, type TableBlock } from "@afisa/shared";
 import { useT } from "./i18n";
 
 export function formatCell(c: Cell): string {
   if (c === null || c === "") return "";
   if (typeof c === "number") return c.toLocaleString("en-US", { maximumFractionDigits: 2 });
   return c;
+}
+
+/** A typed-in value: the officer added it at the period's end, not from records. */
+function Typed() {
+  const t = useT();
+  const label = t("Imeongezwa na afisa", "Added by the officer");
+  return <span className="rv-typed" title={label} aria-label={label}>{TYPED_MARK}</span>;
 }
 
 function TableView({ block }: { block: TableBlock }) {
@@ -31,13 +38,17 @@ function TableView({ block }: { block: TableBlock }) {
         <tbody>
           {block.rows.map((row, r) => (
             <tr key={r} className={block.totalRows?.includes(r) ? "rv-total" : undefined}>
-              {row.map((cell, i) =>
-                i === 0 ? (
-                  <th key={i} scope="row">{formatCell(cell)}</th>
+              {row.map((cell, i) => {
+                const typed = isTyped(block, r, i) && formatCell(cell) !== "";
+                return i === 0 ? (
+                  <th key={i} scope="row" className={typed ? "is-typed" : undefined}>{formatCell(cell)}{typed && <Typed />}</th>
                 ) : (
-                  <td key={i} className={typeof cell === "number" ? "num" : undefined}>{formatCell(cell)}</td>
-                ),
-              )}
+                  <td key={i} className={[typeof cell === "number" ? "num" : "", typed ? "is-typed" : ""].filter(Boolean).join(" ") || undefined}>
+                    {formatCell(cell)}
+                    {typed && <Typed />}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>

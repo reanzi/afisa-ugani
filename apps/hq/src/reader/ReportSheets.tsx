@@ -2,7 +2,7 @@
  * A report laid out as paper: the form's header on the first sheet, then one
  * sheet per part, then the photos that came with the report.
  */
-import type { Block, Report, TableBlock } from "@afisa/shared";
+import { isTyped, TYPED_MARK, type Block, type Report, type TableBlock } from "@afisa/shared";
 import { formatCell, useT, monthDay } from "@afisa/ui";
 
 export type ReaderPhoto = {
@@ -46,13 +46,19 @@ function SheetTable({ block }: { block: TableBlock }) {
       <tbody>
         {block.rows.map((row, r) => (
           <tr key={r} className={block.totalRows?.includes(r) ? "is-total" : undefined}>
-            {row.map((cell, i) =>
-              i === 0 ? (
-                <th key={i} scope="row">{formatCell(cell)}</th>
+            {row.map((cell, i) => {
+              // Typed in by the officer at the period's end, not built from records.
+              const typed = isTyped(block, r, i) && formatCell(cell) !== "";
+              const mark = typed ? <span className="sheet-typed" title="Imeongezwa na afisa"> {TYPED_MARK}</span> : null;
+              return i === 0 ? (
+                <th key={i} scope="row" className={typed ? "is-typed" : undefined}>{formatCell(cell)}{mark}</th>
               ) : (
-                <td key={i} className={typeof cell === "number" ? "num" : undefined}>{formatCell(cell)}</td>
-              ),
-            )}
+                <td key={i} className={[typeof cell === "number" ? "num" : "", typed ? "is-typed" : ""].filter(Boolean).join(" ") || undefined}>
+                  {formatCell(cell)}
+                  {mark}
+                </td>
+              );
+            })}
           </tr>
         ))}
       </tbody>

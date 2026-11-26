@@ -39,7 +39,7 @@ export type Meta = { key: string; value: unknown };
 export type LocalSubmission = {
   clientId: string;
   councilId: string;
-  kind: "food_prices" | "monthly" | "weekly_mifugo" | "weekly_kilimo";
+  kind: "food_prices" | "monthly" | "weekly_mifugo" | "weekly_kilimo" | "quarterly" | "annual";
   period: string;
   areaLabel: string;
   payload: Record<string, unknown>;

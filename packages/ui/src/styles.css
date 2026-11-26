@@ -33,6 +33,10 @@
   --mifugo: #8a4b1f;
   --uvuvi: #1d5f86;
   --shadow-lift: 0 1px 0 #b9c4bb;
+  /* Menus and popovers float above the page. */
+  --surface-raised: #ffffff;
+  --rule-raised: #c9d2ca;
+  --shadow-pop: 0 2px 6px rgb(16 35 26 / 0.08), 0 14px 36px rgb(16 35 26 / 0.16);
   /* Strong borders (focus, open menus) and selected fills. In light mode they
    * are the ink; in dark mode they are softer so they don't glare. */
   --line-strong: #10231a;
@@ -66,6 +70,9 @@
   --mifugo: #d9a27c;
   --uvuvi: #82b8dc;
   --shadow-lift: 0 1px 0 rgba(0, 0, 0, 0.4);
+  --surface-raised: #393936; /* a step lighter than the side menu, so menus lift off it */
+  --rule-raised: #4a4945;
+  --shadow-pop: 0 2px 6px rgb(0 0 0 / 0.35), 0 16px 40px rgb(0 0 0 / 0.5);
 }
 
 :root {
@@ -383,9 +390,32 @@ textarea {
   font-family: var(--font);
 }
 .sel-panel.is-popover {
-  border-radius: var(--radius-control);
-  box-shadow: 0 10px 28px rgb(0 0 0 / 0.18);
+  background: var(--surface-raised);
+  border: 1px solid var(--rule-raised);
+  border-radius: 12px;
+  box-shadow: var(--shadow-pop);
   overflow: hidden;
+}
+/* Desktop list: breathing room around the options, each option a rounded row. */
+.is-popover .sel-list {
+  padding: 6px;
+}
+.is-popover .sel-option {
+  border-radius: 8px;
+}
+.is-popover .sel-option.is-active {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.is-popover .sel-option + .sel-option,
+.is-popover li + li {
+  margin-top: 2px;
+}
+.is-popover .sel-group {
+  padding-left: var(--space-3);
+  padding-right: var(--space-3);
+}
+.is-popover .sel-search {
+  margin: 8px 8px 2px;
 }
 .sel-panel.is-popover.is-above {
   transform: translateY(-100%);

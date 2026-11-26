@@ -206,8 +206,8 @@ export default defineSchema({
     ownerId: v.id("users"),
     /** UUIDv7 made on the phone; makes the send idempotent. */
     clientId: v.string(),
-    kind: v.union(v.literal("food_prices"), v.literal("monthly"), v.literal("weekly_mifugo"), v.literal("weekly_kilimo")),
-    /** "2026-11": the reporting period; weekly reports use the week's Monday, "2026-11-16". */
+    kind: v.union(v.literal("food_prices"), v.literal("monthly"), v.literal("weekly_mifugo"), v.literal("weekly_kilimo"), v.literal("quarterly"), v.literal("annual")),
+    /** "2026-11": the reporting period; weekly reports use the week's Monday, "2026-11-16"; quarterly "2026-27-Q2"; annual "2026-27". */
     period: v.string(),
     /** 1 when first sent; +1 each time it is corrected and sent again after being reopened. */
     revision: v.number(),

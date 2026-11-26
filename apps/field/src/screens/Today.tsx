@@ -13,6 +13,10 @@ import { EntryRow } from "./EntryRow";
 import { usePhotoCounts } from "../lib/photos";
 import { usePresetRows } from "../lib/presets";
 import { RecordIcon, SectionIcon } from "./recordIcons";
+import { useVisiblePeriodic } from "./PeriodicReport";
+import { fyLabel, quarterLabel } from "@afisa/shared";
+import { shortDate } from "@afisa/ui";
+import { periodWindow, type PeriodicKind } from "../lib/periodic";
 
 const DISMISS_KEY = "afisa.dismissed";
 
@@ -151,13 +155,25 @@ function Corrections() {
             <strong>
               {s.kind === "food_prices"
                 ? t(`Ripoti ya chakula ya ${monthLabel(s.period)} imerudishwa kwa marekebisho.`, `The ${monthLabel(s.period)} food report was returned for corrections.`)
-                : t(`Ripoti ya mwezi ya ${monthLabel(s.period)} imerudishwa kwa marekebisho.`, `The ${monthLabel(s.period)} monthly report was returned for corrections.`)}
+                : s.kind === "quarterly"
+                  ? t(`Ripoti ya robo (${quarterLabel(s.period)}) imerudishwa kwa marekebisho.`, `The quarterly report (${quarterLabel(s.period)}) was returned for corrections.`)
+                  : s.kind === "annual"
+                    ? t(`Ripoti ya mwaka ${fyLabel(s.period)} imerudishwa kwa marekebisho.`, `The ${fyLabel(s.period)} annual report was returned for corrections.`)
+                    : t(`Ripoti ya mwezi ya ${monthLabel(s.period)} imerudishwa kwa marekebisho.`, `The ${monthLabel(s.period)} monthly report was returned for corrections.`)}
             </strong>{" "}
             {s.reopened?.byName ? `${s.reopened.byName}: ` : ""}“{s.reopened?.note}”
           </p>
           <div className="reminder-actions">
             <Link
-              to={s.kind === "food_prices" ? `/ripoti?aina=chakula&kipindi=${s.period}` : `/ripoti?mwezi=${s.period}`}
+              to={
+                s.kind === "food_prices"
+                  ? `/ripoti?aina=chakula&kipindi=${s.period}`
+                  : s.kind === "quarterly"
+                    ? "/ripoti?aina=robo"
+                    : s.kind === "annual"
+                      ? "/ripoti?aina=mwaka"
+                      : `/ripoti?mwezi=${s.period}`
+              }
               className="btn btn-small btn-primary"
             >
               {t("Rekebisha", "Fix")}
@@ -166,6 +182,27 @@ function Corrections() {
         </div>
       ))}
     </section>
+  );
+}
+
+/** A quarterly or annual report that is open (or late): shown only near the end of its period. */
+function PeriodicCard({ kind }: { kind: PeriodicKind }) {
+  const t = useT();
+  const v = useVisiblePeriodic(kind);
+  if (!v || v.state === "sent" || v.state === "returned") return null;
+  const due = shortDate(periodWindow(kind, v.period).due);
+  const name = kind === "quarterly" ? quarterLabel(v.period) : fyLabel(v.period);
+  return (
+    <Link to={`/ripoti?aina=${kind === "quarterly" ? "robo" : "mwaka"}`} className="food-card is-ready">
+      <span className="food-card-icon"><RecordIcon type="training" size={24} /></span>
+      <span className="food-card-text">
+        <strong>{kind === "quarterly" ? t(`Ripoti ya robo: ${name}`, `Quarterly report: ${name}`) : t(`Ripoti ya mwaka ${name}`, `Annual report ${name}`)}</strong>
+        <small>{v.state === "late" ? t(`Imechelewa: ilitakiwa ${due}`, `Late: it was due ${due}`) : t(`Jaza fomu kisha uitume kabla ya ${due}`, `Fill the form, then send it before ${due}`)}</small>
+      </span>
+      <span className="food-card-go" aria-hidden>
+        <svg viewBox="0 0 20 20" width="20" height="20"><path d="M7.5 5l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </span>
+    </Link>
   );
 }
 
@@ -243,6 +280,8 @@ export function Today() {
       <PlanNotices />
       {home && <Reminders items={home.reminders} />}
 
+      <PeriodicCard kind="annual" />
+      <PeriodicCard kind="quarterly" />
       <FoodCard />
 
       <section aria-labelledby="andika" className="andika">

@@ -11,7 +11,7 @@ import { registerUsername } from "@convex-dev/auth/components/username/test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { buildWeeklyReport, COUNCIL_UTC_OFFSET_MINUTES, shiftWeek, toCouncilWallClock, weekKey, weekRange } from "@afisa/shared";
+import { buildQuarterlyReport, buildWeeklyReport, COUNCIL_UTC_OFFSET_MINUTES, shiftWeek, toCouncilWallClock, weekKey, weekRange } from "@afisa/shared";
 
 const modules = import.meta.glob("./**/*.ts");
 const client = { app: "field" as const, version: "0.1.0" };
@@ -487,6 +487,40 @@ describe("HQ sees sent reports only, and a sent report is sealed", () => {
     expect(rep).toMatchObject({ kind: "monthly", month: "2026-10" });
     const achievements = rep.parts.flatMap((p) => p.blocks).find((b) => b.id === "1.3a");
     expect(achievements?.text).toContain("Wakulima 22");
+  });
+
+  it("quarterly and annual ARDS: answers sync, auto-send builds both on the server, and early sends are refused", async () => {
+    const { t, councilId, hod, user, membershipId } = await officer("afisa_robo");
+    // 10 November 2026, 10:00 in Tanzania: quarter 2026-27-Q2, financial year 2026-27.
+    const nov10 = Date.UTC(2026, 10, 10, 7, 0);
+    await user.mutation(api.sync.pushRecords, {
+      councilId, client,
+      records: [
+        { clientId: uuid(601), type: "training", section: "kilimo", occurredAt: nov10, payload: { topic: "Kilimo bora cha mpunga", method: "mkutano", men: 8, women: 9 }, payloadVersion: 1, clientUpdatedAt: nov10 },
+        { clientId: uuid(602), type: "quarterly_review", section: "kilimo", occurredAt: nov10, payload: { period: "2026-27-Q2", tables: { "q7.2": { pandwa: { mkono: 40 } } } }, payloadVersion: 1, clientUpdatedAt: nov10 },
+        { clientId: uuid(603), type: "annual_review", section: "kilimo", occurredAt: nov10, payload: { period: "2026-27", tables: { "a4.1": { trekta: { nzimaBinafsi: 2 } } } }, payloadVersion: 1, clientUpdatedAt: nov10 },
+        { clientId: uuid(604), type: "quarterly_review", section: "kilimo", occurredAt: nov10, payload: { period: "2026-27-Q2", tables: { "q7.2": { nope: { mkono: 1 } } } }, payloadVersion: 1, clientUpdatedAt: nov10 },
+      ],
+    }).then((r) => {
+      const rejected = (r as { results: { clientId: string; status: string; reason?: string }[] }).results.filter((x) => x.status === "rejected");
+      expect(rejected.map((x) => x.reason)).toEqual(["INVALID_PAYLOAD:BAD_ROW:q7.2"]);
+    });
+    expect(await t.mutation(internal.autoSend.periodicForOfficer, { membershipId, kind: "quarterly", period: "2026-27-Q2" })).toBe("sent");
+    expect(await t.mutation(internal.autoSend.periodicForOfficer, { membershipId, kind: "quarterly", period: "2026-27-Q2" })).toBe("already-sent");
+    expect(await t.mutation(internal.autoSend.periodicForOfficer, { membershipId, kind: "annual", period: "2026-27" })).toBe("sent");
+    type Rep = { kind: string; month: string; parts: { blocks: { id: string; rows?: unknown[][] }[] }[] };
+    const block = (r: Rep, id: string) => r.parts.flatMap((p) => p.blocks).find((b) => b.id === id)!;
+    const q = (await hod.query(api.submissions.forHq, { councilId, kind: "quarterly", period: "2026-27-Q2" }))[0]!.payload as Rep;
+    expect(q).toMatchObject({ kind: "quarterly", month: "2026-27-Q2" });
+    expect(block(q, "q7.2").rows![1]).toEqual(["Lililopandwa", 0, 0, 40, 0, 40]);
+    expect(block(q, "q3.1").rows![0]!.slice(0, 4)).toEqual(["Mazao", "Kilimo bora cha mpunga", 8, 9]);
+    const a = (await hod.query(api.submissions.forHq, { councilId, kind: "annual", period: "2026-27" }))[0]!.payload as Rep;
+    expect(block(a, "a4.1").rows![0]).toEqual(["Trekta (Tractor)", 2, 0, 0, 0, ""]);
+    // An officer cannot send a quarter before the 15th of its last month.
+    const early = buildQuarterlyReport({ period: "2099-00-Q1".replace("2099-00", "2098-99"), records: [], areaLabel: "Kata", officerName: "Afisa" }) as unknown as Record<string, unknown>;
+    await expect(
+      user.mutation(api.submissions.submit, { councilId, clientId: uuid(605), kind: "quarterly", period: "2098-99-Q1", areaLabel: "Kata", payload: early, payloadVersion: 1, clientSubmittedAt: Date.now() }),
+    ).rejects.toThrow(/tarehe 15/);
   });
 
   it("weekly reports: off until HQ switches the section on, only for that section, and auto-send", async () => {

@@ -55,7 +55,7 @@ export function AccountMenu({
     if (!open || !trigger.current) return;
     const position = () => {
       const r = trigger.current!.getBoundingClientRect();
-      const width = Math.max(r.width, 300);
+      const width = Math.min(Math.max(r.width, 340), window.innerWidth - 16);
       const left = Math.min(r.left, window.innerWidth - width - 8);
       const below = r.top < window.innerHeight / 2; // narrow screens: the account sits in the top bar
       setPlace(below ? { left, width, top: r.bottom + 6 } : { left, width, bottom: window.innerHeight - r.top + 6 });

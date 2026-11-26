@@ -238,11 +238,11 @@ fieldset.plain legend {
   overflow-y: auto;
   display: grid;
   gap: var(--space-1);
-  padding: var(--space-2);
-  border: 1px solid var(--rule);
+  padding: var(--space-3);
+  border: 1px solid var(--rule-raised);
   border-radius: 14px;
-  background: var(--surface);
-  box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-pop);
 }
 .acct-head {
   display: grid;
@@ -273,7 +273,7 @@ fieldset.plain legend {
   cursor: pointer;
 }
 .acct-item:hover {
-  background: var(--surface-sunk);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
 }
 .acct-item.is-danger {
   color: var(--danger);
@@ -301,8 +301,9 @@ fieldset.plain legend {
   background: var(--surface-sunk);
 }
 .acct-seg button {
-  min-height: 36px;
+  min-height: 38px;
   padding: 0 var(--space-2);
+  white-space: nowrap;
   border: 0;
   border-radius: 8px;
   background: none;
@@ -313,8 +314,8 @@ fieldset.plain legend {
   cursor: pointer;
 }
 .acct-seg button[aria-pressed="true"] {
-  background: var(--surface);
-  box-shadow: var(--shadow-lift);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lift), 0 1px 3px rgb(0 0 0 / 0.12);
 }
 @media (prefers-reduced-motion: reduce) {
   .acct-chevron {
@@ -1657,6 +1658,36 @@ button.badge.inline {
 }
 .wipe-card {
   margin-top: var(--space-5);
+}
+
+/* Councils list: on wide screens the danger zone moves to a column on the
+ * right, so the page uses the width instead of leaving it empty. */
+.council-layout,
+.council-main {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+  align-content: start;
+}
+@media (min-width: 1440px) {
+  .hq-page.council-page {
+    max-width: 1600px;
+  }
+  .council-layout {
+    grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 380px);
+    align-items: start;
+  }
+  .council-aside {
+    position: sticky;
+    top: var(--space-5);
+  }
+  .council-aside .wipe-card {
+    margin-top: 0;
+  }
+  .council-aside .wipe-card .card-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 .wipe-card code {
   padding: 1px 6px;

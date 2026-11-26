@@ -493,3 +493,13 @@ body.reader-open {
   color: var(--danger);
   font-weight: 700;
 }
+
+/* Values the officer typed in at the period's end. */
+.sheet-table .is-typed {
+  background: #fbf0cf;
+}
+.sheet-typed {
+  color: #7a5600;
+  font-weight: 700;
+  font-size: 0.85em;
+}

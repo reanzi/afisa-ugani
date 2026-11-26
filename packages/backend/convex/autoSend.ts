@@ -7,6 +7,8 @@
  *   Food availability and prices: the 22nd, 23:30 East Africa Time.
  *   Monthly ARDS report: the 5th of the next month, 23:30 East Africa Time.
  *   Weekly reports (per section, when switched on): Monday, 05:00, for the week before.
+ *   Quarterly and annual ARDS reports (with the monthly switch): the 7th after the
+ *   quarter (January, April, July, October), 23:30; the annual one on 7 July.
  *
  * The server runs in UTC; timestamps are shifted to council wall-clock time
  * (toCouncilWallClock) before using the shared period helpers.
@@ -30,7 +32,17 @@ import {
   shiftMonth,
   toCouncilWallClock,
   PAYLOAD_VERSION,
-  type MonthlyReview, presentName, isReviewType } from "@afisa/shared";
+  type MonthlyReview, presentName, isReviewType,
+  buildAnnualReport,
+  buildQuarterlyReport,
+  fyKey,
+  fyKeyMonths,
+  periodRange,
+  quarterKey,
+  quarterMonths,
+  shiftFy,
+  type PeriodReview,
+} from "@afisa/shared";
 import { internal } from "./_generated/api";
 import { approvedPresetsOf } from "./presets";
 import { internalMutation, type MutationCtx } from "./_generated/server";
@@ -234,6 +246,86 @@ export const weeklyForOfficer = internalMutation({
       clientId: crypto.randomUUID(),
       kind,
       period: week,
+      areaLabel: report.header.areaLabel,
+      payload: report,
+      payloadVersion: PAYLOAD_VERSION,
+      clientSubmittedAt: Date.now(),
+      auto: true,
+    });
+    return "sent";
+  },
+});
+
+/**
+ * Cron, the 7th of every month at 23:30: in January, April, July and October,
+ * the quarter just ended (and in July, the financial year) for councils whose
+ * Head of Department switched ARDS auto-send on.
+ */
+export const runPeriodic = internalMutation({
+  args: { quarter: v.optional(v.string()), year: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const lastMonth = shiftMonth(monthKey(new Date(toCouncilWallClock(Date.now()))), -1);
+    const endsQuarter = ["03", "06", "09", "12"].includes(lastMonth.slice(5));
+    const quarter = args.quarter ?? (endsQuarter ? quarterKey(lastMonth) : null);
+    const year = args.year ?? (lastMonth.endsWith("-06") ? fyKey(lastMonth) : null);
+    if (!quarter && !year) return { quarter, year, councils: 0, queued: 0 };
+    const councils = (await ctx.db.query("councils").withIndex("by_status", (q) => q.eq("status", "active")).collect()).filter((c) => c.autoSend?.monthly);
+    let queued = 0;
+    for (const c of councils) {
+      for (const m of await officersOf(ctx, c._id)) {
+        if (quarter) await ctx.scheduler.runAfter(0, internal.autoSend.periodicForOfficer, { membershipId: m._id, kind: "quarterly", period: quarter });
+        if (year) await ctx.scheduler.runAfter(0, internal.autoSend.periodicForOfficer, { membershipId: m._id, kind: "annual", period: year });
+        queued++;
+      }
+    }
+    return { quarter, year, councils: councils.length, queued };
+  },
+});
+
+export const periodicForOfficer = internalMutation({
+  args: { membershipId: v.id("memberships"), kind: v.union(v.literal("quarterly"), v.literal("annual")), period: v.string() },
+  handler: async (ctx, { membershipId, kind, period }) => {
+    const m = await ctx.db.get(membershipId);
+    if (!m || m.status !== "active") return "skipped";
+    if (await findSubmission(ctx, m.userId, m.councilId, kind, period)) return "already-sent";
+    const months = kind === "quarterly" ? quarterMonths(period) : fyKeyMonths(period);
+    const { start, end } = periodRange(months);
+    const records = await wallClockRecords(ctx, m, start, end);
+    const reviewType = kind === "quarterly" ? "quarterly_review" : "annual_review";
+    const review = (records.find((r) => r.type === reviewType && !r.deletedAt && r.payload.period === period)?.payload as PeriodReview | undefined) ?? null;
+    const entries = records.filter((r) => !isReviewType(r.type) && !r.deletedAt);
+    if (entries.length === 0 && !review) return "nothing-entered";
+
+    let previous: PeriodReview | null = null;
+    if (kind === "annual") {
+      const last = shiftFy(period, -1);
+      const range = periodRange(fyKeyMonths(last));
+      const before = await wallClockRecords(ctx, m, range.start, range.end);
+      previous = (before.find((r) => r.type === "annual_review" && !r.deletedAt && r.payload.period === last)?.payload as PeriodReview | undefined) ?? null;
+    }
+    const areas = new Map<string, string>();
+    for (const k of ["ward", "village"] as const) {
+      for (const a of await ctx.db.query("areas").withIndex("by_council_kind", (q) => q.eq("councilId", m.councilId).eq("kind", k)).collect()) {
+        areas.set(a._id, presentName(a.name));
+      }
+    }
+    const { who, phone, areaLabel } = await owner(ctx, m);
+    const council = await ctx.db.get(m.councilId);
+    const input = {
+      period,
+      records,
+      review,
+      previous,
+      areaLabel: areaLabel || presentName(council?.name),
+      officerName: who.name,
+      phone,
+      areaName: (id: string) => areas.get(id),
+    };
+    const report = kind === "quarterly" ? buildQuarterlyReport(input) : buildAnnualReport(input);
+    await insertSubmission(ctx, who, null, {
+      clientId: crypto.randomUUID(),
+      kind,
+      period,
       areaLabel: report.header.areaLabel,
       payload: report,
       payloadVersion: PAYLOAD_VERSION,

@@ -34,11 +34,16 @@ import {
   labelOf,
   FERTILIZERS,
   FERTILIZER_UNITS,
+  NPK_GRADES,
+  PESTICIDE_CLASSES,
   YES_NO,
   RAIN_LEVELS,
   type Option,
 } from "./catalogs.ts";
 import { isWeekKey } from "./period.ts";
+import { validateAdditions } from "./report/additions.ts";
+import { validateQuarterlyReview } from "./report/quarterly.ts";
+import { validateAnnualReview } from "./report/annual.ts";
 
 export const RECORD_TYPES = [
   "activity",
@@ -58,10 +63,12 @@ export const RECORD_TYPES = [
   "photo",
   "monthly_review",
   "weekly_review",
+  "quarterly_review",
+  "annual_review",
 ] as const;
 
 /** Review records hold the officer's period-end answers, not field work. */
-export const REVIEW_TYPES: readonly string[] = ["monthly_review", "weekly_review"];
+export const REVIEW_TYPES: readonly string[] = ["monthly_review", "weekly_review", "quarterly_review", "annual_review"];
 export const isReviewType = (type: string) => REVIEW_TYPES.includes(type);
 export type RecordType = (typeof RECORD_TYPES)[number];
 
@@ -229,6 +236,7 @@ export const RECORD_SPECS: readonly RecordSpec[] = [
       { key: "households", get label() { return L("Kaya zilizohudumiwa", "Households served"); }, kind: "count" },
       { key: "method", get label() { return L("Njia ya kudhibiti", "Control method"); }, kind: "choice", options: CONTROL_METHODS, more: true },
       { key: "pesticide", get label() { return L("Dawa iliyotumika", "Drug used"); }, kind: "text", more: true },
+      { key: "pesticideClass", get label() { return L("Kundi la kiuatilifu", "Pesticide class"); }, kind: "choice", options: PESTICIDE_CLASSES, more: true, showIf: (p) => p.method === "kemikali" },
       { key: "quantity", get label() { return L("Kiasi kilichotumika", "Amount used"); }, kind: "decimal", more: true },
       { key: "unit", get label() { return L("Kipimo", "Unit"); }, kind: "choice", options: AMOUNT_UNITS, more: true },
       { key: "areaSavedHa", get label() { return L("Eneo lililookolewa", "Area saved"); }, kind: "decimal", unit: "ha", more: true },
@@ -244,6 +252,7 @@ export const RECORD_SPECS: readonly RecordSpec[] = [
     quick: true,
     fields: [
       { key: "fertilizer", get label() { return L("Aina ya mbolea", "Fertilizer type"); }, kind: "select", options: FERTILIZERS, required: true },
+      { key: "npkGrade", get label() { return L("Daraja la NPK", "NPK grade"); }, kind: "choice", options: NPK_GRADES, showIf: (p) => p.fertilizer === "npk" },
       { key: "quantity", get label() { return L("Kiasi kilichotumika", "Amount used"); }, kind: "decimal", required: true },
       { key: "unit", get label() { return L("Kipimo", "Unit"); }, kind: "choice", options: FERTILIZER_UNITS, required: true },
       { key: "crop", get label() { return L("Zao", "Crop"); }, kind: "select", options: ALL_CROPS, required: true },
@@ -296,6 +305,8 @@ export const RECORD_SPECS: readonly RecordSpec[] = [
       { key: "men", get label() { return L("Wanaume", "Men"); }, kind: "count" },
       { key: "women", get label() { return L("Wanawake", "Women"); }, kind: "count" },
       { key: "group", get label() { return L("Kikundi", "Group"); }, kind: "text", more: true },
+      { key: "days", get label() { return L("Muda wa mafunzo", "Training length"); }, kind: "count", unit: L("siku", "days"), more: true },
+      { key: "trainer", get label() { return L("Mtoa mafunzo / mwezeshaji", "Trainer / facilitator"); }, kind: "text", more: true },
     ],
     summary: (p) => `${L("Mafunzo", "Training")} (${labelOf(TRAINING_METHODS, p.method).toLowerCase()}): ${s(p.topic)}, ${L("washiriki", "participants")} ${fmt(n(p.men) + n(p.women))}`,
   },
@@ -411,6 +422,8 @@ export function validatePayload(type: string, payload: unknown): string | null {
   const p = payload as Record<string, unknown>;
   if (type === "monthly_review") return validateReview(p);
   if (type === "weekly_review") return validateWeeklyReview(p);
+  if (type === "quarterly_review") return validateQuarterlyReview(p);
+  if (type === "annual_review") return validateAnnualReview(p);
   const spec = specFor(type);
   if (!spec) return "UNKNOWN_TYPE";
   for (const f of spec.fields) {
@@ -459,6 +472,8 @@ function validateWeeklyReview(p: Record<string, unknown>): string | null {
 
 function validateReview(p: Record<string, unknown>): string | null {
   if (typeof p.month !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(p.month)) return "BAD_MONTH";
+  const additions = validateAdditions(p.additions);
+  if (additions) return additions;
   for (const key of ["events", "achievements", "challenges", "work"]) {
     const v = p[key];
     if (v !== undefined && (typeof v !== "string" || v.length > 5000)) return `BAD_TEXT:${key}`;

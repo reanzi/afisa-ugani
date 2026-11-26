@@ -146,3 +146,105 @@ export function reportingWeek(now: Date | number): string {
   const current = weekKey(now);
   return new Date(now).getTime() >= weeklyWindow(current).opens ? current : shiftWeek(current, -1);
 }
+
+// ---------- financial-year quarters and years ----------
+// The financial year runs July–June. A year is keyed "2026-27"; a quarter "2026-27-Q2" (Oct–Dec 2026).
+
+export const FY_RE = /^(\d{4})-(\d{2})$/;
+export const QUARTER_RE = /^(\d{4})-(\d{2})-Q([1-4])$/;
+
+/** "2026-27" for any month from July 2026 to June 2027. */
+export function fyKey(month: string): string {
+  return financialYear(month).replace("/", "-");
+}
+
+export function isFyKey(key: string): boolean {
+  const m = FY_RE.exec(key);
+  return !!m && (Number(m[1]) + 1) % 100 === Number(m[2]);
+}
+
+export function isQuarterKey(key: string): boolean {
+  const m = QUARTER_RE.exec(key);
+  return !!m && isFyKey(`${m[1]}-${m[2]}`);
+}
+
+/** "2026-27-Q2" for October–December 2026. */
+export function quarterKey(month: string): string {
+  return `${fyKey(month)}-Q${fyQuarter(month)}`;
+}
+
+export function parseQuarter(key: string): { fy: string; startYear: number; quarter: 1 | 2 | 3 | 4 } {
+  const m = QUARTER_RE.exec(key);
+  if (!m || !isQuarterKey(key)) throw new Error(`Bad quarter key ${key}`);
+  return { fy: `${m[1]}-${m[2]}`, startYear: Number(m[1]), quarter: Number(m[3]) as 1 | 2 | 3 | 4 };
+}
+
+/** The twelve months of a financial year, July first. */
+export function fyKeyMonths(key: string): string[] {
+  if (!isFyKey(key)) throw new Error(`Bad financial year ${key}`);
+  const start = Number(key.slice(0, 4));
+  return Array.from({ length: 12 }, (_, i) => shiftMonth(`${start}-07`, i));
+}
+
+/** The three months of a quarter. */
+export function quarterMonths(key: string): string[] {
+  const { fy, quarter } = parseQuarter(key);
+  return fyKeyMonths(fy).slice((quarter - 1) * 3, quarter * 3);
+}
+
+/** [start, end) in epoch ms, local time. */
+export function periodRange(months: readonly string[]): { start: number; end: number } {
+  return { start: monthRange(months[0]!).start, end: monthRange(months[months.length - 1]!).end };
+}
+
+export function shiftQuarter(key: string, delta: number): string {
+  return quarterKey(shiftMonth(quarterMonths(key)[0]!, delta * 3));
+}
+
+export function shiftFy(key: string, delta: number): string {
+  return fyKey(shiftMonth(fyKeyMonths(key)[0]!, delta * 12));
+}
+
+/** "2026/27" as printed on the forms. */
+export const fyLabel = (key: string) => key.replace("-", "/");
+
+/** "Robo ya 2: Oktoba – Desemba 2026". */
+export function quarterLabel(key: string, lang: "sw" | "en" = textLang()): string {
+  const months = quarterMonths(key);
+  const { quarter } = parseQuarter(key);
+  const first = monthLabel(months[0]!, lang).split(" ")[0];
+  const last = monthLabel(months[2]!, lang);
+  return lang === "en" ? `Quarter ${quarter}: ${first} – ${last}` : `Robo ya ${quarter}: ${first} – ${last}`;
+}
+
+/**
+ * Quarterly and annual reports are offered from the 15th of the period's
+ * last month and are due on the 7th of the following month (ARDS: village to
+ * ward before the period ends, ward to district by the end of the first week).
+ */
+export const PERIOD_OPENS_DAY = 15;
+export const PERIOD_DUE_DAY = 7;
+function lastMonthWindow(lastMonth: string, opensDay: number): { opens: number; due: number } {
+  const { year, month } = parseMonth(lastMonth);
+  return {
+    opens: new Date(year, month - 1, opensDay).getTime(),
+    due: new Date(year, month, PERIOD_DUE_DAY, 23, 59).getTime(),
+  };
+}
+export function quarterlyWindow(key: string): { opens: number; due: number } {
+  return lastMonthWindow(quarterMonths(key)[2]!, PERIOD_OPENS_DAY);
+}
+/** The annual report opens on 1 June (the year's last month) and is due on 7 July. */
+export function annualWindow(key: string): { opens: number; due: number } {
+  return lastMonthWindow(fyKeyMonths(key)[11]!, 1);
+}
+
+/** The quarter (or year) an officer is reporting at `now`: the open one, else the last one that closed. */
+export function reportingQuarter(now: Date | number): string {
+  const here = quarterKey(monthKey(now));
+  return new Date(now).getTime() >= quarterlyWindow(here).opens ? here : shiftQuarter(here, -1);
+}
+export function reportingFy(now: Date | number): string {
+  const here = fyKey(monthKey(now));
+  return new Date(now).getTime() >= annualWindow(here).opens ? here : shiftFy(here, -1);
+}

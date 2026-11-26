@@ -191,6 +191,8 @@ export function Review() {
       challenges: challenges.trim(),
       ...(crops ? { crops: fromDraft(estimates, ["remarks"]), forecast: fromDraft(forecast) } : {}),
       ...(crops && isJuly ? { targets: fromDraft(targets) } : {}),
+      // Additions are edited on their own screen; keep them.
+      ...(review?.additions ? { additions: review.additions } : {}),
     };
     const clean = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
     if (validatePayload("monthly_review", clean)) {

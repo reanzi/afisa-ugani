@@ -42,7 +42,7 @@ export function opt(value: string, sw: string, en?: string): Option {
   };
 }
 
-const opts = (pairs: [string, string, string?][]): Option[] => pairs.map(([value, sw, en]) => opt(value, sw, en));
+export const opts = (pairs: [string, string, string?][]): Option[] => pairs.map(([value, sw, en]) => opt(value, sw, en));
 
 /** Crops listed in tables 2.1 and 2.2, in the form's order. */
 export const CROPS = opts([
@@ -218,10 +218,31 @@ export const FERTILIZERS = opts([
   ["sa", "SA (Salfeti ya Amonia)", "SA (Sulphate of Ammonia)"],
   ["minjingu", "Minjingu", "Minjingu"],
   ["tsp", "TSP", "TSP"],
+  ["mop", "MOP", "MOP"],
   ["majani", "Mbolea ya majani (foliar)", "Foliar fertilizer"],
   ["samadi", "Samadi", "Farmyard manure"],
   ["mboji", "Mboji", "Compost"],
   ["nyingine", "Nyingine", "Other"],
+]);
+
+/** NPK grades as listed on the ARDS annual form (6.1). */
+export const NPK_GRADES = opts([
+  ["10_10_10", "NPK 10:10:10", "NPK 10:10:10"],
+  ["25_5_5", "NPK 25:5:5", "NPK 25:5:5"],
+  ["6_20_18", "NPK 6:20:18 / 10:18:24", "NPK 6:20:18 / 10:18:24"],
+  ["4_17_15", "NPK 4:17:15", "NPK 4:17:15"],
+  ["17_17_17", "NPK 17:17:17", "NPK 17:17:17"],
+  ["nyingine", "NPK nyingine", "Other NPK"],
+]);
+
+/** Pesticide classes as lettered on the ARDS annual form (6.2). */
+export const PESTICIDE_CLASSES = opts([
+  ["viuadudu", "Viuadudu (insecticides)", "Insecticides"],
+  ["viuakuvu", "Viuakuvu (fungicides)", "Fungicides"],
+  ["viuapanya", "Viuapanya (rodenticides)", "Rodenticides"],
+  ["viuagugu", "Viuagugu (herbicides)", "Herbicides"],
+  ["viuandege", "Viuandege (avicides)", "Avicides"],
+  ["viuaminyoo", "Viuaminyoo (nematicides)", "Nematicides"],
 ]);
 
 /** Organic fertilizers: counted apart from bought (industrial) fertilizer. */

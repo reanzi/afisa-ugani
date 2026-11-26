@@ -14,6 +14,7 @@ import { FoodReport } from "./FoodReport";
 import { Performance } from "./Performance";
 import { WeeklyReport } from "./WeeklyReport";
 import { useWeeklySections } from "../lib/weekly";
+import { PeriodicReport, useVisiblePeriodic } from "./PeriodicReport";
 
 export function useMonthParam() {
   const current = monthKey(new Date());
@@ -146,6 +147,11 @@ function MonthlyReport() {
               {review ? t("Badili majibu ya mwisho wa mwezi", "Change the month-end answers") : t("Jibu maswali ya mwisho wa mwezi", "Answer the month-end questions")}
             </Link>
             {!review && <p className="muted">{t("Hali ya mvua, mafanikio, changamoto na makadirio ya mazao. Dakika chache tu.", "Rainfall, achievements, challenges and crop estimates. Just a few minutes.")}</p>}
+            <Link to={`/ripoti/jaza?aina=mwezi&kipindi=${month}`} className="btn btn-block btn-quiet">
+              {review?.additions && ((review.additions.cells?.length ?? 0) + (review.additions.rows?.length ?? 0)) > 0
+                ? t("Badili taarifa ulizoongeza", "Change the information you added")
+                : t("Ongeza taarifa ambazo hazikurekodiwa", "Add information that was not recorded")}
+            </Link>
           </>
         )}
         <div className="export-row">
@@ -192,22 +198,39 @@ function MonthlyReport() {
   );
 }
 
-const KINDS = ["mwezi", "wiki", "malengo", "chakula"] as const;
+const KINDS = ["mwezi", "robo", "mwaka", "wiki", "malengo", "chakula"] as const;
 
 export function Report() {
   const [chosen, setKind] = useQueryState("aina", parseAsStringLiteral(KINDS).withDefault("mwezi"));
   const t = useT();
   const weekly = useWeeklySections().length > 0;
-  const kind = chosen === "wiki" && !weekly ? "mwezi" : chosen;
+  // Quarterly and annual reports only show near the end of their period (or while late / returned).
+  const quarterly = !!useVisiblePeriodic("quarterly");
+  const annual = !!useVisiblePeriodic("annual");
+  const kind = (chosen === "wiki" && !weekly) || (chosen === "robo" && !quarterly) || (chosen === "mwaka" && !annual) ? "mwezi" : chosen;
   return (
     <main className="page">
       <div className="segmented report-kinds" role="tablist" aria-label={t("Aina ya ripoti", "Report type")}>
         <button role="tab" aria-selected={kind === "mwezi"} onClick={() => void setKind("mwezi")}>{t("Mwezi", "Monthly")}</button>
+        {quarterly && <button role="tab" aria-selected={kind === "robo"} onClick={() => void setKind("robo")}>{t("Robo", "Quarter")}</button>}
+        {annual && <button role="tab" aria-selected={kind === "mwaka"} onClick={() => void setKind("mwaka")}>{t("Mwaka", "Year")}</button>}
         {weekly && <button role="tab" aria-selected={kind === "wiki"} onClick={() => void setKind("wiki")}>{t("Wiki", "Weekly")}</button>}
         <button role="tab" aria-selected={kind === "malengo"} onClick={() => void setKind("malengo")}>{t("Malengo", "Targets")}</button>
         <button role="tab" aria-selected={kind === "chakula"} onClick={() => void setKind("chakula")}>{t("Chakula", "Food")}</button>
       </div>
-      {kind === "mwezi" ? <MonthlyReport /> : kind === "wiki" ? <WeeklyReport /> : kind === "malengo" ? <Performance /> : <FoodReport />}
+      {kind === "mwezi" ? (
+        <MonthlyReport />
+      ) : kind === "robo" ? (
+        <PeriodicReport kind="quarterly" />
+      ) : kind === "mwaka" ? (
+        <PeriodicReport kind="annual" />
+      ) : kind === "wiki" ? (
+        <WeeklyReport />
+      ) : kind === "malengo" ? (
+        <Performance />
+      ) : (
+        <FoodReport />
+      )}
     </main>
   );
 }

@@ -23,10 +23,10 @@ const items = (t: T): { key: Key; title: string; body: string }[] => [
   },
   {
     key: "monthly",
-    title: t("Ripoti ya mwezi (ARDS): tarehe 5", "Monthly report (ARDS): the 5th"),
+    title: t("Fomu za ARDS: mwezi (tarehe 5), robo na mwaka (tarehe 7)", "ARDS forms: monthly (the 5th), quarterly and annual (the 7th)"),
     body: t(
-      "Afisa anaweza kuituma wakati wowote mwezi ukiisha. Asipoituma, saa 5:30 usiku tarehe 5 inatumwa yenyewe kutoka kwenye kumbukumbu zake za mwezi.",
-      "The officer can send it any time after the month ends. If they have not, at 23:30 on the 5th it sends itself, built from their records for the month.",
+      "Afisa anaweza kutuma ripoti ya mwezi mwezi ukiisha, na ya robo au ya mwaka kuanzia tarehe 15 ya mwezi wa mwisho wa robo (ya mwaka: 1 Juni). Asipoituma, saa 5:30 usiku tarehe ya mwisho inatumwa yenyewe kutoka kwenye kumbukumbu na majibu yake.",
+      "Officers can send the monthly report once the month ends, and the quarterly or annual one from the 15th of the quarter's last month (annual: 1 June). If they have not, at 23:30 on the due date it sends itself, built from their records and answers.",
     ),
   },
 ];

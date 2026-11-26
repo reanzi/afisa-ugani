@@ -25,6 +25,7 @@ import { isReviewType, summarize } from "../actions.ts";
 import { daysInMonth, financialYear, monthLabel, monthRange, parseMonth } from "../period.ts";
 import type { Section } from "../domain.ts";
 import type { Cell, Column, Report, ReportPart, TableBlock, TextBlock } from "./model.ts";
+import { applyAdditions, type Additions } from "./additions.ts";
 
 export * from "./model.ts";
 
@@ -58,6 +59,8 @@ export type MonthlyReview = {
   crops?: Record<string, CropEstimate>;
   targets?: Record<string, CropTarget>;
   forecast?: Record<string, CropForecast>;
+  /** Information typed in at month end that was not recorded (report/additions.ts). */
+  additions?: Additions;
 };
 
 export type MonthlyInput = {
@@ -132,6 +135,11 @@ function cols(...labels: (string | [string, string?, number?])[]): Column[] {
 // ---------- the form ----------
 
 function buildMonthlyReportSw(input: MonthlyInput): Report {
+  return applyAdditions(buildMonthlyBase(input), input.review?.additions);
+}
+
+/** The monthly form from records and month-end answers, before the officer's additions. */
+function buildMonthlyBase(input: MonthlyInput): Report {
   const { month } = input;
   const { start, end } = monthRange(month);
   const records = input.records.filter((r) => !r.deletedAt && r.occurredAt >= start && r.occurredAt < end && !isReviewType(r.type));

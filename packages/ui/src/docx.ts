@@ -21,7 +21,7 @@ import {
   VerticalAlign,
   WidthType,
 } from "docx";
-import type { Block, Cell, Report, TableBlock } from "@afisa/shared";
+import { isTyped, TYPED_MARK, type Block, type Cell, type Report, type TableBlock } from "@afisa/shared";
 import { shortDate } from "./format";
 
 const FONT = "Arial";
@@ -31,6 +31,8 @@ const PAGE_W = 16838; // A4 landscape, twips
 const MARGIN = 720;
 const CONTENT_W = PAGE_W - 2 * MARGIN;
 const HEAD_FILL = "E7EBE6";
+/** Light amber behind values the officer typed in. */
+const TYPED_FILL = "FBF0CF";
 
 const border = { style: BorderStyle.SINGLE, size: 4, color: "555555" };
 const borders = { top: border, bottom: border, left: border, right: border };
@@ -107,7 +109,11 @@ function renderTable(block: TableBlock): Table {
     rows.push(
       new TableRow({
         cantSplit: true,
-        children: row.map((c, i) => cell(fmt(c), { bold: total || i === 0, width: w[i], align: typeof c === "number" ? "end" : "start" })),
+        children: row.map((c, i) => {
+          const text = fmt(c);
+          const typed = text !== "" && isTyped(block, r, i);
+          return cell(typed ? `${text} ${TYPED_MARK}` : text, { bold: total || i === 0, width: w[i], align: typeof c === "number" ? "end" : "start", fill: typed ? TYPED_FILL : undefined });
+        }),
       }),
     );
   });
@@ -221,6 +227,8 @@ export function reportFileName(report: Report): string {
     const fy = report.header.financialYear.replace("/", "-");
     return `Utekelezaji-${fy}${period ? `-Robo-${period}` : "-Mwaka"}${area ? `-${area}` : ""}.docx`;
   }
+  if (report.kind === "quarterly") return `Ripoti-ya-robo-${report.month}${area ? `-${area}` : ""}.docx`;
+  if (report.kind === "annual") return `Ripoti-ya-mwaka-${report.month}${area ? `-${area}` : ""}.docx`;
   if (report.kind === "weekly") {
     return `Ripoti-ya-wiki-${report.section === "mifugo" ? "Mifugo" : "Kilimo"}-${report.month}${area ? `-${area}` : ""}.docx`;
   }

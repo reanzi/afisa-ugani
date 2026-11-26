@@ -215,7 +215,19 @@ export function Select({
           <div
             ref={panelRef}
             className={`sel-panel ${phone ? "is-sheet" : "is-popover"} ${pos?.above ? "is-above" : ""}`}
-            style={!phone && pos ? { top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxHeight } : undefined}
+            style={
+              !phone && pos
+                ? {
+                    top: pos.top,
+                    left: pos.left,
+                    // At least as wide as the button; wider when an option needs it, so names stay on one line.
+                    minWidth: pos.width,
+                    width: "max-content",
+                    maxWidth: Math.max(pos.width, Math.min(520, window.innerWidth - pos.left - 8)),
+                    maxHeight: pos.maxHeight,
+                  }
+                : undefined
+            }
             onKeyDown={onListKey}
           >
             {phone && (

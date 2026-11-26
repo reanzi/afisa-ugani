@@ -29,7 +29,19 @@ export type TableBlock = {
   note?: string;
   /** True when at least one value came from the officer's records or review. */
   hasData: boolean;
+  /**
+   * Cells the officer typed in at the end of the period, as [row, column]:
+   * values not built from records. Printed with TYPED_MARK so readers can
+   * tell them apart.
+   */
+  typed?: [number, number][];
 };
+
+/** Printed after a typed-in value, with TYPED_NOTE under the table. */
+export const TYPED_MARK = "✎";
+export const TYPED_NOTE = "✎ Taarifa iliyoongezwa na afisa (haikutokana na kumbukumbu za kila siku).";
+
+export const isTyped = (t: TableBlock, r: number, c: number) => !!t.typed?.some(([tr, tc]) => tr === r && tc === c);
 
 export type TextBlock = {
   kind: "text";
@@ -67,11 +79,15 @@ export type ReportHeader = {
 };
 
 export type Report = {
-  /** "monthly": the ARDS form; "weekly": a section's week; "performance": plan against results; "food": food availability and prices. */
-  kind: "monthly" | "performance" | "food" | "weekly";
+  /**
+   * "monthly", "quarterly", "annual": the ARDS forms; "weekly": a section's
+   * week; "performance": plan against results; "food": food availability and prices.
+   */
+  kind: "monthly" | "quarterly" | "annual" | "performance" | "food" | "weekly";
   /** Weekly reports are per section. */
   section?: "kilimo" | "mifugo";
   formVersion: "2018-07";
+  /** The period: "2026-11" (monthly, weekly uses the Monday), "2026-27-Q2" (quarterly), "2026-27" (annual). */
   month: string;
   header: ReportHeader;
   parts: ReportPart[];

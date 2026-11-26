@@ -734,7 +734,7 @@ export function Councils({ onOpen }: { onOpen: (councilId: Id<"councils">) => vo
   );
 
   return (
-    <section className="hq-page">
+    <section className="hq-page council-page">
       <header className="page-head-row">
         <div>
           <h1>{t("Halmashauri", "Councils")}</h1>
@@ -743,115 +743,121 @@ export function Councils({ onOpen }: { onOpen: (councilId: Id<"councils">) => vo
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>+ {t("Ongeza halmashauri", "Add council")}</button>
       </header>
 
-      {councils && councils.length > 0 && (
-        <dl className="kpi-row">
-          <div><dt>{t("Halmashauri", "Councils")}</dt><dd>{n(councils.length)}</dd></div>
-          <div><dt>{t("Wanachama hai", "Active members")}</dt><dd>{n(totals.active)}</dd></div>
-          <div className={totals.pending ? "is-wait" : undefined}><dt>{t("Maombi yanasubiri", "Requests waiting")}</dt><dd>{n(totals.pending)}</dd></div>
-          <div className={totals.noAddresses ? "is-wait" : undefined}><dt>{t("Bila anwani", "Without addresses")}</dt><dd>{n(totals.noAddresses)}</dd></div>
-          <div className={totals.noHead ? "is-wait" : undefined}><dt>{t("Bila Mkuu wa Idara", "Without a HoD")}</dt><dd>{n(totals.noHead)}</dd></div>
-        </dl>
-      )}
+      <div className="council-layout">
+        <div className="council-main">
+          {councils && councils.length > 0 && (
+            <dl className="kpi-row">
+              <div><dt>{t("Halmashauri", "Councils")}</dt><dd>{n(councils.length)}</dd></div>
+              <div><dt>{t("Wanachama hai", "Active members")}</dt><dd>{n(totals.active)}</dd></div>
+              <div className={totals.pending ? "is-wait" : undefined}><dt>{t("Maombi yanasubiri", "Requests waiting")}</dt><dd>{n(totals.pending)}</dd></div>
+              <div className={totals.noAddresses ? "is-wait" : undefined}><dt>{t("Bila anwani", "Without addresses")}</dt><dd>{n(totals.noAddresses)}</dd></div>
+              <div className={totals.noHead ? "is-wait" : undefined}><dt>{t("Bila Mkuu wa Idara", "Without a HoD")}</dt><dd>{n(totals.noHead)}</dd></div>
+            </dl>
+          )}
 
-      {councils === undefined && <p className="muted">{t("Inapakia…", "Loading…")}</p>}
-      {councils?.length === 0 && (
-        <div className="empty-card">
-          <h2>{t("Bado hakuna halmashauri", "No councils yet")}</h2>
-          <p className="muted">{t("Ongeza halmashauri ya kwanza, pakia anwani zake, kisha mpe Mkuu wa Idara msimbo.", "Add the first council, load its addresses, then give the Head of Department the code.")}</p>
-          <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>{t("Ongeza halmashauri", "Add council")}</button>
+          {councils === undefined && <p className="muted">{t("Inapakia…", "Loading…")}</p>}
+          {councils?.length === 0 && (
+            <div className="empty-card">
+              <h2>{t("Bado hakuna halmashauri", "No councils yet")}</h2>
+              <p className="muted">{t("Ongeza halmashauri ya kwanza, pakia anwani zake, kisha mpe Mkuu wa Idara msimbo.", "Add the first council, load its addresses, then give the Head of Department the code.")}</p>
+              <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>{t("Ongeza halmashauri", "Add council")}</button>
+            </div>
+          )}
+
+          {councils && councils.length > 0 && (
+            <div className="table-card">
+              <div className="table-tools">
+                <input
+                  className="input input-search"
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t("Tafuta kwa jina, mkoa au msimbo", "Search by name, region or code")}
+                  aria-label={t("Tafuta halmashauri", "Search councils")}
+                />
+              </div>
+              <table className="table council-table">
+                <thead>
+                  <tr>
+                    <th>{t("Halmashauri", "Council")}</th>
+                    <th>{t("Msimbo", "Code")}</th>
+                    <th>{t("Anwani", "Addresses")}</th>
+                    <th>{t("Mkuu wa Idara", "Head of Dept.")}</th>
+                    <th className="num">{t("Wanachama", "Members")}</th>
+                    <th>{t("Hali", "Status")}</th>
+                    <th aria-label={t("Fungua", "Open")} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((c) => (
+                    <tr key={c._id} className="is-clickable" onClick={() => void setSelected(c._id)}>
+                      <td>
+                        <button type="button" className="row-title" onClick={(e) => { e.stopPropagation(); void setSelected(c._id); }}>
+                          {c.displayName ?? c.name}
+                        </button>
+                        <div className="muted small">{c.displayName ? `${c.name} · ` : ""}{c.region}</div>
+                      </td>
+                      <td>
+                        <span className="code-with-copy">
+                          <span className="code-chip">{formatCouncilCode(c.code)}</span>
+                          <CopyCode code={c.code} compact />
+                        </span>
+                      </td>
+                      <td>
+                        {c.addressImport ? (
+                          <span className="small">{t(`Kata ${n(c.addressImport.wards)} · vijiji ${n(c.addressImport.villages)}`, `${n(c.addressImport.wards)} wards · ${n(c.addressImport.villages)} villages`)}</span>
+                        ) : c.hasAddresses ? (
+                          <span className="small">{t("Zimeongezwa kwa mkono", "Added by hand")}</span>
+                        ) : (
+                          <Pill tone="wait">{t("Hakuna anwani", "No addresses")}</Pill>
+                        )}
+                      </td>
+                      <td>{c.head ? <span className="small">{c.head}</span> : <span className="muted small">{t("Hajawekwa", "Not seated")}</span>}</td>
+                      <td className="num">
+                        {n(c.active)}
+                        {c.pending > 0 && (
+                          <button
+                            type="button"
+                            className="badge inline"
+                            title={t("Fungua maombi", "Open requests")}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpen(c._id);
+                            }}
+                          >
+                            +{c.pending}
+                          </button>
+                        )}
+                      </td>
+                      <td>
+                        {c.status !== "active" ? (
+                          <Pill tone="danger">{t("Imesitishwa", "Suspended")}</Pill>
+                        ) : !c.hasAddresses ? (
+                          <Pill tone="wait">{t("Inasubiri anwani", "Needs addresses")}</Pill>
+                        ) : c.registrationOpen ? (
+                          <Pill tone="ok">{t("Usajili wazi", "Sign-up open")}</Pill>
+                        ) : (
+                          <Pill tone="muted">{t("Usajili umefungwa", "Sign-up closed")}</Pill>
+                        )}
+                      </td>
+                      <td className="chev" aria-hidden>›</td>
+                    </tr>
+                  ))}
+                  {shown.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="muted">{t("Hakuna halmashauri inayolingana na utafutaji.", "No council matches the search.")}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      )}
 
-      {councils && councils.length > 0 && (
-        <div className="table-card">
-          <div className="table-tools">
-            <input
-              className="input input-search"
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t("Tafuta kwa jina, mkoa au msimbo", "Search by name, region or code")}
-              aria-label={t("Tafuta halmashauri", "Search councils")}
-            />
-          </div>
-          <table className="table council-table">
-            <thead>
-              <tr>
-                <th>{t("Halmashauri", "Council")}</th>
-                <th>{t("Msimbo", "Code")}</th>
-                <th>{t("Anwani", "Addresses")}</th>
-                <th>{t("Mkuu wa Idara", "Head of Dept.")}</th>
-                <th className="num">{t("Wanachama", "Members")}</th>
-                <th>{t("Hali", "Status")}</th>
-                <th aria-label={t("Fungua", "Open")} />
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((c) => (
-                <tr key={c._id} className="is-clickable" onClick={() => void setSelected(c._id)}>
-                  <td>
-                    <button type="button" className="row-title" onClick={(e) => { e.stopPropagation(); void setSelected(c._id); }}>
-                      {c.displayName ?? c.name}
-                    </button>
-                    <div className="muted small">{c.displayName ? `${c.name} · ` : ""}{c.region}</div>
-                  </td>
-                  <td>
-                    <span className="code-with-copy">
-                      <span className="code-chip">{formatCouncilCode(c.code)}</span>
-                      <CopyCode code={c.code} compact />
-                    </span>
-                  </td>
-                  <td>
-                    {c.addressImport ? (
-                      <span className="small">{t(`Kata ${n(c.addressImport.wards)} · vijiji ${n(c.addressImport.villages)}`, `${n(c.addressImport.wards)} wards · ${n(c.addressImport.villages)} villages`)}</span>
-                    ) : c.hasAddresses ? (
-                      <span className="small">{t("Zimeongezwa kwa mkono", "Added by hand")}</span>
-                    ) : (
-                      <Pill tone="wait">{t("Hakuna anwani", "No addresses")}</Pill>
-                    )}
-                  </td>
-                  <td>{c.head ? <span className="small">{c.head}</span> : <span className="muted small">{t("Hajawekwa", "Not seated")}</span>}</td>
-                  <td className="num">
-                    {n(c.active)}
-                    {c.pending > 0 && (
-                      <button
-                        type="button"
-                        className="badge inline"
-                        title={t("Fungua maombi", "Open requests")}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpen(c._id);
-                        }}
-                      >
-                        +{c.pending}
-                      </button>
-                    )}
-                  </td>
-                  <td>
-                    {c.status !== "active" ? (
-                      <Pill tone="danger">{t("Imesitishwa", "Suspended")}</Pill>
-                    ) : !c.hasAddresses ? (
-                      <Pill tone="wait">{t("Inasubiri anwani", "Needs addresses")}</Pill>
-                    ) : c.registrationOpen ? (
-                      <Pill tone="ok">{t("Usajili wazi", "Sign-up open")}</Pill>
-                    ) : (
-                      <Pill tone="muted">{t("Usajili umefungwa", "Sign-up closed")}</Pill>
-                    )}
-                  </td>
-                  <td className="chev" aria-hidden>›</td>
-                </tr>
-              ))}
-              {shown.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="muted">{t("Hakuna halmashauri inayolingana na utafutaji.", "No council matches the search.")}</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <SystemWipe />
+        <aside className="council-aside">
+          <SystemWipe />
+        </aside>
+      </div>
 
       <CreateCouncilDialog open={creating} onClose={() => setCreating(false)} onCreated={(id) => void setSelected(id)} />
     </section>
