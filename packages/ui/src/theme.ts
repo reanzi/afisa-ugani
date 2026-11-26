@@ -78,7 +78,7 @@ export function useTheme() {
     document.documentElement.dataset.theme = state.theme;
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", state.theme === "usiku" ? "#0f1813" : "#eef1ec");
+      ?.setAttribute("content", state.theme === "usiku" ? "#262624" : "#eef1ec");
   }, [state.theme]);
   return { theme: state.theme, choice: state.choice, setChoice: setThemeChoice };
 }

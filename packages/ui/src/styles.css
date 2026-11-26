@@ -2,8 +2,9 @@
  * Afisa Ugani design tokens and base styles, shared by Field and HQ.
  *
  * Shambani (outdoor): pale chalk ground, leaf-ink text, maize-yellow actions
- * with ink text — the most sun-readable pairing. Usiku (night): green-black
- * ground, softened text, dimmed maize so the screen doesn't glare in the dark.
+ * with ink text — the most sun-readable pairing. Usiku (night): warm charcoal
+ * greys with soft off-white text and muted borders, so nothing glares in the
+ * dark; the maize brand yellow stays the same.
  */
 @import "@fontsource/atkinson-hyperlegible-next/400.css";
 @import "@fontsource/atkinson-hyperlegible-next/700.css";
@@ -32,30 +33,39 @@
   --mifugo: #8a4b1f;
   --uvuvi: #1d5f86;
   --shadow-lift: 0 1px 0 #b9c4bb;
+  /* Strong borders (focus, open menus) and selected fills. In light mode they
+   * are the ink; in dark mode they are softer so they don't glare. */
+  --line-strong: #10231a;
+  --fill-strong: #10231a;
+  --on-fill-strong: #eef1ec;
 }
 
 [data-theme="usiku"] {
   color-scheme: dark;
-  --ground: #0f1813;
-  --surface: #17231c;
-  --surface-sunk: #0b120e;
-  --ink: #e4ece5;
-  --ink-soft: #a9b8ad;
-  --rule: #2c3b32;
-  --maize: #c99a1c;
-  --maize-press: #b0860f;
-  --on-maize: #0f1813;
+  /* Warm charcoal greys (in the spirit of Claude's dark mode); brand maize kept. */
+  --ground: #262624;
+  --surface: #30302e;
+  --surface-sunk: #1f1e1d;
+  --ink: #e8e6dc; /* 12.6:1 on ground */
+  --ink-soft: #b0aea5; /* 6.6:1 on surface */
+  --rule: #3e3e3a;
+  --line-strong: #8a877e;
+  --fill-strong: #4a4944;
+  --on-fill-strong: #f0eee6;
+  --maize: #f2c230;
+  --maize-press: #d9a915;
+  --on-maize: #1f1e1d;
   --focus: #8ab4ff;
-  --danger: #ff8a7a;
-  --danger-ground: #3a1a16;
-  --ok: #7fd09a;
-  --ok-ground: #14301f;
-  --wait: #f0c65a;
-  --wait-ground: #33290c;
-  --kilimo: #7fbf6a;
-  --mifugo: #d99a6a;
-  --uvuvi: #6fb3dd;
-  --shadow-lift: 0 1px 0 #000;
+  --danger: #f0a093;
+  --danger-ground: #3b2522;
+  --ok: #93cfa3;
+  --ok-ground: #23332a;
+  --wait: #e8c36a;
+  --wait-ground: #3a3222;
+  --kilimo: #8fc47c;
+  --mifugo: #d9a27c;
+  --uvuvi: #82b8dc;
+  --shadow-lift: 0 1px 0 rgba(0, 0, 0, 0.4);
 }
 
 :root {
@@ -203,7 +213,7 @@ textarea {
 .input:focus,
 .select:focus,
 .textarea:focus {
-  border-color: var(--ink);
+  border-color: var(--line-strong);
   outline: none;
 }
 .textarea {
@@ -235,9 +245,9 @@ textarea {
   background: var(--surface-sunk);
 }
 .chip[aria-pressed="true"] {
-  background: var(--ink);
-  color: var(--ground);
-  border-color: var(--ink);
+  background: var(--fill-strong);
+  color: var(--on-fill-strong);
+  border-color: var(--fill-strong);
   box-shadow: inset 0 -3px 0 var(--maize);
 }
 
@@ -326,7 +336,7 @@ textarea {
   border-color: var(--ink-soft);
 }
 .sel-trigger[aria-expanded="true"] {
-  border-color: var(--ink);
+  border-color: var(--line-strong);
 }
 .sel-trigger.is-invalid {
   border-color: var(--danger);
@@ -369,7 +379,7 @@ textarea {
   flex-direction: column;
   background: var(--surface);
   color: var(--ink);
-  border: 2px solid var(--ink);
+  border: 2px solid var(--line-strong);
   font-family: var(--font);
 }
 .sel-panel.is-popover {
@@ -426,7 +436,7 @@ textarea {
 }
 .sel-search:focus {
   outline: none;
-  border-color: var(--ink);
+  border-color: var(--line-strong);
 }
 .sel-list {
   list-style: none;
@@ -502,7 +512,7 @@ textarea {
   max-height: 280px;
   overflow-y: auto;
   background: var(--surface);
-  border: 2px solid var(--ink);
+  border: 2px solid var(--line-strong);
   border-radius: var(--radius-control);
   box-shadow: 0 10px 28px rgb(0 0 0 / 0.16);
 }
@@ -948,9 +958,9 @@ textarea {
   color: inherit;
 }
 .join-section[aria-checked="true"] {
-  border-color: var(--ink);
+  border-color: var(--line-strong);
   border-top-color: var(--sec);
-  box-shadow: inset 0 0 0 1px var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
   background: var(--surface-sunk);
 }
 .join-where {
@@ -1034,7 +1044,7 @@ textarea {
   padding: var(--space-3);
   background: var(--surface);
   color: var(--ink);
-  border: 2px solid var(--ink);
+  border: 2px solid var(--line-strong);
   border-radius: var(--radius-control);
   box-shadow: 0 10px 28px rgb(0 0 0 / 0.18);
   font-family: var(--font);
@@ -1107,8 +1117,8 @@ textarea {
   box-shadow: inset 0 0 0 2px var(--maize);
 }
 .dp-day.is-selected {
-  background: var(--ink);
-  color: var(--ground);
+  background: var(--fill-strong);
+  color: var(--on-fill-strong);
   box-shadow: inset 0 -3px 0 var(--maize);
 }
 .dp-day:disabled {

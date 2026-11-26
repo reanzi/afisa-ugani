@@ -83,8 +83,8 @@ function setup(paper: [number, number, number], ink: [number, number, number]): 
 }
 
 /** The reader's dark paper and ink, as 0–1 RGB. */
-const PAPER: [number, number, number] = [0x10 / 255, 0x13 / 255, 0x11 / 255];
-const INK: [number, number, number] = [0xf0 / 255, 0xf4 / 255, 0xf1 / 255];
+const PAPER: [number, number, number] = [0x26 / 255, 0x26 / 255, 0x24 / 255];
+const INK: [number, number, number] = [0xe8 / 255, 0xe6 / 255, 0xdc / 255];
 
 /** Lightest and darkest luminance (0–1) of a canvas, from a small copy. */
 function lightRange(c: HTMLCanvasElement): { min: number; max: number } | null {

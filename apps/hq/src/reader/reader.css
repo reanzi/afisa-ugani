@@ -17,14 +17,14 @@
   color: var(--ink);
   outline: none;
 }
-/* Dark paper: near-black with a hint of green, bright ink for contrast (>= 13:1). */
+/* Dark paper: warm charcoal with soft off-white ink (12.6:1), matching the app's night theme. */
 .reader.is-dark {
-  --paper: #101311;
-  --paper-ink: #f0f4f1;
-  --paper-soft: #c3ccc6;
-  --paper-rule: #39433d;
-  --paper-head: #1b201d;
-  --desk: #070908;
+  --paper: #262624;
+  --paper-ink: #e8e6dc;
+  --paper-soft: #b0aea5;
+  --paper-rule: #3e3e3a;
+  --paper-head: #30302e;
+  --desk: #1a1918;
 }
 body.reader-open {
   overflow: hidden;

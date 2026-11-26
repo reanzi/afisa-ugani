@@ -2096,8 +2096,8 @@ button.badge.inline {
   min-width: 22px;
   padding: 0 7px;
   border-radius: 999px;
-  background: var(--ink);
-  color: var(--ground);
+  background: var(--fill-strong);
+  color: var(--on-fill-strong);
   font-size: 0.75rem;
   font-weight: 700;
   text-align: center;
