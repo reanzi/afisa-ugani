@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitWithin, isFreshPhoto, validateMediaMeta } from "./media.ts";
+import { fitWithin, isFreshPhoto, photoLabels, validateMediaMeta } from "./media.ts";
 
 describe("media", () => {
   it("fits photos inside the limit without enlarging", () => {
@@ -19,5 +19,16 @@ describe("media", () => {
     expect(isFreshPhoto(now - 30_000, now)).toBe(true);
     expect(isFreshPhoto(now - 3 * 3600_000, now)).toBe(false);
     expect(isFreshPhoto(0, now)).toBe(false);
+  });
+});
+
+describe("photoLabels", () => {
+  it("names a record's crop, animal and severity instead of showing their codes", () => {
+    expect(photoLabels({ type: "pest_outbreak", section: "kilimo", payload: { crop: "mahindi", pest: "Viwavijeshi vamizi", severity: "wastani" } })).toMatchObject({
+      subject: "Mahindi",
+      suspected: "Viwavijeshi vamizi",
+      severity: "Wastani",
+    });
+    expect(photoLabels({ type: "vaccination", section: "mifugo", payload: { animal: "mbuzi" } }).subject).toBe("Mbuzi");
   });
 });

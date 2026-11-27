@@ -98,6 +98,11 @@ function HouseForm({
       if (editing) await update({ ...details, slaughterhouseId: editing, status: f.status });
       else if (placeId) {
         const res = await register({ ...details, placeId });
+        if (res.more) {
+          setNotice(t("Imesajiliwa. Kumbukumbu za maafisa zinaunganishwa nayo sasa; zitaonekana baada ya muda mfupi.", "Registered. Officer records are being linked to it now; they will show shortly."));
+          setBusy(false);
+          return;
+        }
         if (res.linked > 0) {
           setNotice(t(`Imesajiliwa. Kumbukumbu ${res.linked} za maafisa zimeunganishwa nayo.`, `Registered. ${res.linked} officer records are now linked to it.`));
           setBusy(false);

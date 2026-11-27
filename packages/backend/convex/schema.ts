@@ -69,6 +69,24 @@ export default defineSchema({
       }),
     ),
     createdAt: v.number(),
+    /**
+     * Running totals for the council lists, kept by lib/stats.ts on every
+     * membership or area write, so listing all councils reads one row each.
+     * Missing until the first write or the backfill (stats:backfill).
+     */
+    stats: v.optional(
+      v.object({
+        active: v.number(),
+        pending: v.number(),
+        suspended: v.number(),
+        rejected: v.number(),
+        /** Active Head of Department (not root), if seated. */
+        headUserId: v.optional(v.id("users")),
+        wards: v.number(),
+        villages: v.number(),
+        streets: v.number(),
+      }),
+    ),
   })
     .index("by_code", ["code"])
     .index("by_status", ["status"]),
@@ -194,7 +212,11 @@ export default defineSchema({
     .index("by_clientId", ["clientId"])
     .index("by_owner_council_updated", ["ownerId", "councilId", "serverUpdatedAt"])
     .index("by_owner_council_occurred", ["ownerId", "councilId", "occurredAt"])
-    .index("by_council_section_occurred", ["councilId", "section", "occurredAt"]),
+    // One type of an officer's records, e.g. last year's annual answers, without reading the whole year.
+    .index("by_owner_council_type_occurred", ["ownerId", "councilId", "type", "occurredAt"])
+    .index("by_council_section_occurred", ["councilId", "section", "occurredAt"])
+    // One type across a council, e.g. every slaughter record when a place gets registered.
+    .index("by_council_type_occurred", ["councilId", "type", "occurredAt"]),
 
   /**
    * Reports an officer chose to send. This is all HQ ever sees of an

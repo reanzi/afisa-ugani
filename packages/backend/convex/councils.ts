@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { statsOf } from "./lib/stats";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
   canRenewSectionCode,
@@ -258,11 +259,13 @@ export const detail = rootQuery({
         leads.push({ name: presentName(user?.name) || "—", role: m.role, section: m.primarySection });
       }
     }
-    const [wards, villages, streets] = await Promise.all(
-      (["ward", "village", "street"] as const).map((kind) =>
+    // Wards and villages are listed (a few hundred rows); streets, thousands, only counted, so from the stored totals.
+    const [wards, villages] = await Promise.all(
+      (["ward", "village"] as const).map((kind) =>
         ctx.db.query("areas").withIndex("by_council_kind", (q) => q.eq("councilId", councilId).eq("kind", kind)).collect(),
       ),
     );
+    const stats = await statsOf(ctx, c);
     const liveVillages = villages!.filter((a) => a.archivedAt === undefined);
     const wardList = wards!
       .filter((w) => w.archivedAt === undefined)
@@ -279,7 +282,7 @@ export const detail = rootQuery({
       registrationOpen: c.registrationOpen,
       createdAt: c.createdAt,
       addressImport: c.addressImport ?? null,
-      areas: { wards: wardList.length, villages: liveVillages.length, streets: streets!.filter((a) => a.archivedAt === undefined).length },
+      areas: { wards: wardList.length, villages: liveVillages.length, streets: stats.streets },
       wards: wardList,
       members: byStatus,
       byRole,
@@ -291,29 +294,15 @@ export const detail = rootQuery({
   },
 });
 
-/** Name of the council's active Head of Department, if seated (root is never counted). */
-async function headName(ctx: QueryCtx, councilId: Id<"councils">): Promise<string | null> {
-  const active = await ctx.db
-    .query("memberships")
-    .withIndex("by_council_status", (q) => q.eq("councilId", councilId).eq("status", "active"))
-    .collect();
-  for (const m of active) {
-    if (m.role !== "admin") continue;
-    const user = await ctx.db.get(m.userId);
-    if (user && !user.isRoot) return presentName(user.name) || "—";
-  }
-  return null;
-}
-
-/** Every council with member counts (root only). */
+/** Every council with member counts (root only). Reads the stored totals: one row per council. */
 export const listAll = rootQuery({
   args: {},
   handler: async (ctx) => {
     const councils = await ctx.db.query("councils").collect();
     return Promise.all(
       councils.map(async (c) => {
-        const count = async (status: "active" | "pending") =>
-          (await ctx.db.query("memberships").withIndex("by_council_status", (q) => q.eq("councilId", c._id).eq("status", status)).collect()).length;
+        const stats = await statsOf(ctx, c);
+        const head = stats.headUserId ? await ctx.db.get(stats.headUserId) : null;
         return {
           _id: c._id,
           name: presentName(c.name),
@@ -324,10 +313,11 @@ export const listAll = rootQuery({
           registrationOpen: c.registrationOpen,
           validCode: isValidCouncilCode(c.code),
           addressImport: c.addressImport ?? null,
-          hasAddresses: await hasAddresses(ctx, c._id),
-          head: await headName(ctx, c._id),
-          active: await count("active"),
-          pending: await count("pending"),
+          hasAddresses: stats.villages > 0,
+          head: head ? presentName(head.name) || "—" : null,
+          active: stats.active,
+          pending: stats.pending,
+          areas: { wards: stats.wards, villages: stats.villages, streets: stats.streets },
           createdAt: c.createdAt,
         };
       }),

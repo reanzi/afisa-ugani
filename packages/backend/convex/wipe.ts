@@ -17,7 +17,8 @@
  * to delete them; with the account and username gone they are unreachable).
  */
 import { v } from "convex/values";
-import { internalMutation, type MutationCtx, type QueryCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { internalMutation } from "./lib/functions";
 import { components, internal } from "./_generated/api";
 import type { Doc, Id, TableNames } from "./_generated/dataModel";
 import { fail, rootMutation, rootQuery } from "./lib/guards";

@@ -18,7 +18,8 @@
  */
 import { v } from "convex/values";
 import { api, components, internal } from "./_generated/api";
-import { internalAction, internalMutation } from "./_generated/server";
+import { internalAction } from "./_generated/server";
+import { internalMutation } from "./lib/functions";
 import type { Id } from "./_generated/dataModel";
 import { formatCouncilCode, storeName } from "@afisa/shared";
 import { ensureSectionCodes, findCouncilByCode, newCouncilCode } from "./councils";

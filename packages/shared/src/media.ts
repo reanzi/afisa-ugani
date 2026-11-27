@@ -8,7 +8,7 @@
  * model); the record's own location is kept separately.
  */
 import { L } from "./lang.ts";
-import { ANIMALS, ALL_CROPS, type Option } from "./catalogs.ts";
+import { ANIMALS, ALL_CROPS, SEVERITY, type Option } from "./catalogs.ts";
 
 export const MEDIA_MAX_EDGE = 1600;
 export const MEDIA_THUMB_EDGE = 320;
@@ -123,9 +123,11 @@ export function photoLabels(record: { type: string; section: string; payload: Re
     out.stage = GROWTH_STAGES.find((g) => g.value === p.stage)?.label ?? str(p.stage);
   } else {
     // Other records: the crop or animal and the problem, where the form has them.
-    out.subject = str(p.crop) ?? str(p.animal) ?? str(p.species) ?? str(p.commodity);
+    // Stored values are codes ("mahindi", "wastani"); show their names, as photo records do.
+    const named = (list: readonly Option[], v: unknown) => list.find((o) => o.value === v)?.label ?? str(v);
+    out.subject = named(ALL_CROPS, p.crop) ?? named(ANIMALS, p.animal) ?? str(p.species) ?? str(p.commodity);
     out.suspected = str(p.pest) ?? str(p.disease);
-    out.severity = str(p.severity);
+    out.severity = named(SEVERITY, p.severity);
   }
   return out;
 }

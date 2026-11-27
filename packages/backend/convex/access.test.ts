@@ -11,6 +11,7 @@ import { registerUsername } from "@convex-dev/auth/components/username/test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { countCouncilStats } from "./lib/stats";
 import { buildQuarterlyReport, buildWeeklyReport, COUNCIL_UTC_OFFSET_MINUTES, shiftWeek, toCouncilWallClock, weekKey, weekRange } from "@afisa/shared";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -264,6 +265,35 @@ describe("council codes and NaPA addresses", () => {
     expect(detail?.leads).toEqual([{ name: "Mkuu wa Idara", role: "admin", section: "kilimo" }]);
     await expect(hod.query(api.councils.detail, { councilId })).rejects.toThrow(/ruhusa/);
   });
+
+  it("keeps council totals on the council row in step with members and areas", async () => {
+    const { t, councilId, hod, village } = await world();
+    const root = await rootOf(t);
+    const stored = () => t.run(async (ctx) => (await ctx.db.get(councilId))!.stats);
+    const counted = () => t.run((ctx) => countCouncilStats(ctx, councilId));
+
+    await root.mutation(api.areas.importNapaWard, { councilId, ward });
+    expect(await stored()).toEqual(await counted());
+
+    const a = await join(t, "afisa_jumla_1", councilId, "kilimo");
+    await join(t, "afisa_jumla_2", councilId, "kilimo");
+    expect(await stored()).toEqual(await counted());
+    expect((await stored())!.pending).toBe(2);
+
+    await hod.mutation(api.memberships.approve, { role: "officer", level: "vaeo", councilId, membershipId: a.membershipId, areaIds: [village], client: hq });
+    const s = (await stored())!;
+    expect(s).toEqual(await counted());
+    expect(s).toMatchObject({ pending: 1 });
+    expect(s.headUserId).toBeDefined();
+
+    const row = (await root.query(api.councils.listAll, {})).find((c) => c._id === councilId)!;
+    expect(row).toMatchObject({ active: s.active, pending: 1, head: "Mkuu wa Idara", areas: { wards: s.wards, villages: s.villages, streets: s.streets } });
+    expect((await root.query(api.councils.detail, { councilId }))?.areas.streets).toBe(s.streets);
+
+    // A fresh count by the backfill gives the same totals.
+    await t.mutation(internal.stats.recount, { councilId });
+    expect(await stored()).toEqual(s);
+  });
 });
 
 describe("section codes", () => {
@@ -454,7 +484,9 @@ describe("HQ sees sent reports only, and a sent report is sealed", () => {
       ],
     });
     const queued = await t.mutation(internal.autoSend.runFood, { period: "2026-11" });
-    expect(queued).toMatchObject({ councils: 1, queued: 2 }); // officers only, not the Head of Department
+    expect(queued).toMatchObject({ councils: 1 });
+    // The council job queues its officers only, not the Head of Department.
+    expect(await t.mutation(internal.autoSend.forCouncil, { councilId, job: { kind: "food", period: "2026-11" } })).toBe(2);
     expect(await t.mutation(internal.autoSend.foodForOfficer, { membershipId, period: "2026-11" })).toBe("sent");
     expect(await t.mutation(internal.autoSend.foodForOfficer, { membershipId, period: "2026-11" })).toBe("already-sent");
     expect(await t.mutation(internal.autoSend.foodForOfficer, { membershipId: idle.membershipId, period: "2026-11" })).toBe("nothing-entered");
@@ -551,7 +583,9 @@ describe("HQ sees sent reports only, and a sent report is sealed", () => {
       ],
     });
     const queued = await t.mutation(internal.autoSend.runWeekly, { week });
-    expect(queued.queued).toBe(1); // kilimo only: mifugo weekly reports are off
+    expect(queued.councils).toBe(1);
+    // kilimo only: mifugo weekly reports are off
+    expect(await t.mutation(internal.autoSend.forCouncil, { councilId, job: { kind: "weekly", week, sections: ["kilimo"] } })).toBe(1);
     expect(await t.mutation(internal.autoSend.weeklyForOfficer, { membershipId, week, section: "kilimo" })).toBe("sent");
     const seen = await hod.query(api.submissions.forHq, { councilId, kind: "weekly_kilimo", period: week });
     expect(seen).toHaveLength(1);

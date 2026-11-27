@@ -45,7 +45,8 @@ import {
 } from "@afisa/shared";
 import { internal } from "./_generated/api";
 import { approvedPresetsOf } from "./presets";
-import { internalMutation, type MutationCtx } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
+import { internalMutation } from "./lib/functions";
 import type { Doc, Id } from "./_generated/dataModel";
 import { areaLabelOf, findSubmission, insertSubmission, weeklyOf } from "./submissions";
 
@@ -60,6 +61,54 @@ async function officersOf(ctx: MutationCtx, councilId: Id<"councils">) {
       .collect()
   ).filter((m) => m.role === "officer");
 }
+
+async function activeCouncils(ctx: MutationCtx) {
+  return await ctx.db.query("councils").withIndex("by_status", (q) => q.eq("status", "active")).collect();
+}
+
+const vJob = v.union(
+  v.object({ kind: v.literal("food"), period: v.string() }),
+  v.object({ kind: v.literal("monthly"), period: v.string() }),
+  v.object({ kind: v.literal("weekly"), week: v.string(), sections: v.array(v.union(v.literal("mifugo"), v.literal("kilimo"))) }),
+  v.object({ kind: v.literal("periodic"), quarter: v.optional(v.string()), year: v.optional(v.string()) }),
+);
+
+/**
+ * Second step of every auto-send cron: queue one small job per officer of one
+ * council. The crons only queue one of these per council, so no single
+ * function schedules thousands of jobs when the whole country is on.
+ */
+export const forCouncil = internalMutation({
+  args: { councilId: v.id("councils"), job: vJob },
+  handler: async (ctx, { councilId, job }) => {
+    let queued = 0;
+    for (const m of await officersOf(ctx, councilId)) {
+      switch (job.kind) {
+        case "food":
+          await ctx.scheduler.runAfter(0, internal.autoSend.foodForOfficer, { membershipId: m._id, period: job.period });
+          queued++;
+          break;
+        case "monthly":
+          await ctx.scheduler.runAfter(0, internal.autoSend.monthlyForOfficer, { membershipId: m._id, period: job.period });
+          queued++;
+          break;
+        case "weekly":
+          for (const section of job.sections) {
+            if (!m.sections.includes(section)) continue;
+            await ctx.scheduler.runAfter(0, internal.autoSend.weeklyForOfficer, { membershipId: m._id, week: job.week, section });
+            queued++;
+          }
+          break;
+        case "periodic":
+          if (job.quarter) await ctx.scheduler.runAfter(0, internal.autoSend.periodicForOfficer, { membershipId: m._id, kind: "quarterly", period: job.quarter });
+          if (job.year) await ctx.scheduler.runAfter(0, internal.autoSend.periodicForOfficer, { membershipId: m._id, kind: "annual", period: job.year });
+          queued++;
+          break;
+      }
+    }
+    return queued;
+  },
+});
 
 /** Records of one officer between two wall-clock times, with times shifted to wall clock. */
 async function wallClockRecords(ctx: MutationCtx, m: Doc<"memberships">, fromWall: number, toWall: number) {
@@ -88,20 +137,14 @@ async function owner(ctx: MutationCtx, m: Doc<"memberships">) {
   };
 }
 
-/** Cron, the 22nd: queue one small job per officer of each council that switched food auto-send on. */
+/** Cron, the 22nd: one job per council that switched food auto-send on; each queues its officers (see forCouncil). */
 export const runFood = internalMutation({
   args: { period: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const period = args.period ?? monthKey(new Date(toCouncilWallClock(Date.now())));
-    const councils = (await ctx.db.query("councils").withIndex("by_status", (q) => q.eq("status", "active")).collect()).filter((c) => c.autoSend?.food);
-    let queued = 0;
-    for (const c of councils) {
-      for (const m of await officersOf(ctx, c._id)) {
-        await ctx.scheduler.runAfter(0, internal.autoSend.foodForOfficer, { membershipId: m._id, period });
-        queued++;
-      }
-    }
-    return { period, councils: councils.length, queued };
+    const councils = (await activeCouncils(ctx)).filter((c) => c.autoSend?.food);
+    for (const c of councils) await ctx.scheduler.runAfter(0, internal.autoSend.forCouncil, { councilId: c._id, job: { kind: "food", period } });
+    return { period, councils: councils.length };
   },
 });
 
@@ -136,15 +179,9 @@ export const runMonthly = internalMutation({
   args: { period: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const period = args.period ?? shiftMonth(monthKey(new Date(toCouncilWallClock(Date.now()))), -1);
-    const councils = (await ctx.db.query("councils").withIndex("by_status", (q) => q.eq("status", "active")).collect()).filter((c) => c.autoSend?.monthly);
-    let queued = 0;
-    for (const c of councils) {
-      for (const m of await officersOf(ctx, c._id)) {
-        await ctx.scheduler.runAfter(0, internal.autoSend.monthlyForOfficer, { membershipId: m._id, period });
-        queued++;
-      }
-    }
-    return { period, councils: councils.length, queued };
+    const councils = (await activeCouncils(ctx)).filter((c) => c.autoSend?.monthly);
+    for (const c of councils) await ctx.scheduler.runAfter(0, internal.autoSend.forCouncil, { councilId: c._id, job: { kind: "monthly", period } });
+    return { period, councils: councils.length };
   },
 });
 
@@ -200,21 +237,16 @@ export const runWeekly = internalMutation({
   args: { week: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const week = args.week ?? shiftWeek(weekKey(new Date(toCouncilWallClock(Date.now()))), -1);
-    const councils = await ctx.db.query("councils").withIndex("by_status", (q) => q.eq("status", "active")).collect();
-    let queued = 0;
-    for (const c of councils) {
+    let councils = 0;
+    for (const c of await activeCouncils(ctx)) {
       const weekly = weeklyOf(c);
-      for (const section of ["mifugo", "kilimo"] as const) {
-        // Switched on means asked for, and auto-sent when the officer has not sent it.
-        if (!weekly[section].on) continue;
-        for (const m of await officersOf(ctx, c._id)) {
-          if (!m.sections.includes(section)) continue;
-          await ctx.scheduler.runAfter(0, internal.autoSend.weeklyForOfficer, { membershipId: m._id, week, section });
-          queued++;
-        }
-      }
+      // Switched on means asked for, and auto-sent when the officer has not sent it.
+      const sections = (["mifugo", "kilimo"] as const).filter((s) => weekly[s].on);
+      if (sections.length === 0) continue;
+      await ctx.scheduler.runAfter(0, internal.autoSend.forCouncil, { councilId: c._id, job: { kind: "weekly", week, sections } });
+      councils++;
     }
-    return { week, queued };
+    return { week, councils };
   },
 });
 
@@ -268,17 +300,15 @@ export const runPeriodic = internalMutation({
     const endsQuarter = ["03", "06", "09", "12"].includes(lastMonth.slice(5));
     const quarter = args.quarter ?? (endsQuarter ? quarterKey(lastMonth) : null);
     const year = args.year ?? (lastMonth.endsWith("-06") ? fyKey(lastMonth) : null);
-    if (!quarter && !year) return { quarter, year, councils: 0, queued: 0 };
-    const councils = (await ctx.db.query("councils").withIndex("by_status", (q) => q.eq("status", "active")).collect()).filter((c) => c.autoSend?.monthly);
-    let queued = 0;
+    if (!quarter && !year) return { quarter, year, councils: 0 };
+    const councils = (await activeCouncils(ctx)).filter((c) => c.autoSend?.monthly);
     for (const c of councils) {
-      for (const m of await officersOf(ctx, c._id)) {
-        if (quarter) await ctx.scheduler.runAfter(0, internal.autoSend.periodicForOfficer, { membershipId: m._id, kind: "quarterly", period: quarter });
-        if (year) await ctx.scheduler.runAfter(0, internal.autoSend.periodicForOfficer, { membershipId: m._id, kind: "annual", period: year });
-        queued++;
-      }
+      await ctx.scheduler.runAfter(0, internal.autoSend.forCouncil, {
+        councilId: c._id,
+        job: { kind: "periodic", quarter: quarter ?? undefined, year: year ?? undefined },
+      });
     }
-    return { quarter, year, councils: councils.length, queued };
+    return { quarter, year, councils: councils.length };
   },
 });
 
@@ -300,8 +330,13 @@ export const periodicForOfficer = internalMutation({
     if (kind === "annual") {
       const last = shiftFy(period, -1);
       const range = periodRange(fyKeyMonths(last));
-      const before = await wallClockRecords(ctx, m, range.start, range.end);
-      previous = (before.find((r) => r.type === "annual_review" && !r.deletedAt && r.payload.period === last)?.payload as PeriodReview | undefined) ?? null;
+      const reviews = await ctx.db
+        .query("records")
+        .withIndex("by_owner_council_type_occurred", (q) =>
+          q.eq("ownerId", m.userId).eq("councilId", m.councilId).eq("type", "annual_review").gte("occurredAt", range.start - OFFSET).lt("occurredAt", range.end - OFFSET),
+        )
+        .collect();
+      previous = (reviews.find((r) => !r.deletedAt && (r.payload as { period?: string }).period === last)?.payload as PeriodReview | undefined) ?? null;
     }
     const areas = new Map<string, string>();
     for (const k of ["ward", "village"] as const) {

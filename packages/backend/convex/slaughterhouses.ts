@@ -7,6 +7,8 @@
 import { v } from "convex/values";
 import { canReopenReport, placeKey, presentMaybe, presentName, storeName, UNREGISTERED_PLACE } from "@afisa/shared";
 import type { MutationCtx } from "./_generated/server";
+import { internalMutation } from "./lib/functions";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { fail, hqMutation, hqQuery, memberQuery, type MemberViewer } from "./lib/guards";
 import { writeAudit } from "./lib/audit";
@@ -114,27 +116,40 @@ async function checkDetails(ctx: MutationCtx, viewer: MemberViewer, d: Details, 
   return { name, kind: d.kind, areaId: d.areaId, servesAreaIds: serves, servesAll: d.servesAll, geo: d.geo, licence };
 }
 
+/** Slaughter records looked at per step; the rest go to a scheduled job, so a big council never hits the read limits. */
+const LINK_PAGE = 400;
+
 /**
- * Point an officer's records made at an unregistered place to the
- * slaughterhouse it became. The phones pick the change up on their next sync.
+ * Point officers' records made at an unregistered place to the slaughterhouse
+ * it became, one page at a time. The phones pick the change up on their next sync.
  */
-async function linkRecords(ctx: MutationCtx, councilId: Id<"councils">, key: string, house: { _id: Id<"slaughterhouses">; name: string }) {
-  const rows = await ctx.db
+async function linkPage(ctx: MutationCtx, councilId: Id<"councils">, key: string, house: { _id: Id<"slaughterhouses">; name: string }, cursor: string | null) {
+  const page = await ctx.db
     .query("records")
-    .withIndex("by_council_section_occurred", (q) => q.eq("councilId", councilId).eq("section", "mifugo"))
-    .collect();
+    .withIndex("by_council_type_occurred", (q) => q.eq("councilId", councilId).eq("type", "slaughter"))
+    .paginate({ cursor, numItems: LINK_PAGE });
   const now = Date.now();
   let linked = 0;
-  for (const r of rows) {
-    if (r.deletedAt || r.type !== "slaughter") continue;
+  for (const r of page.page) {
+    if (r.deletedAt) continue;
     const p = r.payload as Record<string, unknown>;
     if (p.slaughterhouseId !== UNREGISTERED_PLACE || typeof p.slaughterhouse !== "string") continue;
     if (placeKey(p.slaughterhouse, r.areaId) !== key) continue;
     await ctx.db.patch(r._id, { payload: { ...p, slaughterhouseId: house._id, slaughterhouse: presentName(house.name) }, serverUpdatedAt: now });
     linked++;
   }
-  return linked;
+  if (!page.isDone) {
+    await ctx.scheduler.runAfter(0, internal.slaughterhouses.linkRest, { councilId, key, houseId: house._id, name: house.name, cursor: page.continueCursor });
+  }
+  return { linked, more: !page.isDone };
 }
+
+export const linkRest = internalMutation({
+  args: { councilId: v.id("councils"), key: v.string(), houseId: v.id("slaughterhouses"), name: v.string(), cursor: v.string() },
+  handler: async (ctx, { councilId, key, houseId, name, cursor }) => {
+    return (await linkPage(ctx, councilId, key, { _id: houseId, name }, cursor)).linked;
+  },
+});
 
 export const create = hqMutation({
   args: vDetails,
@@ -182,7 +197,7 @@ export const registerPlace = hqMutation({
     const now = Date.now();
     const id = await ctx.db.insert("slaughterhouses", { councilId: viewer.councilId, ...clean, status: "active", createdBy: viewer.userId, createdAt: now, updatedAt: now });
     await ctx.db.patch(placeId, { status: "registered", slaughterhouseId: id });
-    const linked = await linkRecords(ctx, viewer.councilId, place.key, { _id: id, name: clean.name });
+    const { linked, more } = await linkPage(ctx, viewer.councilId, place.key, { _id: id, name: clean.name }, null);
     await writeAudit(ctx, viewer, {
       action: "slaughterhouse.register",
       entity: "slaughterhouses",
@@ -191,7 +206,7 @@ export const registerPlace = hqMutation({
       before: { place: place.name },
       after: { name: clean.name, areaId: clean.areaId, linked },
     });
-    return { slaughterhouseId: id, linked };
+    return { slaughterhouseId: id, linked, more };
   },
 });
 

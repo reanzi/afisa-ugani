@@ -14,7 +14,8 @@ import { ConvexError, v } from "convex/values";
 import { customMutation, customQuery } from "convex-helpers/server/customFunctions";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { canUseHq, workingSections, authoritySections, type Actor } from "@afisa/shared";
-import { mutation, query, type MutationCtx, type QueryCtx } from "../_generated/server";
+import { query, type MutationCtx, type QueryCtx } from "../_generated/server";
+import { mutation } from "./functions";
 import type { Doc, Id } from "../_generated/dataModel";
 import { vClientMeta } from "./validators";
 

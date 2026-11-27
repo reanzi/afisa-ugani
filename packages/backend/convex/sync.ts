@@ -18,7 +18,6 @@ import {
   validatePayload,
   slaughterhouseOffered,
   UNREGISTERED_PLACE,
-  workAreaIds,
 } from "@afisa/shared";
 import type { QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
@@ -230,7 +229,19 @@ async function atOfferedSlaughterhouse(
   if (!houseId) return false;
   const house = await ctx.db.get(houseId);
   if (!house || house.councilId !== councilId || house.areaId !== r.areaId) return false;
-  const areas = await ctx.db.query("areas").withIndex("by_council_kind", (q) => q.eq("councilId", councilId)).collect();
-  const work = workAreaIds([...assigned], areas.map((a) => ({ _id: a._id as string, parentId: (a.parentId as string | undefined) ?? null })));
+  // The same answer as workAreaIds over the whole council, but reading only the
+  // few areas that can matter: the officer's areas (for their parents) and the
+  // house's areas (for theirs). A council has thousands of areas; this runs per record.
+  const work = new Set<string>(assigned);
+  for (const a of assigned) {
+    const id = ctx.db.normalizeId("areas", a);
+    const area = id ? await ctx.db.get(id) : null;
+    if (area?.parentId) work.add(area.parentId);
+  }
+  for (const c of [house.areaId, ...house.servesAreaIds]) {
+    if (work.has(c)) continue;
+    const area = await ctx.db.get(c);
+    if (area?.parentId && assigned.has(area.parentId)) work.add(c);
+  }
   return slaughterhouseOffered({ ...house, servesAreaIds: house.servesAreaIds }, work);
 }

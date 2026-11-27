@@ -448,34 +448,37 @@ export const photosForHq = hqQuery({
       .query("records")
       .withIndex("by_owner_council_occurred", (q) => q.eq("ownerId", s.ownerId).eq("councilId", viewer.councilId).gte("occurredAt", start).lt("occurredAt", end))
       .collect();
+    const byClientId = new Map(records.filter((r) => !r.deletedAt).map((r) => [r.clientId, r]));
+    // One range read instead of one per record (an annual report has thousands of
+    // records). A photo is saved after its record was made, so it was last
+    // updated no earlier than the period start.
+    const media = await ctx.db
+      .query("media")
+      .withIndex("by_owner_council_updated", (q) => q.eq("ownerId", s.ownerId).eq("councilId", viewer.councilId).gte("updatedAt", start))
+      .collect();
+    const shown = media.filter((p) => !p.deletedAt && byClientId.has(p.recordClientId));
+    const urls = await Promise.all(shown.map((p) => ctx.storage.getUrl(p.storageId)));
     const out = [];
-    for (const r of records) {
-      if (r.deletedAt) continue;
-      const media = await ctx.db
-        .query("media")
-        .withIndex("by_record", (q) => q.eq("recordClientId", r.clientId))
-        .collect();
-      for (const p of media) {
-        if (p.deletedAt || p.ownerId !== s.ownerId) continue;
-        const url = await ctx.storage.getUrl(p.storageId);
-        if (!url) continue;
-        out.push({
-          clientId: p.clientId,
-          url,
-          width: p.width,
-          height: p.height,
-          shot: p.shot,
-          caption: p.caption ?? null,
-          takenAt: p.takenAt,
-          record: {
-            type: r.type,
-            section: r.section,
-            occurredAt: r.occurredAt,
-            summary: summarize(r.type, r.payload as Record<string, unknown>),
-            labels: photoLabels({ type: r.type, section: r.section, payload: r.payload as Record<string, unknown> }),
-          },
-        });
-      }
+    for (const [i, p] of shown.entries()) {
+      const url = urls[i];
+      const r = byClientId.get(p.recordClientId)!;
+      if (!url) continue;
+      out.push({
+        clientId: p.clientId,
+        url,
+        width: p.width,
+        height: p.height,
+        shot: p.shot,
+        caption: p.caption ?? null,
+        takenAt: p.takenAt,
+        record: {
+          type: r.type,
+          section: r.section,
+          occurredAt: r.occurredAt,
+          summary: summarize(r.type, r.payload as Record<string, unknown>),
+          labels: photoLabels({ type: r.type, section: r.section, payload: r.payload as Record<string, unknown> }),
+        },
+      });
     }
     return out.sort((a, b) => a.record.occurredAt - b.record.occurredAt || a.takenAt - b.takenAt);
   },
